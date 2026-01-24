@@ -3,9 +3,15 @@ export type Gig = {
   artist: string;
   venue: string;
   city: string;
-  date: string;
+  date: string; // YYYY-MM-DD
   rating?: number;
   notes?: string;
+
+  // optional enrichment / imports
+  externalSource?: string;
+  externalId?: string;
+  artistMbid?: string;
+  ticketUrl?: string;
 };
 
 export type GigsResponse = {
@@ -20,4 +26,9 @@ export type CreateGigInput = {
   date: string;
   rating?: number;
   notes?: string;
+
+  externalSource?: string;
+  externalId?: string;
+  artistMbid?: string;
+  ticketUrl?: string;
 };

@@ -1,7 +1,8 @@
 import React from "react";
-import { View, Pressable, Text } from "react-native";
-import { GigsScreen } from "./src/screens/GigsScreen";
-import { AddGigScreen } from "./src/screens/AddGigScreen";
+import { GigsScreen } from "./src/pages/GigsScreen";
+import { AddGigScreen } from "./src/pages/AddGigScreen";
+import { DiscoverScreen } from "./src/pages/DiscoverScreen";
+
 
 type Tab = "gigs" | "add";
 

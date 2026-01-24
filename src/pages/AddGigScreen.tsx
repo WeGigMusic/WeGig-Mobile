@@ -22,7 +22,11 @@ const inputStyle = {
   fontSize: 16,
 } as const;
 
-export function AddGigScreen(props: { onCreated?: (gig: Gig) => void }) {
+export function AddGigScreen(props: {
+  onCreated?: (gig: Gig) => void;
+  prefill?: Partial<CreateGigInput> | null;
+  onPrefillUsed?: () => void;
+}) {
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
   const [city, setCity] = React.useState("");
@@ -30,6 +34,46 @@ export function AddGigScreen(props: { onCreated?: (gig: Gig) => void }) {
   const [rating, setRating] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+
+  // Optional import fields
+  const [externalSource, setExternalSource] = React.useState<string | undefined>(
+    undefined,
+  );
+  const [externalId, setExternalId] = React.useState<string | undefined>(
+    undefined,
+  );
+  const [artistMbid, setArtistMbid] = React.useState<string | undefined>(
+    undefined,
+  );
+  const [ticketUrl, setTicketUrl] = React.useState<string | undefined>(
+    undefined,
+  );
+
+  React.useEffect(() => {
+    if (!props.prefill) return;
+
+    if (props.prefill.artist != null) setArtist(String(props.prefill.artist));
+    if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
+    if (props.prefill.city != null) setCity(String(props.prefill.city));
+    if (props.prefill.date != null) setDate(String(props.prefill.date));
+    if (props.prefill.notes != null) setNotes(String(props.prefill.notes));
+
+    if (props.prefill.rating != null)
+      setRating(String(props.prefill.rating ?? ""));
+
+    // import metadata
+    if (props.prefill.externalSource != null)
+      setExternalSource(String(props.prefill.externalSource));
+    if (props.prefill.externalId != null)
+      setExternalId(String(props.prefill.externalId));
+    if (props.prefill.artistMbid != null)
+      setArtistMbid(String(props.prefill.artistMbid));
+    if (props.prefill.ticketUrl != null)
+      setTicketUrl(String(props.prefill.ticketUrl));
+
+    props.onPrefillUsed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.prefill]);
 
   const onSave = async () => {
     const payload: CreateGigInput = {
@@ -39,6 +83,10 @@ export function AddGigScreen(props: { onCreated?: (gig: Gig) => void }) {
       date: date.trim(),
       rating: rating.trim() ? Number(rating.trim()) : undefined,
       notes: notes.trim() ? notes.trim() : undefined,
+      externalSource: externalSource?.trim() || undefined,
+      externalId: externalId?.trim() || undefined,
+      artistMbid: artistMbid?.trim() || undefined,
+      ticketUrl: ticketUrl?.trim() || undefined,
     };
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
@@ -56,6 +104,10 @@ export function AddGigScreen(props: { onCreated?: (gig: Gig) => void }) {
       setDate("");
       setRating("");
       setNotes("");
+      setExternalSource(undefined);
+      setExternalId(undefined);
+      setArtistMbid(undefined);
+      setTicketUrl(undefined);
       props.onCreated?.(created);
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to save gig");
@@ -78,7 +130,7 @@ export function AddGigScreen(props: { onCreated?: (gig: Gig) => void }) {
             <TextInput
               value={artist}
               onChangeText={setArtist}
-              placeholder="e.g. Fred again.."
+              placeholder="e.g. Arctic Monkeys"
               autoCapitalize="words"
               style={inputStyle}
             />

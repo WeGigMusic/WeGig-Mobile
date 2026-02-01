@@ -9,7 +9,7 @@ import {
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { apiGet } from "../lib/api";
-import type { CreateGigInput } from "../types/gig";
+import type { CreateGigInput } from "../shared/types/Gig";
 
 type TicketmasterEvent = {
   id: string;
@@ -32,6 +32,16 @@ type TicketmasterResponse = {
   _embedded?: {
     events?: TicketmasterEvent[];
   };
+};
+
+const COLORS = {
+  bg: "#0B0B10",
+  card: "#141422",
+  card2: "#10101A",
+  text: "#FFFFFF",
+  muted: "rgba(255,255,255,0.65)",
+  faint: "rgba(255,255,255,0.12)",
+  danger: "#FF4D4D",
 };
 
 function pickVenue(e: TicketmasterEvent) {
@@ -57,7 +67,6 @@ export function DiscoverScreen(props: {
     setError("");
     try {
       const qs = new URLSearchParams();
-
       if (query.trim()) qs.set("q", query.trim());
       if (city.trim()) qs.set("city", city.trim());
       qs.set("size", "20");
@@ -66,8 +75,7 @@ export function DiscoverScreen(props: {
         `/tm/events/search?${qs.toString()}`,
       );
 
-      const list = res._embedded?.events ?? [];
-      setEvents(list);
+      setEvents(res._embedded?.events ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Search failed");
       setEvents([]);
@@ -76,39 +84,83 @@ export function DiscoverScreen(props: {
     }
   }, [city, query]);
 
+  const hasResults = events.length > 0;
+
   return (
-    <SafeAreaView style={{ flex: 1, padding: 16 }}>
-      <Text style={{ fontSize: 24, fontWeight: "800" }}>Discover</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      {/* Header + Search */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
+        <View
+          style={{
+            backgroundColor: COLORS.card,
+            borderRadius: 18,
+            padding: 14,
+            borderWidth: 1,
+            borderColor: COLORS.faint,
+          }}
+        >
+          <Text style={{ color: COLORS.text, fontSize: 26, fontWeight: "900" }}>
+            Discover
+          </Text>
 
-      <View style={{ marginTop: 12, gap: 12 }}>
-        <TextField
-          label="City"
-          value={city}
-          onChangeText={setCity}
-          placeholder="e.g. London"
-          autoCapitalize="words"
-        />
+          <Text style={{ color: COLORS.muted, marginTop: 6, lineHeight: 20 }}>
+            Search Ticketmaster and prefill your gig log in one tap.
+          </Text>
 
-        <TextField
-          label="Search"
-          value={query}
-          onChangeText={setQuery}
-          placeholder="e.g. Arctic Monkeys"
-          autoCapitalize="none"
-        />
+          <View style={{ marginTop: 12, gap: 12 }}>
+            <TextField
+              label="City"
+              value={city}
+              onChangeText={setCity}
+              placeholder="e.g. London"
+              autoCapitalize="words"
+            />
 
-        <PrimaryButton title="Search Ticketmaster" onPress={search} />
+            <TextField
+              label="Search"
+              value={query}
+              onChangeText={setQuery}
+              placeholder="e.g. Arctic Monkeys"
+              autoCapitalize="none"
+            />
 
-        {loading ? <ActivityIndicator /> : null}
-        {error ? <Text style={{ color: "crimson" }}>{error}</Text> : null}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <PrimaryButton title="Search Ticketmaster" onPress={search} />
+              {loading ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <ActivityIndicator />
+                  <Text style={{ color: COLORS.muted, fontWeight: "600" }}>
+                    Searching…
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            {error ? (
+              <Text style={{ color: COLORS.danger, fontWeight: "700" }}>
+                {error}
+              </Text>
+            ) : null}
+
+            {!loading && !error && !hasResults ? (
+              <Text style={{ color: COLORS.muted }}>
+                Try searching an artist or band name (e.g. “Coldplay”).
+              </Text>
+            ) : null}
+          </View>
+        </View>
       </View>
 
+      {/* Results */}
       <FlatList
-        style={{ marginTop: 14 }}
+        style={{ flex: 1 }}
         data={events}
         keyExtractor={(item) => item.id}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        contentContainerStyle={{ paddingBottom: 24 }}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingBottom: 24,
+        }}
         renderItem={({ item }) => {
           const date = item.dates?.start?.localDate ?? "";
           const v = pickVenue(item);
@@ -116,21 +168,28 @@ export function DiscoverScreen(props: {
           return (
             <View
               style={{
+                backgroundColor: COLORS.card2,
+                borderRadius: 18,
+                padding: 14,
                 borderWidth: 1,
-                borderColor: "rgba(0,0,0,0.1)",
-                borderRadius: 14,
-                padding: 12,
+                borderColor: COLORS.faint,
               }}
             >
-              <Text style={{ fontSize: 16, fontWeight: "800" }}>
+              <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: "900" }}>
                 {item.name}
               </Text>
-              <Text style={{ opacity: 0.8 }}>
+
+              <Text style={{ color: COLORS.muted, marginTop: 6, fontWeight: "600" }}>
                 {v.venue} • {v.city}
               </Text>
-              {date ? <Text style={{ opacity: 0.6 }}>{date}</Text> : null}
 
-              <View style={{ marginTop: 10 }}>
+              {date ? (
+                <Text style={{ color: COLORS.muted, marginTop: 4 }}>
+                  {date}
+                </Text>
+              ) : null}
+
+              <View style={{ marginTop: 12, alignSelf: "flex-start" }}>
                 <PrimaryButton
                   title="Add to gigs"
                   onPress={() => {

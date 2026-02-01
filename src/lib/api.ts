@@ -1,34 +1,60 @@
-const BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL;
+const BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
+  "http://localhost:5050";
 
-if (!BASE_URL) {
-  throw new Error("EXPO_PUBLIC_API_BASE_URL is not set");
-}
+const DEFAULT_TIMEOUT_MS = 45000; // 45s for Render cold start
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`);
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
-  }
-
-  return res.json() as Promise<T>;
-}
-
-export async function apiPost<T>(
-  path: string,
-  body: unknown
-): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+function withTimeout<T>(promise: Promise<T>, ms: number) {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error("Request timed out")), ms);
+    promise
+      .then((v) => {
+        clearTimeout(id);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(id);
+        reject(e);
+      });
   });
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+
+  const res = await withTimeout(
+    fetch(url, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers || {}),
+      },
+    }),
+    DEFAULT_TIMEOUT_MS
+  );
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
+    const text = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ""}`);
   }
 
-  return res.json() as Promise<T>;
+  // handle empty responses
+  const text = await res.text();
+  return (text ? JSON.parse(text) : null) as T;
+}
+
+export function apiGet<T>(path: string) {
+  return request<T>(path, { method: "GET" });
+}
+
+export function apiPost<T>(path: string, body: unknown) {
+  return request<T>(path, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function apiPatch<T>(path: string, body: unknown) {
+  return request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+}
+
+export function apiDelete<T>(path: string) {
+  return request<T>(path, { method: "DELETE" });
 }

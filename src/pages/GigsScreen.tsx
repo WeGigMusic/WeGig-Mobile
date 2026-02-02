@@ -16,7 +16,7 @@ import { GigCard } from "../components/GigCard";
 import { Colours } from "../theme/colours";
 import { AppHeader } from "../components/AppHeader";
 
-export function GigsScreen() {
+export function GigsScreen(props: { onPressLogo?: () => void }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string>("");
   const [data, setData] = React.useState<GigsResponse | null>(null);
@@ -40,7 +40,7 @@ export function GigsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AppHeader title="Your gigs" />
+      <AppHeader title="Gigs" onPressLogo={props.onPressLogo} />
 
       <View style={styles.body}>
         <View style={styles.row}>

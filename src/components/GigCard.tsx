@@ -1,79 +1,80 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { Pressable, View, Text, StyleSheet } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Colours } from "../theme/colours";
 import type { Gig } from "../shared/types/Gig";
-import { Ionicons } from "@expo/vector-icons";
 
-export function GigCard({ gig }: { gig: Gig }) {
+export function GigCard({
+  gig,
+  onPress,
+}: {
+  gig: Gig;
+  onPress: () => void;
+}) {
+  const handlePress = async () => {
+    // subtle tap feedback like Replit
+    await Haptics.selectionAsync();
+    onPress();
+  };
+
   return (
-    <View style={styles.card}>
-      <View style={styles.topRow}>
-        <Text style={styles.artist} numberOfLines={1}>
-          {gig.artist}
-        </Text>
+    <Pressable
+      onPress={handlePress}
+      style={({ pressed }) => [
+        styles.card,
+        pressed ? styles.pressed : null,
+      ]}
+    >
+      <Text style={styles.artist}>{gig.artist}</Text>
 
-        {gig.rating ? (
-          <View style={styles.pill}>
-            <Ionicons name="star" size={14} color={Colours.text.primary} />
-            <Text style={styles.pillText}>{gig.rating}/5</Text>
-          </View>
-        ) : null}
-      </View>
+      <Text style={styles.meta}>
+        {gig.venue} • {gig.city}
+      </Text>
 
-      <View style={styles.metaRow}>
-        <Ionicons name="location-outline" size={14} color={Colours.text.muted} />
-        <Text style={styles.meta} numberOfLines={1}>
-          {gig.venue} • {gig.city}
-        </Text>
-      </View>
+      <Text style={styles.date}>{gig.date}</Text>
 
-      <View style={styles.metaRow}>
-        <Ionicons name="calendar-outline" size={14} color={Colours.text.muted} />
-        <Text style={styles.date}>{gig.date}</Text>
-      </View>
-
-      {gig.notes ? (
-        <Text style={styles.notes} numberOfLines={3}>
-          {gig.notes}
-        </Text>
+      {gig.rating ? (
+        <Text style={styles.rating}>★ {gig.rating}/5</Text>
       ) : null}
-    </View>
+
+      {gig.notes ? <Text style={styles.notes}>{gig.notes}</Text> : null}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colours.background.card,
-    borderRadius: 18,
+    borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: Colours.ui.border,
   },
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
+  pressed: {
+    opacity: 0.85,
   },
   artist: {
-    flex: 1,
     color: Colours.text.primary,
     fontSize: 16,
     fontWeight: "900",
   },
-  pill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: Colours.background.cardStrong,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
+  meta: {
+    marginTop: 4,
+    color: Colours.text.secondary,
+    fontWeight: "600",
   },
-  pillText: { color: Colours.text.primary, fontWeight: "800", fontSize: 12 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
-  meta: { flex: 1, color: Colours.text.secondary, fontWeight: "700" },
-  date: { color: Colours.text.muted, fontWeight: "700" },
-  notes: { marginTop: 10, color: Colours.text.secondary, lineHeight: 18 },
+  date: {
+    marginTop: 4,
+    color: Colours.text.muted,
+    fontWeight: "600",
+  },
+  rating: {
+    marginTop: 10,
+    color: Colours.text.primary,
+    fontWeight: "800",
+  },
+  notes: {
+    marginTop: 8,
+    color: Colours.text.secondary,
+  },
 });

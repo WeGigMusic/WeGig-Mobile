@@ -11,7 +11,7 @@ function avg(nums: number[]) {
   return Math.round((s / nums.length) * 10) / 10;
 }
 
-export function StatsScreen() {
+export function StatsScreen(props: { onPressLogo?: () => void }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [gigs, setGigs] = React.useState<Gig[]>([]);
@@ -49,7 +49,7 @@ export function StatsScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AppHeader title="Stats" />
+      <AppHeader title="Stats" onPressLogo={props.onPressLogo} />
 
       <View style={styles.body}>
         {loading ? (

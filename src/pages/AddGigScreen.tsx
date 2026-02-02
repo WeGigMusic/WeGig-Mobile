@@ -10,48 +10,40 @@ import {
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
+import { StarRating } from "../components/StarRating";
+import { AppHeader } from "../components/AppHeader";
 import { apiPost } from "../lib/api";
+import { Colours } from "../theme/colours";
 import type { CreateGigInput, Gig } from "../shared/types/Gig";
-
-const COLORS = {
-  bg: "#0B0B10",
-  card: "#141422",
-  card2: "#10101A",
-  text: "#FFFFFF",
-  muted: "rgba(255,255,255,0.65)",
-  faint: "rgba(255,255,255,0.12)",
-  brand: "#FF4D6D",
-  ok: "#2EE59D",
-  danger: "#FF4D4D",
-};
 
 export function AddGigScreen(props: {
   onCreated?: (gig: Gig) => void;
   prefill?: Partial<CreateGigInput> | null;
   onPrefillUsed?: () => void;
+  onPressLogo?: () => void;
 }) {
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
   const [city, setCity] = React.useState("");
-  const [date, setDate] = React.useState(""); // YYYY-MM-DD
+  const [date, setDate] = React.useState("");
+  const [rating, setRating] = React.useState<number | undefined>(undefined);
   const [loading, setLoading] = React.useState(false);
-
   const [justPrefilled, setJustPrefilled] = React.useState(false);
 
-  // ✅ Apply prefill when Discover sends a draft
   React.useEffect(() => {
     if (!props.prefill) return;
 
-    if (props.prefill.artist != null) setArtist(String(props.prefill.artist));
-    if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
-    if (props.prefill.city != null) setCity(String(props.prefill.city));
-    if (props.prefill.date != null) setDate(String(props.prefill.date));
+    if (props.prefill.artist) setArtist(String(props.prefill.artist));
+    if (props.prefill.venue) setVenue(String(props.prefill.venue));
+    if (props.prefill.city) setCity(String(props.prefill.city));
+    if (props.prefill.date) setDate(String(props.prefill.date));
+    if (typeof props.prefill.rating === "number")
+      setRating(props.prefill.rating);
 
     setJustPrefilled(true);
     const t = setTimeout(() => setJustPrefilled(false), 2500);
-
     props.onPrefillUsed?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     return () => clearTimeout(t);
   }, [props.prefill]);
 
@@ -61,6 +53,7 @@ export function AddGigScreen(props: {
       venue: venue.trim(),
       city: city.trim(),
       date: date.trim(),
+      rating,
     };
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
@@ -71,14 +64,14 @@ export function AddGigScreen(props: {
     setLoading(true);
     try {
       const created = await apiPost<Gig>("/gigs", payload);
+      Alert.alert("Saved", "Gig added.");
+      props.onCreated?.(created);
 
       setArtist("");
       setVenue("");
       setCity("");
       setDate("");
-
-      Alert.alert("Saved", "Gig added.");
-      props.onCreated?.(created);
+      setRating(undefined);
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to add gig");
     } finally {
@@ -87,105 +80,89 @@ export function AddGigScreen(props: {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28, gap: 12 }}>
-        {/* Header card */}
-        <View
-          style={{
-            backgroundColor: COLORS.card,
-            borderRadius: 18,
-            padding: 14,
-            borderWidth: 1,
-            borderColor: COLORS.faint,
-          }}
-        >
-          <Text style={{ color: COLORS.text, fontSize: 26, fontWeight: "900" }}>
-            Add Gig
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
+      <AppHeader title="Add Gig" onPressLogo={props.onPressLogo} />
+
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Log a gig</Text>
+          <Text style={styles.subtitle}>
+            Use <Text style={styles.bold}>Discover</Text> to prefill shows faster.
           </Text>
 
-          <Text style={{ color: COLORS.muted, marginTop: 6, lineHeight: 20 }}>
-            Log a show you attended. Use <Text style={{ color: COLORS.text, fontWeight: "800" }}>Discover</Text> to
-            prefill and save faster.
-          </Text>
-
-          {justPrefilled ? (
-            <View style={{ marginTop: 10 }}>
-              <Text style={{ color: COLORS.ok, fontWeight: "800" }}>
-                Prefilled from Discover ✓
-              </Text>
-            </View>
-          ) : null}
+          {justPrefilled && (
+            <Text style={styles.ok}>Prefilled from Discover ✓</Text>
+          )}
         </View>
 
-        {/* Form card */}
-        <View
-          style={{
-            backgroundColor: COLORS.card2,
-            borderRadius: 18,
-            padding: 14,
-            borderWidth: 1,
-            borderColor: COLORS.faint,
-            gap: 12,
-          }}
-        >
-          <TextField
-            label="Artist"
-            value={artist}
-            onChangeText={setArtist}
-            placeholder="Artist"
-            autoCapitalize="words"
-          />
+        <View style={[styles.card, { gap: 12 }]}>
+          <TextField label="Artist" value={artist} onChangeText={setArtist} />
+          <TextField label="Venue" value={venue} onChangeText={setVenue} />
+          <TextField label="City" value={city} onChangeText={setCity} />
+          <TextField label="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
 
-          <TextField
-            label="Venue"
-            value={venue}
-            onChangeText={setVenue}
-            placeholder="Venue"
-            autoCapitalize="words"
-          />
-
-          <TextField
-            label="City"
-            value={city}
-            onChangeText={setCity}
-            placeholder="City"
-            autoCapitalize="words"
-          />
-
-          <TextField
-            label="Date (YYYY-MM-DD)"
-            value={date}
-            onChangeText={setDate}
-            placeholder="2026-01-24"
-            autoCapitalize="none"
-          />
-
-          <View style={{ marginTop: 4 }}>
-            <PrimaryButton
-              title={loading ? "Saving..." : "Save"}
-              onPress={submit}
-              disabled={loading}
-            />
-            {loading ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 }}>
-                <ActivityIndicator />
-                <Text style={{ color: COLORS.muted, fontWeight: "600" }}>
-                  Saving…
-                </Text>
-              </View>
-            ) : null}
+          <View style={{ gap: 8 }}>
+            <Text style={styles.label}>Rating</Text>
+            <StarRating value={rating} onChange={setRating} showLabel />
           </View>
-        </View>
 
-        {/* Tiny helper */}
-        <Text style={{ color: COLORS.muted, textAlign: "center" }}>
-          Tip: Use{" "}
-          <Text style={{ color: COLORS.text, fontWeight: "800" }}>
-            Discover
-          </Text>{" "}
-          to import shows quickly.
-        </Text>
+          <PrimaryButton
+            title={loading ? "Saving…" : "Save"}
+            onPress={submit}
+            disabled={loading}
+          />
+
+          {loading && (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>Saving…</Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const styles = {
+  card: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 14,
+  },
+  title: {
+    color: Colours.text.primary,
+    fontSize: 26,
+    fontWeight: "900",
+  },
+  subtitle: {
+    color: Colours.text.muted,
+    marginTop: 6,
+  },
+  bold: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+  },
+  ok: {
+    marginTop: 10,
+    color: "#2EE59D",
+    fontWeight: "800",
+  },
+  label: {
+    color: Colours.text.secondary,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  muted: {
+    color: Colours.text.muted,
+    fontWeight: "700",
+  },
+  loadingRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+    marginTop: 10,
+  },
+};

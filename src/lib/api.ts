@@ -1,6 +1,6 @@
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://localhost:5050";
+  "https://wegig-api.onrender.com"; // ✅ fallback to Render (never localhost)
 
 const DEFAULT_TIMEOUT_MS = 45000; // 45s for Render cold start
 
@@ -26,6 +26,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     fetch(url, {
       ...init,
       headers: {
+        Accept: "application/json",
         "Content-Type": "application/json",
         ...(init?.headers || {}),
       },
@@ -35,7 +36,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ""}`);
+    throw new Error(
+      `HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ""}`
+    );
   }
 
   // handle empty responses

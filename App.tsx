@@ -1,6 +1,14 @@
 import React from "react";
-import { View, Pressable, Text, StyleSheet } from "react-native";
+import {
+  View,
+  Pressable,
+  Text,
+  StyleSheet,
+  Animated,
+  LayoutChangeEvent,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
 import { GigsScreen } from "./src/pages/GigsScreen";
 import { AddGigScreen } from "./src/pages/AddGigScreen";
@@ -13,20 +21,62 @@ import { Colours } from "./src/theme/colours";
 
 type Tab = "gigs" | "discover" | "add" | "stats" | "profile";
 
-function TabButton(props: {
+const TABS: Array<{
+  key: Tab;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}> = [
+  { key: "gigs", label: "Gigs", icon: "musical-note" },
+  { key: "discover", label: "Discover", icon: "sparkles" },
+  { key: "add", label: "Add", icon: "add" },
+  { key: "stats", label: "Stats", icon: "bar-chart" },
+  { key: "profile", label: "Profile", icon: "person" },
+];
+
+function TabItem(props: {
   active: boolean;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
+  isAdd?: boolean;
+  onLayout?: (e: LayoutChangeEvent) => void;
 }) {
+  if (props.isAdd) {
+    return (
+      <View style={styles.addSlot}>
+        <Pressable
+          onPress={props.onPress}
+          style={({ pressed }) => [
+            styles.addBtn,
+            pressed ? { transform: [{ scale: 0.98 }], opacity: 0.92 } : null,
+          ]}
+          hitSlop={10}
+        >
+          <Ionicons name={props.icon} size={22} color={Colours.text.primary} />
+        </Pressable>
+        <Text style={styles.tabLabelMuted}>{props.label}</Text>
+      </View>
+    );
+  }
+
   return (
-    <Pressable onPress={props.onPress} style={styles.tabBtn}>
+    <Pressable
+      onPress={props.onPress}
+      onLayout={props.onLayout}
+      style={({ pressed }) => [
+        styles.tabItem,
+        pressed ? { opacity: 0.92 } : null,
+      ]}
+      hitSlop={8}
+    >
       <Ionicons
         name={props.icon}
-        size={20}
+        size={18}
         color={props.active ? Colours.text.primary : Colours.text.muted}
       />
-      <Text style={[styles.tabText, props.active ? styles.tabTextActive : null]}>
+      <Text
+        style={[styles.tabLabel, props.active ? styles.tabLabelActive : null]}
+      >
         {props.label}
       </Text>
     </Pressable>
@@ -41,13 +91,94 @@ export default function App() {
     null,
   );
 
+  const goHome = React.useCallback(() => setTab("gigs"), []);
+
+  // --- Animated indicator ---
+  const indicatorX = React.useRef(new Animated.Value(0)).current;
+  const indicatorW = React.useRef(new Animated.Value(0)).current;
+  const indicatorO = React.useRef(new Animated.Value(0)).current;
+
+  const layoutsRef = React.useRef<
+    Partial<Record<Tab, { x: number; width: number }>>
+  >({});
+
+  const setLayout =
+    (key: Tab) =>
+    (e: LayoutChangeEvent): void => {
+      const { x, width } = e.nativeEvent.layout;
+      layoutsRef.current[key] = { x, width };
+
+      if (tab === key && key !== "add") {
+        indicatorX.setValue(x);
+        indicatorW.setValue(width);
+        indicatorO.setValue(1);
+      }
+    };
+
+  React.useEffect(() => {
+    const layout = layoutsRef.current[tab];
+    const shouldShow = tab !== "add" && layout != null;
+
+    if (!shouldShow) {
+      Animated.timing(indicatorO, {
+        toValue: 0,
+        duration: 140,
+        useNativeDriver: false,
+      }).start();
+      return;
+    }
+
+    Animated.parallel([
+      Animated.timing(indicatorX, {
+        toValue: layout!.x,
+        duration: 220,
+        useNativeDriver: false,
+      }),
+      Animated.timing(indicatorW, {
+        toValue: layout!.width,
+        duration: 220,
+        useNativeDriver: false,
+      }),
+      Animated.timing(indicatorO, {
+        toValue: 1,
+        duration: 140,
+        useNativeDriver: false,
+      }),
+    ]).start();
+  }, [tab, indicatorO, indicatorW, indicatorX]);
+
+  const pressTab = React.useCallback(
+    async (next: Tab) => {
+      if (next === tab) {
+        // small feedback for “already on this tab”
+        try {
+          await Haptics.selectionAsync();
+        } catch {}
+        return;
+      }
+
+      try {
+        // stronger bump for Add, lighter for normal tabs
+        if (next === "add") {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        } else {
+          await Haptics.selectionAsync();
+        }
+      } catch {}
+
+      setTab(next);
+    },
+    [tab],
+  );
+
   return (
     <View style={styles.app}>
       <View style={styles.content}>
         {tab === "gigs" ? (
-          <GigsScreen key={`gigs-${refreshKey}`} />
+          <GigsScreen key={`gigs-${refreshKey}`} onPressLogo={goHome} />
         ) : tab === "discover" ? (
           <DiscoverScreen
+            onPressLogo={goHome}
             onAddToGigs={(draft) => {
               setPrefill(draft);
               setTab("add");
@@ -55,6 +186,7 @@ export default function App() {
           />
         ) : tab === "add" ? (
           <AddGigScreen
+            onPressLogo={goHome}
             prefill={prefill}
             onPrefillUsed={() => setPrefill(null)}
             onCreated={() => {
@@ -63,43 +195,41 @@ export default function App() {
             }}
           />
         ) : tab === "stats" ? (
-          <StatsScreen key={`stats-${refreshKey}`} />
+          <StatsScreen key={`stats-${refreshKey}`} onPressLogo={goHome} />
         ) : (
-          <ProfileScreen />
+          <ProfileScreen onPressLogo={goHome} />
         )}
       </View>
 
-      <View style={styles.tabBar}>
-        <TabButton
-          active={tab === "gigs"}
-          label="Gigs"
-          icon="musical-note"
-          onPress={() => setTab("gigs")}
-        />
-        <TabButton
-          active={tab === "discover"}
-          label="Discover"
-          icon="sparkles"
-          onPress={() => setTab("discover")}
-        />
-        <TabButton
-          active={tab === "add"}
-          label="Add"
-          icon="add-circle"
-          onPress={() => setTab("add")}
-        />
-        <TabButton
-          active={tab === "stats"}
-          label="Stats"
-          icon="bar-chart"
-          onPress={() => setTab("stats")}
-        />
-        <TabButton
-          active={tab === "profile"}
-          label="Profile"
-          icon="person"
-          onPress={() => setTab("profile")}
-        />
+      {/* Floating Replit-style pill */}
+      <View style={styles.tabWrap}>
+        <View style={styles.tabPill}>
+          <View style={styles.tabPillInner} />
+
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activeIndicator,
+              {
+                opacity: indicatorO,
+                transform: [{ translateX: indicatorX }],
+                width: indicatorW,
+              },
+            ]}
+          />
+
+          {TABS.map((t) => (
+            <TabItem
+              key={t.key}
+              active={tab === t.key}
+              label={t.label}
+              icon={t.icon}
+              onPress={() => void pressTab(t.key)}
+              isAdd={t.key === "add"}
+              onLayout={t.key === "add" ? undefined : setLayout(t.key)}
+            />
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -108,15 +238,97 @@ export default function App() {
 const styles = StyleSheet.create({
   app: { flex: 1, backgroundColor: Colours.background.app },
   content: { flex: 1 },
-  tabBar: {
-    flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: Colours.ui.divider,
-    backgroundColor: "rgba(0,0,0,0.85)",
-    paddingBottom: 10,
-    paddingTop: 10,
+
+  tabWrap: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 6,
+    backgroundColor: "transparent",
   },
-  tabBtn: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4 },
-  tabText: { fontSize: 12, fontWeight: "700", color: Colours.text.muted },
-  tabTextActive: { color: Colours.text.primary },
+
+  tabPill: {
+    position: "relative",
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 22,
+
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.35,
+    shadowRadius: 24,
+
+    elevation: 18,
+  },
+
+  tabPillInner: {
+    position: "absolute",
+    top: 1,
+    left: 1,
+    right: 1,
+    height: 18,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+
+  activeIndicator: {
+    position: "absolute",
+    top: 10,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 16,
+  },
+
+  tabLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colours.text.muted,
+    letterSpacing: 0.2,
+  },
+
+  tabLabelActive: {
+    color: Colours.text.primary,
+  },
+
+  addSlot: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+  },
+
+  addBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colours.brand.primary,
+    borderWidth: 1,
+    borderColor: Colours.ui.borderStrong,
+  },
+
+  tabLabelMuted: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: Colours.text.muted,
+    letterSpacing: 0.2,
+  },
 });

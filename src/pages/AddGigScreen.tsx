@@ -6,6 +6,7 @@ import {
   ScrollView,
   View,
   ActivityIndicator,
+  StyleSheet,
 } from "react-native";
 
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -27,23 +28,23 @@ export function AddGigScreen(props: {
   const [city, setCity] = React.useState("");
   const [date, setDate] = React.useState("");
   const [rating, setRating] = React.useState<number | undefined>(undefined);
+
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
 
   React.useEffect(() => {
     if (!props.prefill) return;
 
-    if (props.prefill.artist) setArtist(String(props.prefill.artist));
-    if (props.prefill.venue) setVenue(String(props.prefill.venue));
-    if (props.prefill.city) setCity(String(props.prefill.city));
-    if (props.prefill.date) setDate(String(props.prefill.date));
-    if (typeof props.prefill.rating === "number")
-      setRating(props.prefill.rating);
+    if (props.prefill.artist != null) setArtist(String(props.prefill.artist));
+    if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
+    if (props.prefill.city != null) setCity(String(props.prefill.city));
+    if (props.prefill.date != null) setDate(String(props.prefill.date));
+    if (typeof props.prefill.rating === "number") setRating(props.prefill.rating);
 
     setJustPrefilled(true);
     const t = setTimeout(() => setJustPrefilled(false), 2500);
-    props.onPrefillUsed?.();
 
+    props.onPrefillUsed?.();
     return () => clearTimeout(t);
   }, [props.prefill]);
 
@@ -64,6 +65,7 @@ export function AddGigScreen(props: {
     setLoading(true);
     try {
       const created = await apiPost<Gig>("/gigs", payload);
+
       Alert.alert("Saved", "Gig added.");
       props.onCreated?.(created);
 
@@ -80,26 +82,30 @@ export function AddGigScreen(props: {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
+    <SafeAreaView style={styles.safe}>
       <AppHeader title="Add Gig" onPressLogo={props.onPressLogo} />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+      <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.card}>
           <Text style={styles.title}>Log a gig</Text>
           <Text style={styles.subtitle}>
             Use <Text style={styles.bold}>Discover</Text> to prefill shows faster.
           </Text>
 
-          {justPrefilled && (
-            <Text style={styles.ok}>Prefilled from Discover ✓</Text>
-          )}
+          {justPrefilled ? <Text style={styles.ok}>Prefilled from Discover ✓</Text> : null}
         </View>
 
         <View style={[styles.card, { gap: 12 }]}>
           <TextField label="Artist" value={artist} onChangeText={setArtist} />
           <TextField label="Venue" value={venue} onChangeText={setVenue} />
           <TextField label="City" value={city} onChangeText={setCity} />
-          <TextField label="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
+          <TextField
+            label="Date (YYYY-MM-DD)"
+            value={date}
+            onChangeText={setDate}
+            placeholder="2026-01-24"
+            autoCapitalize="none"
+          />
 
           <View style={{ gap: 8 }}>
             <Text style={styles.label}>Rating</Text>
@@ -112,19 +118,22 @@ export function AddGigScreen(props: {
             disabled={loading}
           />
 
-          {loading && (
+          {loading ? (
             <View style={styles.loadingRow}>
               <ActivityIndicator />
               <Text style={styles.muted}>Saving…</Text>
             </View>
-          )}
+          ) : null}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = {
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Colours.background.app },
+  body: { padding: 16, gap: 12, paddingBottom: 28 },
+
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 18,
@@ -132,37 +141,19 @@ const styles = {
     borderColor: Colours.ui.border,
     padding: 14,
   },
-  title: {
-    color: Colours.text.primary,
-    fontSize: 26,
-    fontWeight: "900",
-  },
-  subtitle: {
-    color: Colours.text.muted,
-    marginTop: 6,
-  },
-  bold: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-  },
-  ok: {
-    marginTop: 10,
-    color: "#2EE59D",
-    fontWeight: "800",
-  },
-  label: {
-    color: Colours.text.secondary,
-    fontWeight: "700",
-    fontSize: 13,
-  },
-  muted: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-  },
+
+  title: { color: Colours.text.primary, fontSize: 26, fontWeight: "900" },
+  subtitle: { color: Colours.text.muted, marginTop: 6, lineHeight: 20 },
+  bold: { color: Colours.text.primary, fontWeight: "800" },
+  ok: { marginTop: 10, color: "#2EE59D", fontWeight: "800" },
+
+  label: { color: Colours.text.secondary, fontWeight: "700", fontSize: 13 },
+  muted: { color: Colours.text.muted, fontWeight: "700" },
+
   loadingRow: {
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
     marginTop: 10,
   },
-};
+});

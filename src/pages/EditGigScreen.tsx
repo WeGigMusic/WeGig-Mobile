@@ -1,5 +1,5 @@
 import React from "react";
-import { SafeAreaView, Alert, ScrollView, View, Text } from "react-native";
+import { SafeAreaView, Alert, ScrollView, View, Text, StyleSheet } from "react-native";
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
@@ -19,9 +19,8 @@ export function EditGigScreen(props: {
   const [city, setCity] = React.useState(props.gig.city);
   const [date, setDate] = React.useState(props.gig.date);
   const [notes, setNotes] = React.useState(props.gig.notes ?? "");
-  const [rating, setRating] = React.useState<number | undefined>(
-    props.gig.rating,
-  );
+  const [rating, setRating] = React.useState<number | undefined>(props.gig.rating);
+
   const [loading, setLoading] = React.useState(false);
 
   const save = async () => {
@@ -49,7 +48,7 @@ export function EditGigScreen(props: {
   const confirmDelete = () => {
     Alert.alert("Delete gig?", "This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: deleteGig },
+      { text: "Delete", style: "destructive", onPress: () => void deleteGig() },
     ]);
   };
 
@@ -67,28 +66,23 @@ export function EditGigScreen(props: {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
+    <SafeAreaView style={styles.safe}>
       <AppHeader title="Edit gig" onPressLogo={props.onPressLogo} />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
-        <TextField label="Artist" value={artist} onChangeText={setArtist} />
-        <TextField label="Venue" value={venue} onChangeText={setVenue} />
-        <TextField label="City" value={city} onChangeText={setCity} />
-        <TextField label="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
+      <ScrollView contentContainerStyle={styles.body}>
+        <View style={styles.card}>
+          <TextField label="Artist" value={artist} onChangeText={setArtist} />
+          <TextField label="Venue" value={venue} onChangeText={setVenue} />
+          <TextField label="City" value={city} onChangeText={setCity} />
+          <TextField label="Date (YYYY-MM-DD)" value={date} onChangeText={setDate} />
 
-        <View style={{ gap: 8 }}>
-          <Text style={{ color: Colours.text.secondary, fontWeight: "700" }}>
-            Rating
-          </Text>
-          <StarRating value={rating} onChange={setRating} showLabel />
+          <View style={{ gap: 8 }}>
+            <Text style={styles.label}>Rating</Text>
+            <StarRating value={rating} onChange={setRating} showLabel />
+          </View>
+
+          <TextField label="Notes" value={notes} onChangeText={setNotes} multiline />
         </View>
-
-        <TextField
-          label="Notes"
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-        />
 
         <PrimaryButton
           title={loading ? "Saving…" : "Save changes"}
@@ -106,3 +100,17 @@ export function EditGigScreen(props: {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Colours.background.app },
+  body: { padding: 16, gap: 12, paddingBottom: 28 },
+  card: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 14,
+    gap: 12,
+  },
+  label: { color: Colours.text.secondary, fontWeight: "700" },
+});

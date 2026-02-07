@@ -1,3 +1,4 @@
+// src/pages/GigsScreen.tsx
 import React from "react";
 import {
   SafeAreaView,
@@ -5,61 +6,94 @@ import {
   View,
   FlatList,
   ActivityIndicator,
-  StyleSheet,
+  RefreshControl,
 } from "react-native";
 
-import { apiGet } from "../lib/api";
-import type { Gig, GigsResponse } from "../shared/types/Gig";
-
+import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { GigCard } from "../components/GigCard";
+import { EditGigScreen } from "./EditGigScreen";
+
+import { apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
-import { AppHeader } from "../components/AppHeader";
+import type { Gig, GigsResponse } from "../shared/types/Gig";
 
 export function GigsScreen(props: { onPressLogo?: () => void }) {
   const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
   const [error, setError] = React.useState<string>("");
   const [data, setData] = React.useState<GigsResponse | null>(null);
 
+  // ✅ Optional: tap a gig → open Edit screen
+  const [selectedGig, setSelectedGig] = React.useState<Gig | null>(null);
+
   const load = React.useCallback(async () => {
-    setLoading(true);
     setError("");
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       setData(res);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load gigs");
-    } finally {
-      setLoading(false);
+      setData(null);
     }
   }, []);
 
   React.useEffect(() => {
-    void load();
+    setLoading(true);
+    void load().finally(() => setLoading(false));
   }, [load]);
 
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }, [load]);
+
+  // ✅ If a gig is selected, show editor instead of list
+  if (selectedGig) {
+    return (
+      <EditGigScreen
+        gig={selectedGig}
+        onPressLogo={() => {
+          setSelectedGig(null);
+          props.onPressLogo?.();
+        }}
+        onDone={() => {
+          setSelectedGig(null);
+          void load(); // refresh after save/delete
+        }}
+      />
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
       <AppHeader title="Gigs" onPressLogo={props.onPressLogo} />
 
-      <View style={styles.body}>
-        <View style={styles.row}>
-          <Text style={styles.count}>{data ? `${data.count} gigs` : ""}</Text>
+      <View style={{ flex: 1, padding: 16 }}>
+        {/* Top row */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Text style={{ fontSize: 24, fontWeight: "900", color: Colours.text.primary }}>
+            Gigs
+          </Text>
+
+          <Text style={{ opacity: 0.6, color: Colours.text.muted, fontWeight: "800" }}>
+            {data ? `${data.count}` : ""}
+          </Text>
+
           <View style={{ flex: 1 }} />
-          <PrimaryButton title="Refresh" onPress={load} />
+          <PrimaryButton title="Refresh" onPress={() => void onRefresh()} />
         </View>
 
+        {/* Body */}
         {loading ? (
-          <View style={styles.center}>
+          <View style={{ flex: 1, justifyContent: "center" }}>
             <ActivityIndicator />
           </View>
         ) : error ? (
-          <View style={styles.center}>
-            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
-              {error}
-            </Text>
-            <View style={{ height: 12 }} />
-            <PrimaryButton title="Try again" onPress={load} />
+          <View style={{ flex: 1, justifyContent: "center", gap: 12 }}>
+            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>{error}</Text>
+            <PrimaryButton title="Try again" onPress={() => void onRefresh()} />
           </View>
         ) : (
           <FlatList<Gig>
@@ -68,18 +102,25 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingBottom: 24 }}
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-            renderItem={({ item }) => <GigCard gig={item} />}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            renderItem={({ item }) => (
+              <GigCard
+                gig={item}
+                onPress={() => setSelectedGig(item)} // ✅ Tap → Edit
+              />
+            )}
+            ListEmptyComponent={
+              <View style={{ paddingTop: 30 }}>
+                <Text style={{ color: Colours.text.muted, fontWeight: "800" }}>
+                  No gigs yet. Add one from the Add tab.
+                </Text>
+              </View>
+            }
           />
         )}
       </View>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colours.background.app },
-  body: { flex: 1, padding: 16 },
-  row: { flexDirection: "row", alignItems: "center" },
-  count: { color: Colours.text.muted, fontWeight: "800" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-});

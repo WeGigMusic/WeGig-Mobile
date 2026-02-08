@@ -14,22 +14,6 @@ import type { CreateGigInput } from "../shared/types/Gig";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 
-export function DiscoverScreen(props: {
-  onAddToGigs: (draft: Partial<CreateGigInput>) => void;
-  onPressLogo?: () => void;
-}) {
-...
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
-      <AppHeader title="Discover" onPressLogo={props.onPressLogo} />
-      <View style={{ flex: 1, padding: 16 }}>
-        ...
-      </View>
-    </SafeAreaView>
-  );
-}
-
-
 type TicketmasterEvent = {
   id: string;
   name: string;
@@ -73,6 +57,7 @@ function pickVenue(e: TicketmasterEvent) {
 
 export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
+  onPressLogo?: () => void;
 }) {
   const [city, setCity] = React.useState("London");
   const [query, setQuery] = React.useState("");

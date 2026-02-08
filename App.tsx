@@ -165,7 +165,7 @@ export default function App() {
           await Haptics.selectionAsync();
         }
       } catch {}
-
+if (tab === "add" && next !== "add") setPrefill(null);
       setTab(next);
     },
     [tab],
@@ -190,6 +190,7 @@ export default function App() {
             prefill={prefill}
             onPrefillUsed={() => setPrefill(null)}
             onCreated={() => {
+                setPrefill(null);
               setTab("gigs");
               setRefreshKey((k) => k + 1);
             }}

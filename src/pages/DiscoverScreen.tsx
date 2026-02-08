@@ -9,10 +9,22 @@ import {
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { apiGet } from "../lib/api";
+
 import type { CreateGigInput } from "../shared/types/Gig";
 
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
+
+type CreateGigDraft = {
+  artist: string;
+  venue: string;
+  city: string;
+  date: string; // YYYY-MM-DD
+  externalSource?: string;
+  externalId?: string;
+  ticketUrl?: string;
+  notes?: string;
+};
 
 type TicketmasterEvent = {
   id: string;
@@ -71,7 +83,7 @@ export function DiscoverScreen(props: {
     setError("");
     try {
       const qs = new URLSearchParams();
-      if (query.trim()) qs.set("q", query.trim());
+      if (query.trim()) qs.set("keyword", query.trim());
       if (city.trim()) qs.set("city", city.trim());
       qs.set("size", "20");
 
@@ -87,6 +99,21 @@ export function DiscoverScreen(props: {
       setLoading(false);
     }
   }, [city, query]);
+
+  React.useEffect(() => {
+    const q = query.trim();
+
+    if (q.length < 2) {
+      setEvents([]);
+      return;
+    }
+
+    const t = setTimeout(() => {
+      void search();
+    }, 350);
+
+    return () => clearTimeout(t);
+  }, [query, search]);
 
   const hasResults = events.length > 0;
 

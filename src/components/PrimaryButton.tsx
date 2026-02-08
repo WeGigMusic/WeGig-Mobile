@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, Text, StyleSheet, ViewStyle } from "react-native";
+import { Pressable, Text, StyleSheet, ViewStyle, TextStyle } from "react-native";
 import { Colours } from "../theme/colours";
 
 export function PrimaryButton({
@@ -7,11 +7,13 @@ export function PrimaryButton({
   onPress,
   disabled,
   style,
+  textStyle,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   style?: ViewStyle;
+  textStyle?: TextStyle;
 }) {
   return (
     <Pressable
@@ -21,10 +23,10 @@ export function PrimaryButton({
         styles.button,
         disabled ? styles.disabled : null,
         pressed ? styles.pressed : null,
-        style,
+        style, // ⬅️ allows overrides (e.g. danger)
       ]}
     >
-      <Text style={styles.text}>{title}</Text>
+      <Text style={[styles.text, textStyle]}>{title}</Text>
     </Pressable>
   );
 }
@@ -38,8 +40,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  pressed: { opacity: 0.9 },
-  disabled: { opacity: 0.5 },
+  pressed: {
+    opacity: 0.9,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
   text: {
     color: Colours.text.primary,
     fontWeight: "800",

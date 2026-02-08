@@ -71,7 +71,8 @@ export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
   onPressLogo?: () => void;
 }) {
-  const [city, setCity] = React.useState("London");
+  // ✅ no default city
+  const [city, setCity] = React.useState("");
   const [query, setQuery] = React.useState("");
 
   const [loading, setLoading] = React.useState(false);
@@ -139,20 +140,22 @@ export function DiscoverScreen(props: {
           </Text>
 
           <View style={{ marginTop: 12, gap: 12 }}>
-            <TextField
-              label="City"
-              value={city}
-              onChangeText={setCity}
-              placeholder="e.g. London"
-              autoCapitalize="words"
-            />
-
+            {/* ✅ Artist/Search first */}
             <TextField
               label="Search"
               value={query}
               onChangeText={setQuery}
-              placeholder="e.g. Arctic Monkeys"
+              placeholder="e.g. Coldplay"
               autoCapitalize="none"
+            />
+
+            {/* ✅ City below */}
+            <TextField
+              label="City (optional)"
+              value={city}
+              onChangeText={setCity}
+              placeholder="e.g. Manchester"
+              autoCapitalize="words"
             />
 
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>

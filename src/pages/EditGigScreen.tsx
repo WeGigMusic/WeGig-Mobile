@@ -1,15 +1,57 @@
-// src/pages/EditGigScreen.tsx
 import React from "react";
-import { SafeAreaView, Alert, ScrollView, View, Text, ActivityIndicator } from "react-native";
+import {
+  SafeAreaView,
+  Alert,
+  ScrollView,
+  View,
+  Text,
+  ActivityIndicator,
+  Pressable,
+  Platform,
+} from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
 
-import { apiPatch, apiDelete } from "../lib/api";
+import { apiPatch, apiDelete, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
+
+type TmVenue = {
+  id: string;
+  name: string;
+  city?: string | null;
+  countryCode?: string | null;
+};
+
+type TmVenueSearchResponse =
+  | {
+      venues?: TmVenue[];
+    }
+  | any;
+
+function parseYmdToUtcDate(ymd: string): Date | null {
+  const s = (ymd ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(`${s}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toYmdLocal(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function fromYmdToLocalDate(ymd: string): Date {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test((ymd ?? "").trim())) return new Date();
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
 
 export function EditGigScreen(props: {
   gig: Gig;
@@ -26,6 +68,104 @@ export function EditGigScreen(props: {
 
   const [loading, setLoading] = React.useState(false);
 
+  // Date picker
+  const [showDatePicker, setShowDatePicker] = React.useState(false);
+
+  // Future gig rule
+  const isFutureGig = React.useMemo(() => {
+    const d = parseYmdToUtcDate(date);
+    if (!d) return false;
+    const today = new Date();
+    const todayUtc = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+    );
+    return d.getTime() > todayUtc.getTime();
+  }, [date]);
+
+  React.useEffect(() => {
+    if (isFutureGig && rating != null) setRating(undefined);
+  }, [isFutureGig, rating]);
+
+  // Ticketmaster venue autocomplete
+  const [tmLoading, setTmLoading] = React.useState(false);
+  const [tmResults, setTmResults] = React.useState<TmVenue[]>([]);
+  const [tmError, setTmError] = React.useState("");
+  const [tmOpen, setTmOpen] = React.useState(false);
+  const [justAutoCity, setJustAutoCity] = React.useState(false);
+
+  const runTmVenueSearch = React.useCallback(
+    async (q: string, cityHint: string) => {
+      const query = q.trim();
+      if (query.length < 2) {
+        setTmResults([]);
+        setTmError("");
+        setTmLoading(false);
+        return;
+      }
+
+      setTmLoading(true);
+      setTmError("");
+      try {
+        const qs = new URLSearchParams();
+        qs.set("q", query);
+        if (cityHint.trim()) qs.set("city", cityHint.trim());
+        qs.set("size", "8");
+
+        const res = await apiGet<TmVenueSearchResponse>(
+          `/tm/venues/search?${qs.toString()}`,
+        );
+
+        const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
+        setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
+        setTmOpen(true);
+      } catch (e: any) {
+        setTmError(e?.message ?? "Venue search failed");
+        setTmResults([]);
+        setTmOpen(false);
+      } finally {
+        setTmLoading(false);
+      }
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    const q = venue.trim();
+    if (q.length < 2) {
+      setTmResults([]);
+      setTmOpen(false);
+      setTmError("");
+      return;
+    }
+
+    const t = setTimeout(() => {
+      void runTmVenueSearch(q, city);
+    }, 320);
+
+    return () => clearTimeout(t);
+  }, [venue, city, runTmVenueSearch]);
+
+  const chooseVenue = (v: TmVenue) => {
+    setVenue(v.name);
+
+    const venueCity = (v.city ?? "").toString().trim();
+    if (venueCity) {
+      const current = city.trim().toLowerCase();
+      const shouldOverwrite =
+        !current || current === "unknown city" || current === "unknown";
+
+      if (shouldOverwrite) {
+        setCity(venueCity);
+        setJustAutoCity(true);
+        setTimeout(() => setJustAutoCity(false), 2200);
+      }
+    }
+
+    setTmOpen(false);
+    setTmResults([]);
+    setTmError("");
+  };
+
   const save = async () => {
     const payload: Partial<CreateGigInput> = {
       artist: artist.trim(),
@@ -33,7 +173,7 @@ export function EditGigScreen(props: {
       city: city.trim(),
       date: date.trim(),
       notes: notes.trim() || undefined,
-      rating,
+      rating: isFutureGig ? undefined : rating,
     };
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
@@ -77,38 +217,109 @@ export function EditGigScreen(props: {
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
       <AppHeader title="Edit gig" onPressLogo={props.onPressLogo} />
 
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 26 }}>
-        {/* Top card */}
+      <ScrollView
+        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 26 }}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.card}>
           <Text style={styles.title}>Update details</Text>
-          <Text style={styles.subtitle}>
-            Edit the fields below. Tap a star to set rating (tap same star again to clear).
-          </Text>
+          <Text style={styles.subtitle}>Rating is only available after the gig date.</Text>
         </View>
 
-        {/* Form card */}
         <View style={[styles.card, { gap: 12 }]}>
           <TextField label="Artist" value={artist} onChangeText={setArtist} />
-          <TextField label="Venue" value={venue} onChangeText={setVenue} />
-          <TextField label="City" value={city} onChangeText={setCity} />
+
           <TextField
-            label="Date (YYYY-MM-DD)"
-            value={date}
-            onChangeText={setDate}
-            autoCapitalize="none"
+            label="Venue"
+            value={venue}
+            onChangeText={(t) => {
+              setVenue(t);
+              setTmOpen(true);
+            }}
+            placeholder="Start typing venue…"
+            autoCapitalize="words"
           />
 
-          <View style={{ gap: 8 }}>
-            <Text style={styles.label}>Rating</Text>
-            <StarRating value={rating} onChange={setRating} showLabel />
+          {tmLoading ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>Searching venues…</Text>
+            </View>
+          ) : null}
+
+          {tmError ? (
+            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
+              {tmError}
+            </Text>
+          ) : null}
+
+          {tmOpen && !tmLoading && tmResults.length > 0 ? (
+            <View style={styles.suggestCard}>
+              {tmResults.map((v) => {
+                const meta = [v.city ?? "", v.countryCode ?? ""]
+                  .map((x) => String(x).trim())
+                  .filter(Boolean)
+                  .join(" • ");
+
+                return (
+                  <Pressable
+                    key={v.id}
+                    onPress={() => chooseVenue(v)}
+                    style={({ pressed }) => [
+                      styles.suggestRow,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestTitle}>{v.name}</Text>
+                      {meta ? <Text style={styles.suggestMeta}>{meta}</Text> : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
+          <TextField label="City" value={city} onChangeText={setCity} />
+          {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
+
+          {/* Date Picker */}
+          <Text style={styles.label}>Date</Text>
+
+          <View style={{ gap: 10 }}>
+            <PrimaryButton
+              title={date ? `Selected: ${date}` : "Select date"}
+              onPress={() => setShowDatePicker(true)}
+            />
+
+            {showDatePicker ? (
+              <DateTimePicker
+                value={fromYmdToLocalDate(date)}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(_, selected) => {
+                  if (Platform.OS !== "ios") setShowDatePicker(false);
+                  if (selected) setDate(toYmdLocal(selected));
+                }}
+              />
+            ) : null}
+
+            {Platform.OS === "ios" && showDatePicker ? (
+              <PrimaryButton title="Done" onPress={() => setShowDatePicker(false)} />
+            ) : null}
           </View>
 
-          <TextField
-            label="Notes"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-          />
+          {/* Rating */}
+          {isFutureGig ? (
+            <Text style={styles.muted}>Rating available after the gig date.</Text>
+          ) : (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.label}>Rating</Text>
+              <StarRating value={rating} onChange={setRating} showLabel />
+            </View>
+          )}
+
+          <TextField label="Notes" value={notes} onChangeText={setNotes} multiline />
 
           <PrimaryButton
             title={loading ? "Saving…" : "Save changes"}
@@ -130,10 +341,6 @@ export function EditGigScreen(props: {
             </View>
           ) : null}
         </View>
-
-        <Text style={[styles.muted, { textAlign: "center" }]}>
-          Tip: if you imported this gig, you can still edit any field.
-        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -173,5 +380,28 @@ const styles = {
     gap: 10,
     alignItems: "center" as const,
     marginTop: 10,
+  },
+  suggestCard: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    overflow: "hidden" as const,
+  },
+  suggestRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colours.ui.border,
+  },
+  suggestTitle: {
+    color: Colours.text.primary,
+    fontWeight: "900" as const,
+  },
+  suggestMeta: {
+    marginTop: 2,
+    color: Colours.text.muted,
+    fontWeight: "700" as const,
+    fontSize: 12,
   },
 };

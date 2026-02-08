@@ -52,28 +52,63 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
     );
   }
 
+  const gigs = data?.gigs ?? [];
+  const isEmpty = !loading && !error && gigs.length === 0;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
       <AppHeader title="Gigs" onPressLogo={props.onPressLogo} />
 
       <View style={{ padding: 16, flex: 1 }}>
-        {loading ? (
+        {loading && gigs.length === 0 ? (
           <ActivityIndicator />
         ) : error ? (
           <>
-            <Text style={{ color: Colours.text.danger }}>{error}</Text>
+            <Text style={{ color: Colours.text.danger, marginBottom: 10 }}>
+              {error}
+            </Text>
             <PrimaryButton title="Try again" onPress={load} />
           </>
         ) : (
-          <FlatList
-            data={data?.gigs ?? []}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 24 }}
-            ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-            renderItem={({ item }) => (
-              <GigCard gig={item} onPress={() => setEditingGig(item)} />
-            )}
-          />
+          <>
+            {isEmpty ? (
+              <View style={{ alignItems: "center", marginTop: 60, gap: 12 }}>
+                <Text
+                  style={{
+                    color: Colours.text.muted,
+                    fontSize: 16,
+                    fontWeight: "700",
+                    textAlign: "center",
+                  }}
+                >
+                  No gigs yet 🎶
+                </Text>
+
+                <Text
+                  style={{
+                    color: Colours.text.muted,
+                    textAlign: "center",
+                    lineHeight: 20,
+                  }}
+                >
+                  Start by adding one manually or discover shows to prefill
+                  faster.
+                </Text>
+              </View>
+            ) : null}
+
+            <FlatList
+              data={gigs}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+              renderItem={({ item }) => (
+                <GigCard gig={item} onPress={() => setEditingGig(item)} />
+              )}
+              refreshing={loading}
+              onRefresh={load}
+            />
+          </>
         )}
       </View>
     </SafeAreaView>

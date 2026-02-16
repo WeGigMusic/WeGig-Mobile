@@ -64,7 +64,9 @@ export function EditGigScreen(props: {
   const [date, setDate] = React.useState(props.gig.date);
 
   const [notes, setNotes] = React.useState(props.gig.notes ?? "");
-  const [rating, setRating] = React.useState<number | undefined>(props.gig.rating);
+  const [rating, setRating] = React.useState<number | undefined>(
+    props.gig.rating,
+  );
 
   const [loading, setLoading] = React.useState(false);
 
@@ -100,6 +102,7 @@ export function EditGigScreen(props: {
         setTmResults([]);
         setTmError("");
         setTmLoading(false);
+        setTmOpen(false);
         return;
       }
 
@@ -116,8 +119,10 @@ export function EditGigScreen(props: {
         );
 
         const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
-        setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
-        setTmOpen(true);
+        const next = Array.isArray(venues) ? venues.slice(0, 8) : [];
+
+        setTmResults(next);
+        setTmOpen(next.length > 0);
       } catch (e: any) {
         setTmError(e?.message ?? "Venue search failed");
         setTmResults([]);
@@ -193,13 +198,6 @@ export function EditGigScreen(props: {
     }
   };
 
-  const confirmDelete = () => {
-    Alert.alert("Delete gig?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: deleteGig },
-    ]);
-  };
-
   const deleteGig = async () => {
     setLoading(true);
     try {
@@ -213,6 +211,13 @@ export function EditGigScreen(props: {
     }
   };
 
+  const confirmDelete = () => {
+    Alert.alert("Delete gig?", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: deleteGig },
+    ]);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
       <AppHeader title="Edit gig" onPressLogo={props.onPressLogo} />
@@ -223,7 +228,9 @@ export function EditGigScreen(props: {
       >
         <View style={styles.card}>
           <Text style={styles.title}>Update details</Text>
-          <Text style={styles.subtitle}>Rating is only available after the gig date.</Text>
+          <Text style={styles.subtitle}>
+            Rating is only available after the gig date.
+          </Text>
         </View>
 
         <View style={[styles.card, { gap: 12 }]}>
@@ -255,11 +262,13 @@ export function EditGigScreen(props: {
 
           {tmOpen && !tmLoading && tmResults.length > 0 ? (
             <View style={styles.suggestCard}>
-              {tmResults.map((v) => {
+              {tmResults.map((v, idx) => {
                 const meta = [v.city ?? "", v.countryCode ?? ""]
                   .map((x) => String(x).trim())
                   .filter(Boolean)
                   .join(" • ");
+
+                const isLast = idx === tmResults.length - 1;
 
                 return (
                   <Pressable
@@ -267,12 +276,15 @@ export function EditGigScreen(props: {
                     onPress={() => chooseVenue(v)}
                     style={({ pressed }) => [
                       styles.suggestRow,
+                      isLast ? { borderBottomWidth: 0 } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.suggestTitle}>{v.name}</Text>
-                      {meta ? <Text style={styles.suggestMeta}>{meta}</Text> : null}
+                      {meta ? (
+                        <Text style={styles.suggestMeta}>{meta}</Text>
+                      ) : null}
                     </View>
                   </Pressable>
                 );
@@ -281,7 +293,9 @@ export function EditGigScreen(props: {
           ) : null}
 
           <TextField label="City" value={city} onChangeText={setCity} />
-          {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
+          {justAutoCity ? (
+            <Text style={styles.muted}>City set from venue ✓</Text>
+          ) : null}
 
           {/* Date Picker */}
           <Text style={styles.label}>Date</Text>
@@ -290,6 +304,7 @@ export function EditGigScreen(props: {
             <PrimaryButton
               title={date ? `Selected: ${date}` : "Select date"}
               onPress={() => setShowDatePicker(true)}
+              disabled={loading}
             />
 
             {showDatePicker ? (
@@ -305,7 +320,11 @@ export function EditGigScreen(props: {
             ) : null}
 
             {Platform.OS === "ios" && showDatePicker ? (
-              <PrimaryButton title="Done" onPress={() => setShowDatePicker(false)} />
+              <PrimaryButton
+                title="Done"
+                onPress={() => setShowDatePicker(false)}
+                disabled={loading}
+              />
             ) : null}
           </View>
 

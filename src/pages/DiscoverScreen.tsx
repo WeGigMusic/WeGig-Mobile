@@ -6,6 +6,8 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { apiGet } from "../lib/api";
@@ -15,16 +17,7 @@ import type { CreateGigInput } from "../shared/types/Gig";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 
-type CreateGigDraft = {
-  artist: string;
-  venue: string;
-  city: string;
-  date: string; // YYYY-MM-DD
-  externalSource?: string;
-  externalId?: string;
-  ticketUrl?: string;
-  notes?: string;
-};
+const HOME_CITY_KEY = "wegig.homeCity";
 
 type TicketmasterEvent = {
   id: string;
@@ -71,13 +64,31 @@ export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
   onPressLogo?: () => void;
 }) {
-  // ✅ no default city
   const [city, setCity] = React.useState("");
   const [query, setQuery] = React.useState("");
 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [events, setEvents] = React.useState<TicketmasterEvent[]>([]);
+
+  // Home City default (only if user hasn't typed anything)
+  React.useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const saved = await AsyncStorage.getItem(HOME_CITY_KEY);
+        if (cancelled) return;
+        if (!city.trim() && saved?.trim()) setCity(saved.trim());
+      } catch {}
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const search = React.useCallback(async () => {
     setLoading(true);
@@ -120,6 +131,8 @@ export function DiscoverScreen(props: {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <AppHeader title="Discover" onPressLogo={props.onPressLogo} />
+
       {/* Header + Search */}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
         <View
@@ -140,7 +153,6 @@ export function DiscoverScreen(props: {
           </Text>
 
           <View style={{ marginTop: 12, gap: 12 }}>
-            {/* ✅ Artist/Search first */}
             <TextField
               label="Search"
               value={query}
@@ -149,7 +161,6 @@ export function DiscoverScreen(props: {
               autoCapitalize="none"
             />
 
-            {/* ✅ City below */}
             <TextField
               label="City (optional)"
               value={city}

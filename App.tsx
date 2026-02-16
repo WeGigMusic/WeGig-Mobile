@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Animated,
   LayoutChangeEvent,
+  AppState,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -18,6 +19,9 @@ import { ProfileScreen } from "./src/pages/ProfileScreen";
 
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
+
+// ✅ OFFLINE QUEUE IMPORTS (YOU MISSED THESE)
+import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
 
 type Tab = "gigs" | "discover" | "add" | "stats" | "profile";
 
@@ -115,6 +119,35 @@ export default function App() {
       }
     };
 
+  // ✅ OFFLINE SYNC STATE (YOU HAD THIS BUT NO IMPORTS)
+  const [queuedCount, setQueuedCount] = React.useState(0);
+
+  const refreshQueuedCount = React.useCallback(async () => {
+    try {
+      const n = await getQueuedGigsCount();
+      setQueuedCount(n);
+    } catch {}
+  }, []);
+
+  const runSync = React.useCallback(async () => {
+    try {
+      await flushGigQueue();
+    } catch {}
+    await refreshQueuedCount();
+  }, [refreshQueuedCount]);
+
+  React.useEffect(() => {
+    // on launch
+    void runSync();
+
+    // on returning to foreground
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void runSync();
+    });
+
+    return () => sub.remove();
+  }, [runSync]);
+
   React.useEffect(() => {
     const layout = layoutsRef.current[tab];
     const shouldShow = tab !== "add" && layout != null;
@@ -150,7 +183,6 @@ export default function App() {
   const pressTab = React.useCallback(
     async (next: Tab) => {
       if (next === tab) {
-        // small feedback for “already on this tab”
         try {
           await Haptics.selectionAsync();
         } catch {}
@@ -158,17 +190,19 @@ export default function App() {
       }
 
       try {
-        // stronger bump for Add, lighter for normal tabs
         if (next === "add") {
           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         } else {
           await Haptics.selectionAsync();
         }
       } catch {}
-if (tab === "add" && next !== "add") setPrefill(null);
+
+      // ✅ keep your “clear prefill when leaving add”
+      if (tab === "add" && next !== "add") setPrefill(null);
+
       setTab(next);
     },
-    [tab],
+    [tab, setPrefill],
   );
 
   return (
@@ -190,9 +224,11 @@ if (tab === "add" && next !== "add") setPrefill(null);
             prefill={prefill}
             onPrefillUsed={() => setPrefill(null)}
             onCreated={() => {
-                setPrefill(null);
+              setPrefill(null);
               setTab("gigs");
               setRefreshKey((k) => k + 1);
+              // optional: sync queued items too (doesn't hurt)
+              void refreshQueuedCount();
             }}
           />
         ) : tab === "stats" ? (
@@ -202,7 +238,6 @@ if (tab === "add" && next !== "add") setPrefill(null);
         )}
       </View>
 
-      {/* Floating Replit-style pill */}
       <View style={styles.tabWrap}>
         <View style={styles.tabPill}>
           <View style={styles.tabPillInner} />

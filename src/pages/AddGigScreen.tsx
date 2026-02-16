@@ -20,6 +20,9 @@ import { apiPost, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput, Gig } from "../shared/types/Gig";
 
+// ✅ OFFLINE QUEUE IMPORTS (YOU MISSED THESE)
+import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
+
 type MbArtist = {
   id: string;
   name: string;
@@ -110,7 +113,6 @@ export function AddGigScreen(props: {
 
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
-
   const [justAutoCity, setJustAutoCity] = React.useState(false);
 
   // ✅ “No rating if future gig”
@@ -288,6 +290,31 @@ export function AddGigScreen(props: {
     setTmError("");
   };
 
+  const resetForm = () => {
+    setArtist("");
+    setVenue("");
+    setCity("");
+    setDate("");
+    setRating(undefined);
+
+    setNotes("");
+    setArtistMbid(undefined);
+    setExternalSource(undefined);
+    setExternalId(undefined);
+    setTicketUrl(undefined);
+
+    setMbResults([]);
+    setMbOpen(false);
+    setMbError("");
+
+    setTmResults([]);
+    setTmOpen(false);
+    setTmError("");
+
+    setJustAutoCity(false);
+    setShowDatePicker(false);
+  };
+
   const submit = async () => {
     const payload: CreateGigInput = {
       artist: artist.trim(),
@@ -315,29 +342,26 @@ export function AddGigScreen(props: {
       Alert.alert("Saved", "Gig added.");
       props.onCreated?.(created);
 
-      setArtist("");
-      setVenue("");
-      setCity("");
-      setDate("");
-      setRating(undefined);
-
-      setNotes("");
-      setArtistMbid(undefined);
-      setExternalSource(undefined);
-      setExternalId(undefined);
-      setTicketUrl(undefined);
-
-      setMbResults([]);
-      setMbOpen(false);
-      setMbError("");
-
-      setTmResults([]);
-      setTmOpen(false);
-      setTmError("");
-
-      setJustAutoCity(false);
-      setShowDatePicker(false);
+      resetForm();
     } catch (e: any) {
+      // ✅ OFFLINE-FIRST: queue it if it looks like offline/timeout
+      if (isOfflineError(e)) {
+        try {
+          await enqueueGig(payload);
+          Alert.alert(
+            "Saved offline",
+            "You’re offline right now. We saved this gig and will sync it automatically when you’re back online.",
+          );
+
+          // mimic success UX
+          props.onCreated?.({} as any);
+          resetForm();
+          return;
+        } catch {
+          // if storage fails, fall through to normal error
+        }
+      }
+
       Alert.alert("Error", e?.message ?? "Failed to add gig");
     } finally {
       setLoading(false);
@@ -472,7 +496,7 @@ export function AddGigScreen(props: {
             <Text style={styles.muted}>City set from venue ✓</Text>
           ) : null}
 
-          {/* ✅ Date Picker */}
+          {/* Date Picker */}
           <Text style={styles.label}>Date</Text>
 
           <View style={{ gap: 10 }}>
@@ -498,7 +522,7 @@ export function AddGigScreen(props: {
             ) : null}
           </View>
 
-          {/* ✅ Rating (only after gig date) */}
+          {/* Rating (only after gig date) */}
           {isFutureGig ? (
             <Text style={styles.muted}>Rating available after the gig date.</Text>
           ) : (

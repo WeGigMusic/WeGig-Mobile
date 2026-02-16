@@ -6,12 +6,19 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { AppHeader } from "../components/AppHeader";
+import { TextField } from "../components/TextField";
+import { PrimaryButton } from "../components/PrimaryButton";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
+
+const HOME_CITY_KEY = "wegig.homeCity";
 
 function statLine(label: string, value: string) {
   return (
@@ -58,16 +65,12 @@ function computeProfileStats(gigs: Gig[]) {
   const topArtist =
     Object.entries(artists).sort((a, b) => b[1] - a[1])[0]?.[0];
 
-  // Simple “badges” similar to the Replit look (static logic, looks good now)
   const badges: Array<{ title: string; subtitle: string }> = [];
-
   if (total >= 1) badges.push({ title: "First Gig", subtitle: "Logged 1 gig" });
   if (total >= 5) badges.push({ title: "Gig Regular", subtitle: "5+ gigs" });
   if (total >= 10) badges.push({ title: "Scene Member", subtitle: "10+ gigs" });
-
   if (rated.length >= 3)
     badges.push({ title: "Reviewer", subtitle: "Rated 3+ gigs" });
-
   if (Object.keys(cities).length >= 3)
     badges.push({ title: "Explorer", subtitle: "3+ cities" });
 
@@ -116,6 +119,35 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
     typeof computeProfileStats
   > | null>(null);
 
+  // Home city
+  const [homeCity, setHomeCity] = React.useState("");
+  const [savingCity, setSavingCity] = React.useState(false);
+
+  const loadHomeCity = React.useCallback(async () => {
+    try {
+      const v = await AsyncStorage.getItem(HOME_CITY_KEY);
+      if (v) setHomeCity(v);
+    } catch {}
+  }, []);
+
+  const saveHomeCity = React.useCallback(async () => {
+    const next = homeCity.trim();
+    setSavingCity(true);
+    try {
+      if (!next) {
+        await AsyncStorage.removeItem(HOME_CITY_KEY);
+        Alert.alert("Saved", "Home city cleared.");
+      } else {
+        await AsyncStorage.setItem(HOME_CITY_KEY, next);
+        Alert.alert("Saved", "Home city updated.");
+      }
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to save home city");
+    } finally {
+      setSavingCity(false);
+    }
+  }, [homeCity]);
+
   const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
@@ -132,12 +164,17 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
   }, []);
 
   React.useEffect(() => {
+    void loadHomeCity();
     void load();
-  }, [load]);
+  }, [load, loadHomeCity]);
 
   const displayName = "Nowar"; // placeholder until auth
   const handle = "@wegig"; // placeholder
-  const location = stats?.topCity ? `Usually in ${stats.topCity}` : "—";
+  const location = homeCity.trim()
+    ? `Home city: ${homeCity.trim()}`
+    : stats?.topCity
+      ? `Usually in ${stats.topCity}`
+      : "—";
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -159,14 +196,42 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
           </View>
         </View>
 
+        {/* Home city */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Preferences</Text>
+
+          <View style={{ marginTop: 10, gap: 10 }}>
+            <TextField
+              label="Home city"
+              value={homeCity}
+              onChangeText={setHomeCity}
+              placeholder="e.g. London"
+              autoCapitalize="words"
+            />
+
+            <PrimaryButton
+              title={savingCity ? "Saving…" : "Save home city"}
+              onPress={saveHomeCity}
+              disabled={savingCity}
+            />
+
+            <Text style={styles.muted}>
+              Used to prefill Discover/Venue search defaults (next).
+            </Text>
+          </View>
+        </View>
+
         {/* Loading / error */}
         {loading ? (
-          <Text style={styles.muted}>Loading…</Text>
+          <View style={styles.inlineRow}>
+            <ActivityIndicator />
+            <Text style={styles.muted}>Loading…</Text>
+          </View>
         ) : error ? (
           <Text style={styles.error}>{error}</Text>
         ) : (
           <>
-            {/* Stats grid (Replit-style tiles) */}
+            {/* Stats grid */}
             <View style={styles.grid}>
               <View style={styles.tile}>
                 <Text style={styles.tileLabel}>Total gigs</Text>
@@ -223,7 +288,7 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
               </View>
             </View>
 
-            {/* Settings-ish actions (Replit style list) */}
+            {/* Actions */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Account</Text>
 
@@ -231,30 +296,22 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
                 <ActionRow
                   title="Edit profile"
                   subtitle="Name, handle, bio (next)"
-                  onPress={() => {
-                    // placeholder
-                  }}
+                  onPress={() => {}}
                 />
                 <ActionRow
                   title="Notifications"
                   subtitle="Push settings (next)"
-                  onPress={() => {
-                    // placeholder
-                  }}
+                  onPress={() => {}}
                 />
                 <ActionRow
                   title="Export gigs"
                   subtitle="CSV / share (next)"
-                  onPress={() => {
-                    // placeholder
-                  }}
+                  onPress={() => {}}
                 />
                 <ActionRow
                   title="About WeGig"
                   subtitle="Version, links (next)"
-                  onPress={() => {
-                    // placeholder
-                  }}
+                  onPress={() => {}}
                 />
               </View>
             </View>
@@ -315,6 +372,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: Colours.text.secondary,
     fontWeight: "700",
+  },
+
+  inlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
 
   grid: {

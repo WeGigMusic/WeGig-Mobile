@@ -8,8 +8,11 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Switch,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
 
 import { AppHeader } from "../components/AppHeader";
 import { TextField } from "../components/TextField";
@@ -19,6 +22,8 @@ import { apiGet } from "../lib/api";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 
 const HOME_CITY_KEY = "wegig.homeCity";
+const DISPLAY_NAME_KEY = "wegig.displayName";
+const HAPTICS_KEY = "wegig.hapticsEnabled";
 
 function statLine(label: string, value: string) {
   return (
@@ -97,7 +102,7 @@ function ActionRow(props: {
       style={({ pressed }) => [
         styles.actionRow,
         pressed ? { opacity: 0.9 } : null,
-        !props.onPress ? { opacity: 0.6 } : null,
+        !props.onPress ? { opacity: 0.55 } : null,
       ]}
     >
       <View style={{ flex: 1 }}>
@@ -112,6 +117,10 @@ function ActionRow(props: {
   );
 }
 
+function SectionTitle(props: { title: string }) {
+  return <Text style={styles.sectionTitle}>{props.title}</Text>;
+}
+
 export function ProfileScreen(props: { onPressLogo?: () => void }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -119,34 +128,70 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
     typeof computeProfileStats
   > | null>(null);
 
-  // Home city
+  // Preferences
+  const [displayName, setDisplayName] = React.useState("Nowar");
   const [homeCity, setHomeCity] = React.useState("");
-  const [savingCity, setSavingCity] = React.useState(false);
+  const [hapticsEnabled, setHapticsEnabled] = React.useState(true);
 
-  const loadHomeCity = React.useCallback(async () => {
+  const [savingPrefs, setSavingPrefs] = React.useState(false);
+
+  const loadPrefs = React.useCallback(async () => {
     try {
-      const v = await AsyncStorage.getItem(HOME_CITY_KEY);
-      if (v) setHomeCity(v);
-    } catch {}
+      const [dn, hc, hap] = await Promise.all([
+        AsyncStorage.getItem(DISPLAY_NAME_KEY),
+        AsyncStorage.getItem(HOME_CITY_KEY),
+        AsyncStorage.getItem(HAPTICS_KEY),
+      ]);
+
+      if (dn && dn.trim()) setDisplayName(dn.trim());
+      if (hc && hc.trim()) setHomeCity(hc.trim());
+
+      if (hap != null) {
+        // stored as "1"/"0"
+        setHapticsEnabled(hap === "1");
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
-  const saveHomeCity = React.useCallback(async () => {
-    const next = homeCity.trim();
-    setSavingCity(true);
+  const savePrefs = React.useCallback(async () => {
+    const nextName = displayName.trim();
+    const nextCity = homeCity.trim();
+
+    setSavingPrefs(true);
     try {
-      if (!next) {
-        await AsyncStorage.removeItem(HOME_CITY_KEY);
-        Alert.alert("Saved", "Home city cleared.");
-      } else {
-        await AsyncStorage.setItem(HOME_CITY_KEY, next);
-        Alert.alert("Saved", "Home city updated.");
-      }
+      if (nextName) await AsyncStorage.setItem(DISPLAY_NAME_KEY, nextName);
+      else await AsyncStorage.removeItem(DISPLAY_NAME_KEY);
+
+      if (nextCity) await AsyncStorage.setItem(HOME_CITY_KEY, nextCity);
+      else await AsyncStorage.removeItem(HOME_CITY_KEY);
+
+      await AsyncStorage.setItem(HAPTICS_KEY, hapticsEnabled ? "1" : "0");
+
+      Alert.alert("Saved", "Preferences updated.");
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to save home city");
+      Alert.alert("Error", e?.message ?? "Failed to save preferences");
     } finally {
-      setSavingCity(false);
+      setSavingPrefs(false);
     }
-  }, [homeCity]);
+  }, [displayName, homeCity, hapticsEnabled]);
+
+  const toggleHaptics = React.useCallback(async () => {
+    const next = !hapticsEnabled;
+    setHapticsEnabled(next);
+
+    try {
+      await AsyncStorage.setItem(HAPTICS_KEY, next ? "1" : "0");
+    } catch {}
+
+    if (next) {
+      try {
+        // a quick confirmation
+        await Haptics.selectionAsync();
+      } catch {}
+    }
+  }, [hapticsEnabled]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -164,25 +209,21 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
   }, []);
 
   React.useEffect(() => {
-    void loadHomeCity();
+    void loadPrefs();
     void load();
-  }, [load, loadHomeCity]);
+  }, [load, loadPrefs]);
 
-  const displayName = "Nowar"; // placeholder until auth
   const handle = "@wegig"; // placeholder
-  const location = homeCity.trim()
-    ? `Home city: ${homeCity.trim()}`
-    : stats?.topCity
-      ? `Usually in ${stats.topCity}`
-      : "—";
+  const location =
+    homeCity.trim() ? homeCity.trim() : stats?.topCity ? stats.topCity : "—";
 
   return (
     <SafeAreaView style={styles.safe}>
       <AppHeader title="Profile" onPressLogo={props.onPressLogo} />
 
       <ScrollView contentContainerStyle={styles.body}>
-        {/* Top identity card */}
-        <View style={styles.heroCard}>
+        {/* Top summary row (Replit-ish) */}
+        <View style={styles.topRow}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
               {displayName.slice(0, 1).toUpperCase()}
@@ -192,32 +233,66 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{displayName}</Text>
             <Text style={styles.handle}>{handle}</Text>
-            <Text style={styles.location}>{location}</Text>
+            <Text style={styles.location}> {location ? ` ${location}` : "—"}</Text>
           </View>
         </View>
 
-        {/* Home city */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Preferences</Text>
+        {/* Total gigs row (like screenshot “Total gigs … 0”) */}
+        <View style={styles.slimRowCard}>
+          <Text style={styles.slimLabel}>Total gigs</Text>
+          <Text style={styles.slimValue}>{stats?.total ?? 0}</Text>
+        </View>
 
-          <View style={{ marginTop: 10, gap: 10 }}>
+        {/* Preferences */}
+        <SectionTitle title="Preferences" />
+        <View style={styles.card}>
+          <View style={{ gap: 10 }}>
             <TextField
-              label="Home city"
-              value={homeCity}
-              onChangeText={setHomeCity}
-              placeholder="e.g. London"
+              label="Display name"
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="e.g. Fred Yacoub"
               autoCapitalize="words"
             />
 
-            <PrimaryButton
-              title={savingCity ? "Saving…" : "Save home city"}
-              onPress={saveHomeCity}
-              disabled={savingCity}
+            <TextField
+              label="City (optional)"
+              value={homeCity}
+              onChangeText={setHomeCity}
+              placeholder="e.g. Fleet"
+              autoCapitalize="words"
             />
 
             <Text style={styles.muted}>
-              Used to prefill Discover/Venue search defaults (next).
+              Used to personalize Discover + “Next gig near you”.
             </Text>
+
+            {/* Haptics row */}
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleTitle}>Haptics</Text>
+                <Text style={styles.toggleSubtitle}>
+                  Vibrate on badge unlocks
+                </Text>
+              </View>
+
+              <Switch
+                value={hapticsEnabled}
+                onValueChange={() => void toggleHaptics()}
+                trackColor={{
+                  false: "rgba(255,255,255,0.18)",
+                  true: "rgba(46,229,157,0.35)",
+                }}
+                thumbColor={hapticsEnabled ? "#2EE59D" : "rgba(255,255,255,0.75)"}
+                ios_backgroundColor="rgba(255,255,255,0.18)"
+              />
+            </View>
+
+            <PrimaryButton
+              title={savingPrefs ? "Saving…" : "Save preferences"}
+              onPress={savePrefs}
+              disabled={savingPrefs}
+            />
           </View>
         </View>
 
@@ -231,13 +306,9 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
           <Text style={styles.error}>{error}</Text>
         ) : (
           <>
-            {/* Stats grid */}
+            {/* Stats */}
+            <SectionTitle title="Your stats" />
             <View style={styles.grid}>
-              <View style={styles.tile}>
-                <Text style={styles.tileLabel}>Total gigs</Text>
-                <Text style={styles.tileValue}>{stats?.total ?? 0}</Text>
-              </View>
-
               <View style={styles.tile}>
                 <Text style={styles.tileLabel}>Rated</Text>
                 <Text style={styles.tileValue}>{stats?.ratedCount ?? 0}</Text>
@@ -250,33 +321,36 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
                 </Text>
               </View>
 
-              <View style={styles.tile}>
+              <View style={styles.tileWide}>
                 <Text style={styles.tileLabel}>Top artist</Text>
                 <Text style={styles.tileValueSmall}>
                   {stats?.topArtist ?? "—"}
                 </Text>
               </View>
+
+              <View style={styles.tileWide}>
+                <Text style={styles.tileLabel}>Top venue</Text>
+                <Text style={styles.tileValueSmall}>
+                  {stats?.topVenue ?? "—"}
+                </Text>
+              </View>
             </View>
 
-            {/* Details card */}
+            {/* Highlights */}
+            <SectionTitle title="Highlights" />
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Highlights</Text>
-
-              <View style={{ marginTop: 10 }}>
+              <View style={{ marginTop: 2 }}>
                 {statLine("Top city", stats?.topCity ?? "—")}
                 {statLine("Top venue", stats?.topVenue ?? "—")}
               </View>
             </View>
 
-            {/* Badges card */}
+            {/* Badges */}
+            <SectionTitle title="Badges" />
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Badges</Text>
-
               <View style={styles.badgeWrap}>
                 {(stats?.badges ?? []).length === 0 ? (
-                  <Text style={styles.muted}>
-                    Log a few gigs to unlock badges.
-                  </Text>
+                  <Text style={styles.muted}>Log a few gigs to unlock badges.</Text>
                 ) : (
                   (stats?.badges ?? []).map((b) => (
                     <View style={styles.badge} key={b.title}>
@@ -288,32 +362,24 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
               </View>
             </View>
 
-            {/* Actions */}
+            {/* Account */}
+            <SectionTitle title="Account" />
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Account</Text>
-
-              <View style={{ marginTop: 10 }}>
-                <ActionRow
-                  title="Edit profile"
-                  subtitle="Name, handle, bio (next)"
-                  onPress={() => {}}
-                />
-                <ActionRow
-                  title="Notifications"
-                  subtitle="Push settings (next)"
-                  onPress={() => {}}
-                />
-                <ActionRow
-                  title="Export gigs"
-                  subtitle="CSV / share (next)"
-                  onPress={() => {}}
-                />
-                <ActionRow
-                  title="About WeGig"
-                  subtitle="Version, links (next)"
-                  onPress={() => {}}
-                />
-              </View>
+              <ActionRow
+                title="Sign in to sync"
+                subtitle="Apple / Google / Facebook (next)"
+                onPress={() => {}}
+              />
+              <ActionRow
+                title="Export gigs"
+                subtitle="CSV / share (next)"
+                onPress={() => {}}
+              />
+              <ActionRow
+                title="About WeGig"
+                subtitle="Version, links (next)"
+                onPress={() => {}}
+              />
             </View>
           </>
         )}
@@ -333,22 +399,29 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
-  heroCard: {
+  sectionTitle: {
+    marginTop: 6,
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: 0.2,
+  },
+
+  topRow: {
     flexDirection: "row",
     gap: 12,
-    backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
+    backgroundColor: "transparent",
     alignItems: "center",
+    marginTop: 2,
   },
 
   avatar: {
     width: 54,
     height: 54,
-    borderRadius: 16,
-    backgroundColor: Colours.brand.primary,
+    borderRadius: 18,
+    backgroundColor: "rgba(47,140,255,0.25)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -364,7 +437,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   handle: {
-    marginTop: 2,
+    marginTop: 3,
     color: Colours.text.muted,
     fontWeight: "800",
   },
@@ -372,6 +445,36 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: Colours.text.secondary,
     fontWeight: "700",
+  },
+
+  slimRowCard: {
+    marginTop: 8,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  slimLabel: {
+    color: Colours.text.muted,
+    fontWeight: "800",
+  },
+  slimValue: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 16,
+  },
+
+  card: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 14,
   },
 
   inlineRow: {
@@ -388,12 +491,21 @@ const styles = StyleSheet.create({
 
   tile: {
     width: "48%",
-    backgroundColor: Colours.background.card,
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 18,
     borderWidth: 1,
     borderColor: Colours.ui.border,
     padding: 14,
   },
+  tileWide: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 14,
+  },
+
   tileLabel: {
     color: Colours.text.muted,
     fontWeight: "900",
@@ -412,25 +524,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  card: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
-  },
-  cardTitle: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 16,
-  },
-
   statRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colours.ui.border,
+    borderBottomColor: Colours.ui.divider ?? Colours.ui.border,
   },
   statLabel: {
     color: Colours.text.muted,
@@ -443,14 +542,13 @@ const styles = StyleSheet.create({
   },
 
   badgeWrap: {
-    marginTop: 10,
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
   },
   badge: {
     width: "48%",
-    backgroundColor: "rgba(255,255,255,0.03)",
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: Colours.ui.border,
     borderRadius: 16,
@@ -473,7 +571,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colours.ui.border,
+    borderBottomColor: Colours.ui.divider ?? Colours.ui.border,
   },
   actionTitle: {
     color: Colours.text.primary,
@@ -489,6 +587,26 @@ const styles = StyleSheet.create({
     color: Colours.text.muted,
     fontWeight: "900",
     fontSize: 18,
+  },
+
+  toggleRow: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: Platform.OS === "ios" ? 6 : 2,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  toggleTitle: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+  },
+  toggleSubtitle: {
+    marginTop: 4,
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 12,
   },
 
   muted: { color: Colours.text.muted, fontWeight: "800" },

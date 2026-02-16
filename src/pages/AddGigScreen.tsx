@@ -18,9 +18,10 @@ import { StarRating } from "../components/StarRating";
 import { AppHeader } from "../components/AppHeader";
 import { apiPost, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
-import type { CreateGigInput, Gig } from "../shared/types/Gig";
+import type { CreateGigInput, Gig, GigsResponse } from "../shared/types/Gig";
 
-// ✅ OFFLINE QUEUE IMPORTS (YOU MISSED THESE)
+import { getCachedGigs, setCachedGigs } from "../lib/gigsCache";
+
 import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
 
 type MbArtist = {
@@ -69,6 +70,43 @@ function fromYmdToLocalDate(ymd: string): Date {
   return new Date(y, m - 1, d);
 }
 
+function norm(s: any) {
+  return String(s ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function findDuplicate(existing: Gig[], payload: any): Gig | null {
+  const extSource = norm(payload?.externalSource);
+  const extId = norm(payload?.externalId);
+
+  if (extSource && extId) {
+    const dup = existing.find(
+      (g: any) => norm(g?.externalSource) === extSource && norm(g?.externalId) === extId,
+    );
+    return dup ?? null;
+  }
+
+  const a = norm(payload?.artist);
+  const v = norm(payload?.venue);
+  const c = norm(payload?.city);
+  const d = norm(payload?.date);
+
+  if (!a || !v || !c || !d) return null;
+
+  const dup = existing.find((g) => {
+    return (
+      norm((g as any).artist) === a &&
+      norm((g as any).venue) === v &&
+      norm((g as any).city) === c &&
+      norm((g as any).date) === d
+    );
+  });
+
+  return dup ?? null;
+}
+
 export function AddGigScreen(props: {
   onCreated?: (gig: Gig) => void;
   prefill?: Partial<CreateGigInput> | null;
@@ -85,9 +123,7 @@ export function AddGigScreen(props: {
   const [showDatePicker, setShowDatePicker] = React.useState(false);
 
   // MusicBrainz
-  const [artistMbid, setArtistMbid] = React.useState<string | undefined>(
-    undefined,
-  );
+  const [artistMbid, setArtistMbid] = React.useState<string | undefined>(undefined);
   const [mbLoading, setMbLoading] = React.useState(false);
   const [mbResults, setMbResults] = React.useState<MbArtist[]>([]);
   const [mbError, setMbError] = React.useState("");
@@ -101,15 +137,9 @@ export function AddGigScreen(props: {
 
   // Import/meta
   const [notes, setNotes] = React.useState("");
-  const [externalSource, setExternalSource] = React.useState<string | undefined>(
-    undefined,
-  );
-  const [externalId, setExternalId] = React.useState<string | undefined>(
-    undefined,
-  );
-  const [ticketUrl, setTicketUrl] = React.useState<string | undefined>(
-    undefined,
-  );
+  const [externalSource, setExternalSource] = React.useState<string | undefined>(undefined);
+  const [externalId, setExternalId] = React.useState<string | undefined>(undefined);
+  const [ticketUrl, setTicketUrl] = React.useState<string | undefined>(undefined);
 
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
@@ -130,6 +160,7 @@ export function AddGigScreen(props: {
     if (isFutureGig && rating != null) setRating(undefined);
   }, [isFutureGig, rating]);
 
+  // Prefill from Discover
   React.useEffect(() => {
     if (!props.prefill) return;
 
@@ -175,9 +206,7 @@ export function AddGigScreen(props: {
       );
 
       const artists: MbArtist[] =
-        (res?.artists as MbArtist[]) ??
-        (res?._embedded?.artists as MbArtist[]) ??
-        [];
+        (res?.artists as MbArtist[]) ?? (res?._embedded?.artists as MbArtist[]) ?? [];
 
       setMbResults(Array.isArray(artists) ? artists.slice(0, 8) : []);
       setMbOpen(true);
@@ -217,41 +246,38 @@ export function AddGigScreen(props: {
   };
 
   // --- Ticketmaster venue autocomplete ---
-  const runTmVenueSearch = React.useCallback(
-    async (q: string, cityHint: string) => {
-      const query = q.trim();
-      if (query.length < 2) {
-        setTmResults([]);
-        setTmError("");
-        setTmLoading(false);
-        return;
-      }
-
-      setTmLoading(true);
+  const runTmVenueSearch = React.useCallback(async (q: string, cityHint: string) => {
+    const query = q.trim();
+    if (query.length < 2) {
+      setTmResults([]);
       setTmError("");
-      try {
-        const qs = new URLSearchParams();
-        qs.set("q", query);
-        if (cityHint.trim()) qs.set("city", cityHint.trim());
-        qs.set("size", "8");
+      setTmLoading(false);
+      return;
+    }
 
-        const res = await apiGet<TmVenueSearchResponse>(
-          `/tm/venues/search?${qs.toString()}`,
-        );
+    setTmLoading(true);
+    setTmError("");
+    try {
+      const qs = new URLSearchParams();
+      qs.set("q", query);
+      if (cityHint.trim()) qs.set("city", cityHint.trim());
+      qs.set("size", "8");
 
-        const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
-        setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
-        setTmOpen(true);
-      } catch (e: any) {
-        setTmError(e?.message ?? "Venue search failed");
-        setTmResults([]);
-        setTmOpen(false);
-      } finally {
-        setTmLoading(false);
-      }
-    },
-    [],
-  );
+      const res = await apiGet<TmVenueSearchResponse>(
+        `/tm/venues/search?${qs.toString()}`,
+      );
+
+      const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
+      setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
+      setTmOpen(true);
+    } catch (e: any) {
+      setTmError(e?.message ?? "Venue search failed");
+      setTmResults([]);
+      setTmOpen(false);
+    } finally {
+      setTmLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
     const q = venue.trim();
@@ -275,8 +301,7 @@ export function AddGigScreen(props: {
     const venueCity = (v.city ?? "").toString().trim();
     if (venueCity) {
       const current = city.trim().toLowerCase();
-      const shouldOverwrite =
-        !current || current === "unknown city" || current === "unknown";
+      const shouldOverwrite = !current || current === "unknown city" || current === "unknown";
 
       if (shouldOverwrite) {
         setCity(venueCity);
@@ -290,30 +315,17 @@ export function AddGigScreen(props: {
     setTmError("");
   };
 
-  const resetForm = () => {
-    setArtist("");
-    setVenue("");
-    setCity("");
-    setDate("");
-    setRating(undefined);
-
-    setNotes("");
-    setArtistMbid(undefined);
-    setExternalSource(undefined);
-    setExternalId(undefined);
-    setTicketUrl(undefined);
-
-    setMbResults([]);
-    setMbOpen(false);
-    setMbError("");
-
-    setTmResults([]);
-    setTmOpen(false);
-    setTmError("");
-
-    setJustAutoCity(false);
-    setShowDatePicker(false);
-  };
+  async function getExistingGigsBestEffort(): Promise<Gig[]> {
+    // Try API first (fresh), fallback to cache
+    try {
+      const res = await apiGet<GigsResponse>("/gigs");
+      const gigs = res?.gigs ?? [];
+      await setCachedGigs(gigs);
+      return gigs;
+    } catch {
+      return await getCachedGigs();
+    }
+  }
 
   const submit = async () => {
     const payload: CreateGigInput = {
@@ -335,31 +347,109 @@ export function AddGigScreen(props: {
       return;
     }
 
+    // ✅ Client-side duplicate prevention (online + offline using cache fallback)
+    try {
+      const existing = await getExistingGigsBestEffort();
+      const dup = findDuplicate(existing, payload);
+      if (dup) {
+        Alert.alert(
+          "Already logged",
+          "You’ve already logged this gig.\n\nIf you want to change it, edit the existing entry in your gigs list.",
+        );
+        return;
+      }
+    } catch {
+      // If cache read fails, don't block saving
+    }
+
     setLoading(true);
     try {
       const created = await apiPost<Gig>("/gigs", payload);
 
+      // keep cache warm
+      try {
+        const existing = await getCachedGigs();
+        await setCachedGigs([created, ...existing]);
+      } catch {}
+
       Alert.alert("Saved", "Gig added.");
       props.onCreated?.(created);
 
-      resetForm();
+      setArtist("");
+      setVenue("");
+      setCity("");
+      setDate("");
+      setRating(undefined);
+
+      setNotes("");
+      setArtistMbid(undefined);
+      setExternalSource(undefined);
+      setExternalId(undefined);
+      setTicketUrl(undefined);
+
+      setMbResults([]);
+      setMbOpen(false);
+      setMbError("");
+
+      setTmResults([]);
+      setTmOpen(false);
+      setTmError("");
+
+      setJustAutoCity(false);
+      setShowDatePicker(false);
     } catch (e: any) {
-      // ✅ OFFLINE-FIRST: queue it if it looks like offline/timeout
+      // ✅ If offline, queue it — but DO NOT queue duplicates (check cache)
       if (isOfflineError(e)) {
+        try {
+          const existing = await getCachedGigs();
+          const dup = findDuplicate(existing, payload);
+          if (dup) {
+            Alert.alert(
+              "Already logged",
+              "This gig already exists (from your last sync).",
+            );
+            return;
+          }
+        } catch {}
+
         try {
           await enqueueGig(payload);
           Alert.alert(
             "Saved offline",
-            "You’re offline right now. We saved this gig and will sync it automatically when you’re back online.",
+            "You’re offline. This gig was queued and will sync when you’re back online.",
           );
-
-          // mimic success UX
+          // Optional: clear form after queueing
           props.onCreated?.({} as any);
-          resetForm();
+          setArtist("");
+          setVenue("");
+          setCity("");
+          setDate("");
+          setRating(undefined);
+          setNotes("");
+          setArtistMbid(undefined);
+          setExternalSource(undefined);
+          setExternalId(undefined);
+          setTicketUrl(undefined);
+          setMbResults([]);
+          setMbOpen(false);
+          setMbError("");
+          setTmResults([]);
+          setTmOpen(false);
+          setTmError("");
+          setJustAutoCity(false);
+          setShowDatePicker(false);
           return;
-        } catch {
-          // if storage fails, fall through to normal error
+        } catch (qErr: any) {
+          Alert.alert("Offline save failed", qErr?.message ?? "Couldn’t queue gig.");
+          return;
         }
+      }
+
+      // Friendly message for API duplicate (409)
+      const msg = String(e?.message ?? "");
+      if (msg.includes("409")) {
+        Alert.alert("Already logged", "You’ve already logged this gig.");
+        return;
       }
 
       Alert.alert("Error", e?.message ?? "Failed to add gig");
@@ -372,19 +462,14 @@ export function AddGigScreen(props: {
     <SafeAreaView style={styles.safe}>
       <AppHeader title="Add Gig" onPressLogo={props.onPressLogo} />
 
-      <ScrollView
-        contentContainerStyle={styles.body}
-        keyboardShouldPersistTaps="handled"
-      >
+      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <Text style={styles.title}>Log a gig</Text>
           <Text style={styles.subtitle}>
             Use <Text style={styles.bold}>Discover</Text> to prefill shows faster.
           </Text>
 
-          {justPrefilled ? (
-            <Text style={styles.ok}>Prefilled from Discover ✓</Text>
-          ) : null}
+          {justPrefilled ? <Text style={styles.ok}>Prefilled from Discover ✓</Text> : null}
         </View>
 
         <View style={[styles.card, { gap: 12 }]}>
@@ -407,25 +492,18 @@ export function AddGigScreen(props: {
           ) : null}
 
           {mbError ? (
-            <Text style={{ color: Colours.text.danger, fontWeight: "700" }}>
-              {mbError}
-            </Text>
+            <Text style={{ color: Colours.text.danger, fontWeight: "700" }}>{mbError}</Text>
           ) : null}
 
           {mbOpen && !mbLoading && mbResults.length > 0 ? (
             <View style={styles.suggestCard}>
               {mbResults.map((a) => {
-                const meta = [a.country, a.disambiguation]
-                  .filter(Boolean)
-                  .join(" • ");
+                const meta = [a.country, a.disambiguation].filter(Boolean).join(" • ");
                 return (
                   <Pressable
                     key={a.id}
                     onPress={() => chooseArtist(a)}
-                    style={({ pressed }) => [
-                      styles.suggestRow,
-                      pressed ? { opacity: 0.9 } : null,
-                    ]}
+                    style={({ pressed }) => [styles.suggestRow, pressed ? { opacity: 0.9 } : null]}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.suggestTitle}>{a.name}</Text>
@@ -458,9 +536,7 @@ export function AddGigScreen(props: {
           ) : null}
 
           {tmError ? (
-            <Text style={{ color: Colours.text.danger, fontWeight: "700" }}>
-              {tmError}
-            </Text>
+            <Text style={{ color: Colours.text.danger, fontWeight: "700" }}>{tmError}</Text>
           ) : null}
 
           {tmOpen && !tmLoading && tmResults.length > 0 ? (
@@ -475,10 +551,7 @@ export function AddGigScreen(props: {
                   <Pressable
                     key={v.id}
                     onPress={() => chooseVenue(v)}
-                    style={({ pressed }) => [
-                      styles.suggestRow,
-                      pressed ? { opacity: 0.9 } : null,
-                    ]}
+                    style={({ pressed }) => [styles.suggestRow, pressed ? { opacity: 0.9 } : null]}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.suggestTitle}>{v.name}</Text>
@@ -492,9 +565,7 @@ export function AddGigScreen(props: {
 
           <TextField label="City" value={city} onChangeText={setCity} />
 
-          {justAutoCity ? (
-            <Text style={styles.muted}>City set from venue ✓</Text>
-          ) : null}
+          {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
 
           {/* Date Picker */}
           <Text style={styles.label}>Date</Text>
@@ -532,11 +603,7 @@ export function AddGigScreen(props: {
             </View>
           )}
 
-          <PrimaryButton
-            title={loading ? "Saving…" : "Save"}
-            onPress={submit}
-            disabled={loading}
-          />
+          <PrimaryButton title={loading ? "Saving…" : "Save"} onPress={submit} disabled={loading} />
 
           {loading ? (
             <View style={styles.inlineRow}>

@@ -64,9 +64,7 @@ export function EditGigScreen(props: {
   const [date, setDate] = React.useState(props.gig.date);
 
   const [notes, setNotes] = React.useState(props.gig.notes ?? "");
-  const [rating, setRating] = React.useState<number | undefined>(
-    props.gig.rating,
-  );
+  const [rating, setRating] = React.useState<number | undefined>(props.gig.rating);
 
   const [loading, setLoading] = React.useState(false);
 
@@ -88,6 +86,12 @@ export function EditGigScreen(props: {
     if (isFutureGig && rating != null) setRating(undefined);
   }, [isFutureGig, rating]);
 
+  const requiredMissing =
+    !artist.trim() || !venue.trim() || !city.trim() || !date.trim();
+
+  const dateInvalid =
+    date.trim().length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(date.trim());
+
   // Ticketmaster venue autocomplete
   const [tmLoading, setTmLoading] = React.useState(false);
   const [tmResults, setTmResults] = React.useState<TmVenue[]>([]);
@@ -102,7 +106,6 @@ export function EditGigScreen(props: {
         setTmResults([]);
         setTmError("");
         setTmLoading(false);
-        setTmOpen(false);
         return;
       }
 
@@ -119,10 +122,8 @@ export function EditGigScreen(props: {
         );
 
         const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
-        const next = Array.isArray(venues) ? venues.slice(0, 8) : [];
-
-        setTmResults(next);
-        setTmOpen(next.length > 0);
+        setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
+        setTmOpen(true);
       } catch (e: any) {
         setTmError(e?.message ?? "Venue search failed");
         setTmResults([]);
@@ -186,6 +187,11 @@ export function EditGigScreen(props: {
       return;
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(payload.date)) {
+      Alert.alert("Invalid date", "Date must be in YYYY-MM-DD format.");
+      return;
+    }
+
     setLoading(true);
     try {
       await apiPatch(`/gigs/${props.gig.id}`, payload);
@@ -196,6 +202,13 @@ export function EditGigScreen(props: {
     } finally {
       setLoading(false);
     }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert("Delete gig?", "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: deleteGig },
+    ]);
   };
 
   const deleteGig = async () => {
@@ -209,13 +222,6 @@ export function EditGigScreen(props: {
     } finally {
       setLoading(false);
     }
-  };
-
-  const confirmDelete = () => {
-    Alert.alert("Delete gig?", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: deleteGig },
-    ]);
   };
 
   return (
@@ -262,13 +268,11 @@ export function EditGigScreen(props: {
 
           {tmOpen && !tmLoading && tmResults.length > 0 ? (
             <View style={styles.suggestCard}>
-              {tmResults.map((v, idx) => {
+              {tmResults.map((v) => {
                 const meta = [v.city ?? "", v.countryCode ?? ""]
                   .map((x) => String(x).trim())
                   .filter(Boolean)
                   .join(" • ");
-
-                const isLast = idx === tmResults.length - 1;
 
                 return (
                   <Pressable
@@ -276,15 +280,12 @@ export function EditGigScreen(props: {
                     onPress={() => chooseVenue(v)}
                     style={({ pressed }) => [
                       styles.suggestRow,
-                      isLast ? { borderBottomWidth: 0 } : null,
                       pressed ? { opacity: 0.9 } : null,
                     ]}
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.suggestTitle}>{v.name}</Text>
-                      {meta ? (
-                        <Text style={styles.suggestMeta}>{meta}</Text>
-                      ) : null}
+                      {meta ? <Text style={styles.suggestMeta}>{meta}</Text> : null}
                     </View>
                   </Pressable>
                 );
@@ -293,9 +294,7 @@ export function EditGigScreen(props: {
           ) : null}
 
           <TextField label="City" value={city} onChangeText={setCity} />
-          {justAutoCity ? (
-            <Text style={styles.muted}>City set from venue ✓</Text>
-          ) : null}
+          {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
 
           {/* Date Picker */}
           <Text style={styles.label}>Date</Text>
@@ -304,7 +303,6 @@ export function EditGigScreen(props: {
             <PrimaryButton
               title={date ? `Selected: ${date}` : "Select date"}
               onPress={() => setShowDatePicker(true)}
-              disabled={loading}
             />
 
             {showDatePicker ? (
@@ -320,13 +318,15 @@ export function EditGigScreen(props: {
             ) : null}
 
             {Platform.OS === "ios" && showDatePicker ? (
-              <PrimaryButton
-                title="Done"
-                onPress={() => setShowDatePicker(false)}
-                disabled={loading}
-              />
+              <PrimaryButton title="Done" onPress={() => setShowDatePicker(false)} />
             ) : null}
           </View>
+
+          {dateInvalid ? (
+            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
+              Date must be YYYY-MM-DD.
+            </Text>
+          ) : null}
 
           {/* Rating */}
           {isFutureGig ? (
@@ -340,10 +340,16 @@ export function EditGigScreen(props: {
 
           <TextField label="Notes" value={notes} onChangeText={setNotes} multiline />
 
+          {requiredMissing ? (
+            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
+              Artist, venue, city and date are required.
+            </Text>
+          ) : null}
+
           <PrimaryButton
             title={loading ? "Saving…" : "Save changes"}
             onPress={save}
-            disabled={loading}
+            disabled={loading || requiredMissing || dateInvalid}
           />
 
           <PrimaryButton

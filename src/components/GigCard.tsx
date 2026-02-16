@@ -12,9 +12,11 @@ type TmEventByIdResponse = {
 export function GigCard({
   gig,
   onPress,
+  onPressArtist,
 }: {
   gig: Gig;
   onPress?: () => void;
+  onPressArtist?: (artist: string) => void;
 }) {
   const handlePress = async () => {
     try {
@@ -22,6 +24,17 @@ export function GigCard({
     } catch {}
     onPress?.();
   };
+
+const handlePressArtist = async (e?: any) => {
+  if (!onPressArtist) return;
+  try {
+    e?.stopPropagation?.();
+  } catch {}
+  try {
+    await Haptics.selectionAsync();
+  } catch {}
+  onPressArtist(gig.artist);
+};
 
   const openTickets = async () => {
     try {
@@ -70,7 +83,13 @@ export function GigCard({
       onPress={handlePress}
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
     >
-      <Text style={styles.artist}>{gig.artist}</Text>
+      {onPressArtist ? (
+        <Pressable onPress={handlePressArtist} hitSlop={6} style={{ alignSelf: "flex-start" }}>
+          <Text style={styles.artist}>{gig.artist}</Text>
+        </Pressable>
+      ) : (
+        <Text style={styles.artist}>{gig.artist}</Text>
+      )}
 
       <Text style={styles.meta}>
         {gig.venue} • {gig.city}
@@ -88,10 +107,7 @@ export function GigCard({
         {hasTickets ? (
           <Pressable
             onPress={openTickets}
-            style={({ pressed }) => [
-              styles.smallBtn,
-              pressed ? { opacity: 0.9 } : null,
-            ]}
+            style={({ pressed }) => [styles.smallBtn, pressed ? { opacity: 0.9 } : null]}
             hitSlop={8}
           >
             <Text style={styles.smallBtnText}>Tickets</Text>
@@ -139,7 +155,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     color: Colours.text.secondary,
   },
-
   actionsRow: {
     marginTop: 12,
     flexDirection: "row",
@@ -147,7 +162,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
-
   smallBtn: {
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
@@ -162,7 +176,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.2,
   },
-
   editHint: {
     color: Colours.text.muted,
     fontWeight: "800",

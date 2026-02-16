@@ -1,3 +1,4 @@
+// app.tsx
 import React from "react";
 import {
   View,
@@ -11,6 +12,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
+import { OfflineBanner } from "./src/components/OfflineBanner";
+import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
+import { apiGet } from "./src/lib/api";
+
 import { GigsScreen } from "./src/pages/GigsScreen";
 import { AddGigScreen } from "./src/pages/AddGigScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
@@ -19,9 +24,6 @@ import { ProfileScreen } from "./src/pages/ProfileScreen";
 
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
-
-// ✅ OFFLINE QUEUE IMPORTS (YOU MISSED THESE)
-import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
 
 type Tab = "gigs" | "discover" | "add" | "stats" | "profile";
 
@@ -58,7 +60,9 @@ function TabItem(props: {
         >
           <Ionicons name={props.icon} size={22} color={Colours.text.primary} />
         </Pressable>
-        <Text style={styles.tabLabelMuted}>{props.label}</Text>
+
+        {/* keep label, but tighter to the button */}
+        <Text style={styles.addLabel}>{props.label}</Text>
       </View>
     );
   }
@@ -73,16 +77,23 @@ function TabItem(props: {
       ]}
       hitSlop={8}
     >
-      <Ionicons
-        name={props.icon}
-        size={18}
-        color={props.active ? Colours.text.primary : Colours.text.muted}
-      />
-      <Text
-        style={[styles.tabLabel, props.active ? styles.tabLabelActive : null]}
-      >
-        {props.label}
-      </Text>
+      {/* Replit-style: icon + label together (not stacked) */}
+      <View style={styles.tabItemInner}>
+        <Ionicons
+          name={props.icon}
+          size={16}
+          color={props.active ? Colours.text.primary : Colours.text.muted}
+        />
+        <Text
+          style={[
+            styles.tabLabel,
+            props.active ? styles.tabLabelActive : null,
+          ]}
+          numberOfLines={1}
+        >
+          {props.label}
+        </Text>
+      </View>
     </Pressable>
   );
 }
@@ -96,6 +107,64 @@ export default function App() {
   );
 
   const goHome = React.useCallback(() => setTab("gigs"), []);
+
+  // --- Offline banner + sync state ---
+  const [queuedCount, setQueuedCount] = React.useState(0);
+  const [isOnline, setIsOnline] = React.useState(true);
+  const [syncing, setSyncing] = React.useState(false);
+  const [justSynced, setJustSynced] = React.useState(false);
+
+  const refreshQueuedCount = React.useCallback(async () => {
+    try {
+      const n = await getQueuedGigsCount();
+      setQueuedCount(n);
+    } catch {}
+  }, []);
+
+  const checkOnline = React.useCallback(async () => {
+    try {
+      await apiGet("/health");
+      setIsOnline(true);
+      return true;
+    } catch {
+      setIsOnline(false);
+      return false;
+    }
+  }, []);
+
+  const runSync = React.useCallback(async () => {
+    const online = await checkOnline();
+    await refreshQueuedCount();
+
+    if (!online) return;
+
+    setSyncing(true);
+    try {
+      const before = await getQueuedGigsCount();
+      await flushGigQueue();
+      const after = await getQueuedGigsCount();
+      setQueuedCount(after);
+
+      if (before > 0 && after === 0) {
+        setJustSynced(true);
+        setTimeout(() => setJustSynced(false), 1800);
+      }
+    } catch {
+      // silent
+    } finally {
+      setSyncing(false);
+    }
+  }, [checkOnline, refreshQueuedCount]);
+
+  React.useEffect(() => {
+    void runSync();
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") void runSync();
+    });
+
+    return () => sub.remove();
+  }, [runSync]);
 
   // --- Animated indicator ---
   const indicatorX = React.useRef(new Animated.Value(0)).current;
@@ -118,35 +187,6 @@ export default function App() {
         indicatorO.setValue(1);
       }
     };
-
-  // ✅ OFFLINE SYNC STATE (YOU HAD THIS BUT NO IMPORTS)
-  const [queuedCount, setQueuedCount] = React.useState(0);
-
-  const refreshQueuedCount = React.useCallback(async () => {
-    try {
-      const n = await getQueuedGigsCount();
-      setQueuedCount(n);
-    } catch {}
-  }, []);
-
-  const runSync = React.useCallback(async () => {
-    try {
-      await flushGigQueue();
-    } catch {}
-    await refreshQueuedCount();
-  }, [refreshQueuedCount]);
-
-  React.useEffect(() => {
-    // on launch
-    void runSync();
-
-    // on returning to foreground
-    const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void runSync();
-    });
-
-    return () => sub.remove();
-  }, [runSync]);
 
   React.useEffect(() => {
     const layout = layoutsRef.current[tab];
@@ -197,16 +237,22 @@ export default function App() {
         }
       } catch {}
 
-      // ✅ keep your “clear prefill when leaving add”
       if (tab === "add" && next !== "add") setPrefill(null);
 
       setTab(next);
     },
-    [tab, setPrefill],
+    [tab],
   );
 
   return (
     <View style={styles.app}>
+      <OfflineBanner
+        isOnline={isOnline}
+        queuedCount={queuedCount}
+        syncing={syncing}
+        justSynced={justSynced}
+      />
+
       <View style={styles.content}>
         {tab === "gigs" ? (
           <GigsScreen key={`gigs-${refreshKey}`} onPressLogo={goHome} />
@@ -227,8 +273,7 @@ export default function App() {
               setPrefill(null);
               setTab("gigs");
               setRefreshKey((k) => k + 1);
-              // optional: sync queued items too (doesn't hurt)
-              void refreshQueuedCount();
+              void runSync();
             }}
           />
         ) : tab === "stats" ? (
@@ -238,6 +283,7 @@ export default function App() {
         )}
       </View>
 
+      {/* Floating Replit-style pill */}
       <View style={styles.tabWrap}>
         <View style={styles.tabPill}>
           <View style={styles.tabPillInner} />
@@ -313,6 +359,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.08)",
   },
 
+  // tuned for “icon + label together”
   activeIndicator: {
     position: "absolute",
     top: 10,
@@ -327,14 +374,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: 16,
   },
 
+  tabItemInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 6,
+  },
+
   tabLabel: {
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: 12,
+    fontWeight: "900",
     color: Colours.text.muted,
     letterSpacing: 0.2,
   },
@@ -347,7 +401,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 6,
+    gap: 4,
   },
 
   addBtn: {
@@ -361,9 +415,9 @@ const styles = StyleSheet.create({
     borderColor: Colours.ui.borderStrong,
   },
 
-  tabLabelMuted: {
-    fontSize: 11,
-    fontWeight: "800",
+  addLabel: {
+    fontSize: 12,
+    fontWeight: "900",
     color: Colours.text.muted,
     letterSpacing: 0.2,
   },

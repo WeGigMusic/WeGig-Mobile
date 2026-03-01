@@ -37,8 +37,8 @@ export function AppHeader(props: {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingTop: 14,
-    paddingBottom: 10,
+    paddingTop: 6,
+    paddingBottom: 8,
     paddingHorizontal: 16,
     backgroundColor: Colours.background.app,
   },
@@ -46,17 +46,16 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    height: 44, // consistent header height
+    height: 52,
   },
 
   logoBtn: {
     justifyContent: "center",
   },
 
-  // Slightly inflated but still within header bounds
   logo: {
-    width: 120,  // was 104
-    height: 30,  // was 26
+    height: 36,       // slightly reduced for visual balance
+    aspectRatio: 1.5, // your true ratio
   },
 
   spacer: {
@@ -69,8 +68,8 @@ const styles = StyleSheet.create({
   },
 
   divider: {
-    marginTop: 12,
+    marginTop: 10,
     height: StyleSheet.hairlineWidth,
     backgroundColor: Colours.ui.divider,
   },
-}); 
+});

@@ -1,11 +1,10 @@
 import React from "react";
-import { View, Text, Image, Pressable, StyleSheet } from "react-native";
+import { View, Image, Pressable, StyleSheet } from "react-native";
 import { Colours } from "../theme/colours";
 
 export function AppHeader(props: {
-  title?: string; // small inline title (optional)
   onPressLogo?: () => void;
-  right?: React.ReactNode; // optional right-side action (later)
+  right?: React.ReactNode;
 }) {
   return (
     <View style={styles.wrap}>
@@ -26,9 +25,7 @@ export function AppHeader(props: {
           />
         </Pressable>
 
-        {props.title ? <Text style={styles.title}>{props.title}</Text> : null}
-
-        <View style={{ flex: 1 }} />
+        <View style={styles.spacer} />
 
         {props.right ? <View style={styles.right}>{props.right}</View> : null}
       </View>
@@ -40,38 +37,40 @@ export function AppHeader(props: {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingTop: 10,
-    paddingBottom: 8,
-    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
+    paddingHorizontal: 16,
     backgroundColor: Colours.background.app,
   },
+
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    height: 44, // consistent header height
   },
+
   logoBtn: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "center",
   },
+
+  // Slightly inflated but still within header bounds
   logo: {
-    width: 104,
-    height: 26,
+    width: 120,  // was 104
+    height: 30,  // was 26
   },
-  title: {
-    color: Colours.text.secondary,
-    fontWeight: "900",
-    fontSize: 16,
-    letterSpacing: 0.2,
+
+  spacer: {
+    flex: 1,
   },
+
   right: {
     alignItems: "flex-end",
     justifyContent: "center",
   },
+
   divider: {
-    marginTop: 10,
-    height: 1,
+    marginTop: 12,
+    height: StyleSheet.hairlineWidth,
     backgroundColor: Colours.ui.divider,
   },
-});
+}); 

@@ -11,6 +11,7 @@ import {
   Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Location from "expo-location";
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
@@ -172,8 +173,7 @@ export function AddGigScreen(props: {
 
     if ((props.prefill as any).artistMbid != null)
       setArtistMbid(String((props.prefill as any).artistMbid));
-    if ((props.prefill as any).notes != null)
-      setNotes(String((props.prefill as any).notes));
+    if ((props.prefill as any).notes != null) setNotes(String((props.prefill as any).notes));
     if ((props.prefill as any).externalSource != null)
       setExternalSource(String((props.prefill as any).externalSource));
     if ((props.prefill as any).externalId != null)
@@ -263,9 +263,7 @@ export function AddGigScreen(props: {
       if (cityHint.trim()) qs.set("city", cityHint.trim());
       qs.set("size", "8");
 
-      const res = await apiGet<TmVenueSearchResponse>(
-        `/tm/venues/search?${qs.toString()}`,
-      );
+      const res = await apiGet<TmVenueSearchResponse>(`/tm/venues/search?${qs.toString()}`);
 
       const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
       setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
@@ -326,6 +324,40 @@ export function AddGigScreen(props: {
       return await getCachedGigs();
     }
   }
+
+  const handleUseMyLocation = async () => {
+  console.log("Use my location pressed");
+
+  const { status } = await Location.requestForegroundPermissionsAsync();
+
+  if (status !== "granted") {
+    Alert.alert("Permission denied", "Location access is needed to auto-fill your city.");
+    return;
+  }
+
+  const loc = await Location.getCurrentPositionAsync({});
+
+  const places = await Location.reverseGeocodeAsync({
+    latitude: loc.coords.latitude,
+    longitude: loc.coords.longitude,
+  });
+
+  const place = places?.[0];
+
+  const inferredCity =
+    place?.city ||
+    place?.subregion ||
+    place?.region ||
+    "";
+
+  if (inferredCity) {
+    setCity(inferredCity);
+    setJustAutoCity(true);
+    setTimeout(() => setJustAutoCity(false), 2200);
+  } else {
+    Alert.alert("Location detected", "Could not determine city automatically.");
+  }
+};
 
   const submit = async () => {
     const payload: CreateGigInput = {
@@ -404,10 +436,7 @@ export function AddGigScreen(props: {
           const existing = await getCachedGigs();
           const dup = findDuplicate(existing, payload);
           if (dup) {
-            Alert.alert(
-              "Already logged",
-              "This gig already exists (from your last sync).",
-            );
+            Alert.alert("Already logged", "This gig already exists (from your last sync).");
             return;
           }
         } catch {}
@@ -564,6 +593,26 @@ export function AddGigScreen(props: {
           ) : null}
 
           <TextField label="City" value={city} onChangeText={setCity} />
+
+          <Pressable
+            onPress={handleUseMyLocation}
+            style={({ pressed }) => [
+              {
+                marginTop: 8,
+                paddingVertical: 10,
+                borderRadius: 10,
+                backgroundColor: Colours.background.card,
+                borderWidth: 1,
+                borderColor: Colours.ui.border,
+                alignItems: "center",
+              },
+              pressed ? { opacity: 0.9 } : null,
+            ]}
+          >
+            <Text style={{ color: Colours.text.primary, fontWeight: "800" }}>
+              Use my current location
+            </Text>
+          </Pressable>
 
           {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
 

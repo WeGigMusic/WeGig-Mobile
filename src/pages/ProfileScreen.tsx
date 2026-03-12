@@ -10,20 +10,26 @@ import {
   Alert,
   Switch,
   Platform,
+  Image,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 
 import { AppHeader } from "../components/AppHeader";
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
+import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
+import { avatarPresets } from "../config/avatarPresets";
 
 const HOME_CITY_KEY = "wegig.homeCity";
 const DISPLAY_NAME_KEY = "wegig.displayName";
 const HAPTICS_KEY = "wegig.hapticsEnabled";
+const AVATAR_PRESET_KEY = "wegig.avatarPreset";
+const AVATAR_URI_KEY = "wegig.avatarUri";
 
 function statLine(label: string, value: string) {
   return (
@@ -135,19 +141,27 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
 
   const [savingPrefs, setSavingPrefs] = React.useState(false);
 
+  // Avatar
+  const [avatarPickerVisible, setAvatarPickerVisible] = React.useState(false);
+  const [avatarPreset, setAvatarPreset] = React.useState<string>("");
+  const [avatarUri, setAvatarUri] = React.useState<string>("");
+
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [dn, hc, hap] = await Promise.all([
+      const [dn, hc, hap, preset, uri] = await Promise.all([
         AsyncStorage.getItem(DISPLAY_NAME_KEY),
         AsyncStorage.getItem(HOME_CITY_KEY),
         AsyncStorage.getItem(HAPTICS_KEY),
+        AsyncStorage.getItem(AVATAR_PRESET_KEY),
+        AsyncStorage.getItem(AVATAR_URI_KEY),
       ]);
 
       if (dn && dn.trim()) setDisplayName(dn.trim());
       if (hc && hc.trim()) setHomeCity(hc.trim());
+      if (preset && preset.trim()) setAvatarPreset(preset.trim());
+      if (uri && uri.trim()) setAvatarUri(uri.trim());
 
       if (hap != null) {
-        // stored as "1"/"0"
         setHapticsEnabled(hap === "1");
       }
     } catch {
@@ -187,7 +201,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
 
     if (next) {
       try {
-        // a quick confirmation
         await Haptics.selectionAsync();
       } catch {}
     }
@@ -213,9 +226,69 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
     void load();
   }, [load, loadPrefs]);
 
+  const handlePickPreset = React.useCallback(async (presetId: string) => {
+    setAvatarPreset(presetId);
+    setAvatarUri("");
+    setAvatarPickerVisible(false);
+
+    try {
+      await AsyncStorage.setItem(AVATAR_PRESET_KEY, presetId);
+      await AsyncStorage.removeItem(AVATAR_URI_KEY);
+    } catch {}
+  }, []);
+
+  const handleUploadAvatar = React.useCallback(async () => {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          "Permission needed",
+          "Allow photo library access to upload a profile picture.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+
+      const selected = result.assets?.[0];
+      if (!selected?.uri) return;
+
+      setAvatarUri(selected.uri);
+      setAvatarPreset("");
+      setAvatarPickerVisible(false);
+
+      await AsyncStorage.setItem(AVATAR_URI_KEY, selected.uri);
+      await AsyncStorage.removeItem(AVATAR_PRESET_KEY);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to upload photo");
+    }
+  }, []);
+
+  const handleRemoveAvatar = React.useCallback(async () => {
+    setAvatarUri("");
+    setAvatarPreset("");
+    setAvatarPickerVisible(false);
+
+    try {
+      await AsyncStorage.removeItem(AVATAR_URI_KEY);
+      await AsyncStorage.removeItem(AVATAR_PRESET_KEY);
+    } catch {}
+  }, []);
+
   const handle = "@wegig"; // placeholder
   const location =
     homeCity.trim() ? homeCity.trim() : stats?.topCity ? stats.topCity : "—";
+
+  const selectedPreset = avatarPresets.find((p) => p.id === avatarPreset);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -224,16 +297,29 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
       <ScrollView contentContainerStyle={styles.body}>
         {/* Top summary row (Replit-ish) */}
         <View style={styles.topRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {displayName.slice(0, 1).toUpperCase()}
-            </Text>
-          </View>
+          <Pressable
+            onPress={() => setAvatarPickerVisible(true)}
+            style={({ pressed }) => [
+              styles.avatar,
+              pressed ? { opacity: 0.9 } : null,
+            ]}
+          >
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+            ) : selectedPreset ? (
+              <Image source={selectedPreset.image} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>
+                {displayName.slice(0, 1).toUpperCase()}
+              </Text>
+            )}
+          </Pressable>
 
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>{displayName}</Text>
             <Text style={styles.handle}>{handle}</Text>
             <Text style={styles.location}> {location ? ` ${location}` : "—"}</Text>
+            <Text style={styles.avatarHint}>Tap avatar to change photo</Text>
           </View>
         </View>
 
@@ -267,7 +353,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
               Used to personalize Discover + “Next gig near you”.
             </Text>
 
-            {/* Haptics row */}
             <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.toggleTitle}>Haptics</Text>
@@ -296,7 +381,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
           </View>
         </View>
 
-        {/* Loading / error */}
         {loading ? (
           <View style={styles.inlineRow}>
             <ActivityIndicator />
@@ -306,7 +390,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
           <Text style={styles.error}>{error}</Text>
         ) : (
           <>
-            {/* Stats */}
             <SectionTitle title="Your stats" />
             <View style={styles.grid}>
               <View style={styles.tile}>
@@ -336,7 +419,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
               </View>
             </View>
 
-            {/* Highlights */}
             <SectionTitle title="Highlights" />
             <View style={styles.card}>
               <View style={{ marginTop: 2 }}>
@@ -345,7 +427,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
               </View>
             </View>
 
-            {/* Badges */}
             <SectionTitle title="Badges" />
             <View style={styles.card}>
               <View style={styles.badgeWrap}>
@@ -362,7 +443,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
               </View>
             </View>
 
-            {/* Account */}
             <SectionTitle title="Account" />
             <View style={styles.card}>
               <ActionRow
@@ -386,6 +466,15 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
 
         <View style={{ height: 24 }} />
       </ScrollView>
+
+      <AvatarPickerModal
+        visible={avatarPickerVisible}
+        onClose={() => setAvatarPickerVisible(false)}
+        onPickPreset={handlePickPreset}
+        onUpload={handleUploadAvatar}
+        onRemove={handleRemoveAvatar}
+        showRemove={!!avatarPreset || !!avatarUri}
+      />
     </SafeAreaView>
   );
 }
@@ -419,16 +508,27 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 18,
+    overflow: "hidden",
     backgroundColor: "rgba(47,140,255,0.25)",
     borderWidth: 1,
     borderColor: Colours.ui.border,
     alignItems: "center",
     justifyContent: "center",
   },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+  },
   avatarText: {
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 22,
+  },
+  avatarHint: {
+    marginTop: 6,
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 12,
   },
 
   name: {

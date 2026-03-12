@@ -32,7 +32,7 @@ export function AvatarPickerModal({
     <Pressable
       style={({ pressed }) => [
         styles.presetCard,
-        pressed ? { opacity: 0.9 } : null,
+        pressed ? { opacity: 0.92, transform: [{ scale: 0.98 }] } : null,
       ]}
       onPress={() => onPickPreset(item.id)}
     >
@@ -50,6 +50,8 @@ export function AvatarPickerModal({
     >
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
+          <View style={styles.handle} />
+
           <Text style={styles.title}>Choose profile photo</Text>
           <Text style={styles.sectionTitle}>Instrument avatars</Text>
 
@@ -86,89 +88,113 @@ export function AvatarPickerModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "#07080A",
     justifyContent: "flex-end",
   },
+
   sheet: {
-    backgroundColor: Colours.background.card,
+    backgroundColor: "#0D0F13",
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 14,
     paddingBottom: 28,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    gap: 14,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    gap: 16,
     borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: Colours.ui.border,
+    borderColor: "rgba(255,255,255,0.06)",
   },
+
+  handle: {
+    alignSelf: "center",
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    marginBottom: 4,
+  },
+
   title: {
     color: Colours.text.primary,
     fontSize: 20,
     fontWeight: "800",
   },
+
   sectionTitle: {
     color: Colours.text.muted,
     fontSize: 14,
     fontWeight: "700",
   },
+
   listContent: {
     gap: 12,
     paddingTop: 4,
   },
+
   row: {
     justifyContent: "space-between",
   },
+
   presetCard: {
     width: "31%",
-    backgroundColor: Colours.background.cardStrong,
-    borderRadius: 14,
-    paddingVertical: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
+    paddingVertical: 14,
     paddingHorizontal: 8,
     alignItems: "center",
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: Colours.ui.border,
+    borderColor: "rgba(255,255,255,0.08)",
   },
+
   presetImage: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    marginBottom: 8,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginBottom: 10,
   },
+
   presetLabel: {
     color: Colours.text.primary,
-    fontSize: 12,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "800",
     textAlign: "center",
   },
+
   actionBtn: {
-    backgroundColor: Colours.background.cardStrong,
-    borderRadius: 12,
-    paddingVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
     borderWidth: 1,
-    borderColor: Colours.ui.border,
+    borderColor: "rgba(255,255,255,0.08)",
   },
+
   actionText: {
     color: Colours.text.primary,
-    fontWeight: "700",
+    fontWeight: "800",
+    fontSize: 15,
   },
+
   removeBtn: {
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 10,
     alignItems: "center",
   },
+
   removeText: {
     color: Colours.text.danger,
-    fontWeight: "700",
+    fontWeight: "800",
+    fontSize: 15,
   },
+
   cancelBtn: {
     paddingVertical: 10,
     alignItems: "center",
   },
+
   cancelText: {
     color: Colours.text.muted,
-    fontWeight: "600",
+    fontWeight: "700",
+    fontSize: 15,
   },
 });

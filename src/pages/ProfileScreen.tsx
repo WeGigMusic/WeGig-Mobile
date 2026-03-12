@@ -319,7 +319,6 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
             <Text style={styles.name}>{displayName}</Text>
             <Text style={styles.handle}>{handle}</Text>
             <Text style={styles.location}> {location ? ` ${location}` : "—"}</Text>
-            <Text style={styles.avatarHint}>Tap avatar to change photo</Text>
           </View>
         </View>
 
@@ -523,12 +522,6 @@ const styles = StyleSheet.create({
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 22,
-  },
-  avatarHint: {
-    marginTop: 6,
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
   },
 
   name: {

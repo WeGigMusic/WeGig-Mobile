@@ -1,11 +1,14 @@
 import React from "react";
-import { View, Image, Pressable, StyleSheet } from "react-native";
+import { View, Image, Pressable, StyleSheet, Text } from "react-native";
 import { Colours } from "../theme/colours";
 
-export function AppHeader(props: {
+type AppHeaderProps = {
+  title?: string;
   onPressLogo?: () => void;
   right?: React.ReactNode;
-}) {
+};
+
+export function AppHeader(props: AppHeaderProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
@@ -24,6 +27,12 @@ export function AppHeader(props: {
             resizeMode="contain"
           />
         </Pressable>
+
+        {props.title ? (
+          <Text numberOfLines={1} style={styles.title}>
+            {props.title}
+          </Text>
+        ) : null}
 
         <View style={styles.spacer} />
 
@@ -54,8 +63,16 @@ const styles = StyleSheet.create({
   },
 
   logo: {
-    height: 36,       // slightly reduced for visual balance
-    aspectRatio: 1.5, // your true ratio
+    height: 36,
+    aspectRatio: 1.5,
+  },
+
+  title: {
+    marginLeft: 12,
+    flexShrink: 1,
+    color: Colours.text.primary,
+    fontSize: 20,
+    fontWeight: "800",
   },
 
   spacer: {

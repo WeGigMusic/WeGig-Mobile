@@ -349,7 +349,7 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
             />
 
             <Text style={styles.muted}>
-              Used to personalize Discover + “Next gig near you”.
+              Used to personalise Discover + “Next gig near you”.
             </Text>
 
             <View style={styles.toggleRow}>

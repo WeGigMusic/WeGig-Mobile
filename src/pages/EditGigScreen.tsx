@@ -9,7 +9,9 @@ import {
   Pressable,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Haptics from "expo-haptics";
 
 import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -19,6 +21,9 @@ import { StarRating } from "../components/StarRating";
 import { apiPatch, apiDelete, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
+
+const FIRST_GIG_ID_KEY = "wegig.firstGigId";
+const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 
 type TmVenue = {
   id: string;
@@ -68,10 +73,8 @@ export function EditGigScreen(props: {
 
   const [loading, setLoading] = React.useState(false);
 
-  // Date picker
   const [showDatePicker, setShowDatePicker] = React.useState(false);
 
-  // Future gig rule
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
     if (!d) return false;
@@ -92,7 +95,6 @@ export function EditGigScreen(props: {
   const dateInvalid =
     date.trim().length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(date.trim());
 
-  // Ticketmaster venue autocomplete
   const [tmLoading, setTmLoading] = React.useState(false);
   const [tmResults, setTmResults] = React.useState<TmVenue[]>([]);
   const [tmError, setTmError] = React.useState("");
@@ -172,6 +174,32 @@ export function EditGigScreen(props: {
     setTmError("");
   };
 
+  const setAsFirstGig = async () => {
+    try {
+      await AsyncStorage.setItem(FIRST_GIG_ID_KEY, props.gig.id);
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
+      Alert.alert("Saved", "This gig is now your first gig.");
+      props.onDone();
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to save first gig");
+    }
+  };
+
+  const setAsFavouriteGig = async () => {
+    try {
+      await AsyncStorage.setItem(FAVOURITE_GIG_ID_KEY, props.gig.id);
+      try {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {}
+      Alert.alert("Saved", "This gig is now your favourite gig.");
+      props.onDone();
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Failed to save favourite gig");
+    }
+  };
+
   const save = async () => {
     const payload: Partial<CreateGigInput> = {
       artist: artist.trim(),
@@ -226,7 +254,7 @@ export function EditGigScreen(props: {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
-      <AppHeader title="Edit gig" onPressLogo={props.onPressLogo} />
+      <AppHeader onPressLogo={props.onPressLogo} />
 
       <ScrollView
         contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 26 }}
@@ -296,7 +324,6 @@ export function EditGigScreen(props: {
           <TextField label="City" value={city} onChangeText={setCity} />
           {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
 
-          {/* Date Picker */}
           <Text style={styles.label}>Date</Text>
 
           <View style={{ gap: 10 }}>
@@ -328,7 +355,6 @@ export function EditGigScreen(props: {
             </Text>
           ) : null}
 
-          {/* Rating */}
           {isFutureGig ? (
             <Text style={styles.muted}>Rating available after the gig date.</Text>
           ) : (
@@ -350,6 +376,20 @@ export function EditGigScreen(props: {
             title={loading ? "Saving…" : "Save changes"}
             onPress={save}
             disabled={loading || requiredMissing || dateInvalid}
+          />
+
+          <PrimaryButton
+            title="Set as first gig"
+            onPress={setAsFirstGig}
+            disabled={loading}
+            style={{ backgroundColor: "#2F8CFF" }}
+          />
+
+          <PrimaryButton
+            title="Set as favourite gig"
+            onPress={setAsFavouriteGig}
+            disabled={loading}
+            style={{ backgroundColor: "#8A5BFF" }}
           />
 
           <PrimaryButton

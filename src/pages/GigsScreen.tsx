@@ -6,6 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { setCachedGigs } from "../lib/gigsCache";
 import { apiGet } from "../lib/api";
@@ -19,6 +20,9 @@ import { GigCard } from "../components/GigCard";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 
+const FIRST_GIG_ID_KEY = "wegig.firstGigId";
+const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
+
 export function GigsScreen(props: { onPressLogo?: () => void }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -27,6 +31,24 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
   const [editingGig, setEditingGig] = React.useState<Gig | null>(null);
   const [artistView, setArtistView] = React.useState<string | null>(null);
 
+  const [firstGigId, setFirstGigId] = React.useState("");
+  const [favouriteGigId, setFavouriteGigId] = React.useState("");
+
+  const loadPinnedGigIds = React.useCallback(async () => {
+    try {
+      const [firstId, favouriteId] = await Promise.all([
+        AsyncStorage.getItem(FIRST_GIG_ID_KEY),
+        AsyncStorage.getItem(FAVOURITE_GIG_ID_KEY),
+      ]);
+
+      setFirstGigId(firstId ?? "");
+      setFavouriteGigId(favouriteId ?? "");
+    } catch {
+      setFirstGigId("");
+      setFavouriteGigId("");
+    }
+  }, []);
+
   const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
@@ -34,8 +56,6 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       setData(res);
-
-      // ✅ Keep local cache updated for duplicate-check + fast access
       setCachedGigs(res.gigs ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load gigs");
@@ -46,7 +66,8 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
 
   React.useEffect(() => {
     void load();
-  }, [load]);
+    void loadPinnedGigIds();
+  }, [load, loadPinnedGigIds]);
 
   if (editingGig) {
     return (
@@ -56,6 +77,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
         onDone={() => {
           setEditingGig(null);
           void load();
+          void loadPinnedGigIds();
         }}
       />
     );
@@ -77,7 +99,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
-      <AppHeader title="Gigs" onPressLogo={props.onPressLogo} />
+      <AppHeader onPressLogo={props.onPressLogo} />
 
       <View style={{ padding: 16, flex: 1 }}>
         {loading ? (
@@ -127,10 +149,15 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
                   gig={item}
                   onPress={() => setEditingGig(item)}
                   onPressArtist={(artist: string) => setArtistView(artist)}
+                  isFirstGig={item.id === firstGigId}
+                  isFavouriteGig={item.id === favouriteGigId}
                 />
               )}
               refreshing={loading}
-              onRefresh={load}
+              onRefresh={() => {
+                void load();
+                void loadPinnedGigIds();
+              }}
             />
           </>
         )}

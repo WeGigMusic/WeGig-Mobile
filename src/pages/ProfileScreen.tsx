@@ -16,7 +16,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 
-import { AppHeader } from "../components/AppHeader";
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { AvatarPickerModal } from "../components/AvatarPickerModal";
@@ -30,6 +29,14 @@ const DISPLAY_NAME_KEY = "wegig.displayName";
 const HAPTICS_KEY = "wegig.hapticsEnabled";
 const AVATAR_PRESET_KEY = "wegig.avatarPreset";
 const AVATAR_URI_KEY = "wegig.avatarUri";
+const FIRST_GIG_ID_KEY = "wegig.firstGigId";
+const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
+
+type BadgeChip = {
+  title: string;
+  icon: string;
+  unlocked: boolean;
+};
 
 function statLine(label: string, value: string) {
   return (
@@ -59,31 +66,61 @@ function computeProfileStats(gigs: Gig[]) {
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  const topCity = Object.entries(cities).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const cityEntries = Object.entries(cities).sort((a, b) => b[1] - a[1]);
+  const topCity = cityEntries[0]?.[0];
+  const cityCount = Object.keys(cities).length;
 
   const venues = gigs.reduce<Record<string, number>>((acc, g) => {
     const k = (g.venue ?? "").trim() || "Unknown";
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  const topVenue = Object.entries(venues).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const venueEntries = Object.entries(venues).sort((a, b) => b[1] - a[1]);
+  const topVenue = venueEntries[0]?.[0];
+  const venueCount = Object.keys(venues).length;
 
   const artists = gigs.reduce<Record<string, number>>((acc, g) => {
     const k = (g.artist ?? "").trim() || "Unknown";
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  const topArtist =
-    Object.entries(artists).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const artistEntries = Object.entries(artists).sort((a, b) => b[1] - a[1]);
+  const topArtist = artistEntries[0]?.[0];
+  const topArtistCount = artistEntries[0]?.[1] ?? 0;
 
-  const badges: Array<{ title: string; subtitle: string }> = [];
-  if (total >= 1) badges.push({ title: "First Gig", subtitle: "Logged 1 gig" });
-  if (total >= 5) badges.push({ title: "Gig Regular", subtitle: "5+ gigs" });
-  if (total >= 10) badges.push({ title: "Scene Member", subtitle: "10+ gigs" });
-  if (rated.length >= 3)
-    badges.push({ title: "Reviewer", subtitle: "Rated 3+ gigs" });
-  if (Object.keys(cities).length >= 3)
-    badges.push({ title: "Explorer", subtitle: "3+ cities" });
+  let statusLabel = "New Fan";
+  let statusColor = "#6B7280";
+  let statusIcon = "✨";
+
+  if (total >= 10) {
+    statusLabel = "Scene Member";
+    statusColor = "#8A5BFF";
+    statusIcon = "⚡";
+  } else if (cityCount >= 3) {
+    statusLabel = "Explorer";
+    statusColor = "#C0C4CC";
+    statusIcon = "🌍";
+  } else if (rated.length >= 5) {
+    statusLabel = "Reviewer";
+    statusColor = "#2EE59D";
+    statusIcon = "📝";
+  } else if (total >= 5) {
+    statusLabel = "Regular";
+    statusColor = "#2F8CFF";
+    statusIcon = "🔥";
+  }
+
+  const badges: BadgeChip[] = [
+    { title: "First Gig", icon: "🎟️", unlocked: total >= 1 },
+    { title: "Origin Story", icon: "🌱", unlocked: total >= 1 },
+    { title: "That One Night", icon: "✨", unlocked: rated.length >= 1 },
+    { title: "Regular", icon: "🔥", unlocked: total >= 5 },
+    { title: "Venue Hopper", icon: "🏟️", unlocked: venueCount >= 3 },
+    { title: "City Explorer", icon: "🌍", unlocked: cityCount >= 3 },
+    { title: "Superfan", icon: "⭐", unlocked: topArtistCount >= 3 },
+    { title: "Five-Star Night", icon: "🌟", unlocked: gigs.some((g) => g.rating === 5) },
+    { title: "Critic", icon: "📝", unlocked: rated.length >= 5 },
+  ];
 
   return {
     total,
@@ -92,7 +129,10 @@ function computeProfileStats(gigs: Gig[]) {
     topCity,
     topVenue,
     topArtist,
-    badges: badges.slice(0, 6),
+    badges,
+    statusLabel,
+    statusColor,
+    statusIcon,
   };
 }
 
@@ -127,33 +167,78 @@ function SectionTitle(props: { title: string }) {
   return <Text style={styles.sectionTitle}>{props.title}</Text>;
 }
 
-export function ProfileScreen(props: { onPressLogo?: () => void }) {
+function BadgeChipView(props: BadgeChip) {
+  return (
+    <View
+      style={[
+        styles.badgeChip,
+        props.unlocked ? styles.badgeChipOn : styles.badgeChipOff,
+      ]}
+    >
+      <Text style={styles.badgeChipIcon}>{props.icon}</Text>
+      <Text style={styles.badgeChipText}>{props.title}</Text>
+    </View>
+  );
+}
+
+function PinnedGigCard(props: {
+  label: string;
+  gig: Gig | null;
+  accent: string;
+  emptyText: string;
+}) {
+  return (
+    <View style={[styles.pinnedCard, { borderColor: props.accent }]}>
+      <Text style={[styles.pinnedLabel, { color: props.accent }]}>
+        {props.label}
+      </Text>
+
+      {props.gig ? (
+        <>
+          <Text style={styles.pinnedArtist}>{props.gig.artist}</Text>
+          <Text style={styles.pinnedMeta}>
+            {props.gig.venue} • {props.gig.city}
+          </Text>
+          <Text style={styles.pinnedDate}>{props.gig.date}</Text>
+        </>
+      ) : (
+        <Text style={styles.pinnedEmpty}>{props.emptyText}</Text>
+      )}
+    </View>
+  );
+}
+
+export function ProfileScreen(_props: { onPressLogo?: () => void }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [stats, setStats] = React.useState<ReturnType<
     typeof computeProfileStats
   > | null>(null);
 
-  // Preferences
+  const [gigs, setGigs] = React.useState<Gig[]>([]);
+  const [firstGigId, setFirstGigId] = React.useState("");
+  const [favouriteGigId, setFavouriteGigId] = React.useState("");
+
   const [displayName, setDisplayName] = React.useState("Nowar");
   const [homeCity, setHomeCity] = React.useState("");
   const [hapticsEnabled, setHapticsEnabled] = React.useState(true);
 
   const [savingPrefs, setSavingPrefs] = React.useState(false);
 
-  // Avatar
   const [avatarPickerVisible, setAvatarPickerVisible] = React.useState(false);
   const [avatarPreset, setAvatarPreset] = React.useState<string>("");
   const [avatarUri, setAvatarUri] = React.useState<string>("");
 
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [dn, hc, hap, preset, uri] = await Promise.all([
+      const [dn, hc, hap, preset, uri, firstId, favouriteId] = await Promise.all([
         AsyncStorage.getItem(DISPLAY_NAME_KEY),
         AsyncStorage.getItem(HOME_CITY_KEY),
         AsyncStorage.getItem(HAPTICS_KEY),
         AsyncStorage.getItem(AVATAR_PRESET_KEY),
         AsyncStorage.getItem(AVATAR_URI_KEY),
+        AsyncStorage.getItem(FIRST_GIG_ID_KEY),
+        AsyncStorage.getItem(FAVOURITE_GIG_ID_KEY),
       ]);
 
       if (dn && dn.trim()) setDisplayName(dn.trim());
@@ -161,12 +246,16 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
       if (preset && preset.trim()) setAvatarPreset(preset.trim());
       if (uri && uri.trim()) setAvatarUri(uri.trim());
 
+      if (firstId && firstId.trim()) setFirstGigId(firstId.trim());
+      else setFirstGigId("");
+
+      if (favouriteId && favouriteId.trim()) setFavouriteGigId(favouriteId.trim());
+      else setFavouriteGigId("");
+
       if (hap != null) {
         setHapticsEnabled(hap === "1");
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
   const savePrefs = React.useCallback(async () => {
@@ -211,11 +300,14 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
     setError("");
     try {
       const res = await apiGet<GigsResponse>("/gigs");
-      const s = computeProfileStats(res.gigs ?? []);
+      const nextGigs = res.gigs ?? [];
+      setGigs(nextGigs);
+      const s = computeProfileStats(nextGigs);
       setStats(s);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load profile");
       setStats(null);
+      setGigs([]);
     } finally {
       setLoading(false);
     }
@@ -239,8 +331,7 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
 
   const handleUploadAvatar = React.useCallback(async () => {
     try {
-      const permission =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
         Alert.alert(
@@ -284,24 +375,25 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
     } catch {}
   }, []);
 
-  const handle = "@wegig"; // placeholder
+  const handle = "@wegig";
   const location =
     homeCity.trim() ? homeCity.trim() : stats?.topCity ? stats.topCity : "—";
 
   const selectedPreset = avatarPresets.find((p) => p.id === avatarPreset);
+  const firstGig = gigs.find((g) => g.id === firstGigId) ?? null;
+  const favouriteGig = gigs.find((g) => g.id === favouriteGigId) ?? null;
+  const metaLine =
+    location && location !== "—" ? `${handle} · ${location}` : handle;
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AppHeader title="Profile" onPressLogo={props.onPressLogo} />
-
       <ScrollView contentContainerStyle={styles.body}>
-        {/* Top summary row (Replit-ish) */}
-        <View style={styles.topRow}>
+        <View style={styles.profileHero}>
           <Pressable
             onPress={() => setAvatarPickerVisible(true)}
             style={({ pressed }) => [
               styles.avatar,
-              pressed ? { opacity: 0.9 } : null,
+              pressed ? { opacity: 0.92 } : null,
             ]}
           >
             {avatarUri ? (
@@ -315,20 +407,52 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
             )}
           </Pressable>
 
-          <View style={{ flex: 1 }}>
+          <View style={styles.profileHeroText}>
             <Text style={styles.name}>{displayName}</Text>
-            <Text style={styles.handle}>{handle}</Text>
-            <Text style={styles.location}> {location ? ` ${location}` : "—"}</Text>
+
+            <View
+              style={[
+                styles.statusPill,
+                { backgroundColor: `${stats?.statusColor ?? "#6B7280"}22` },
+                { borderColor: `${stats?.statusColor ?? "#6B7280"}55` },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusPillText,
+                  { color: stats?.statusColor ?? "#6B7280" },
+                ]}
+              >
+                {(stats?.statusIcon ?? "✨") + " " + (stats?.statusLabel ?? "New Fan")}
+              </Text>
+            </View>
+
+            <Text style={styles.metaLine}>{metaLine}</Text>
           </View>
         </View>
 
-        {/* Total gigs row (like screenshot “Total gigs … 0”) */}
         <View style={styles.slimRowCard}>
           <Text style={styles.slimLabel}>Total gigs</Text>
           <Text style={styles.slimValue}>{stats?.total ?? 0}</Text>
         </View>
 
-        {/* Preferences */}
+        <SectionTitle title="Pinned gigs" />
+        <View style={styles.pinnedGrid}>
+          <PinnedGigCard
+            label="First gig"
+            gig={firstGig}
+            accent="#2F8CFF"
+            emptyText="Choose this from any gig in Edit Gig."
+          />
+
+          <PinnedGigCard
+            label="Favourite gig"
+            gig={favouriteGig}
+            accent="#8A5BFF"
+            emptyText="Choose this from any gig in Edit Gig."
+          />
+        </View>
+
         <SectionTitle title="Preferences" />
         <View style={styles.card}>
           <View style={{ gap: 10 }}>
@@ -427,20 +551,20 @@ export function ProfileScreen(props: { onPressLogo?: () => void }) {
             </View>
 
             <SectionTitle title="Badges" />
-            <View style={styles.card}>
-              <View style={styles.badgeWrap}>
-                {(stats?.badges ?? []).length === 0 ? (
-                  <Text style={styles.muted}>Log a few gigs to unlock badges.</Text>
-                ) : (
-                  (stats?.badges ?? []).map((b) => (
-                    <View style={styles.badge} key={b.title}>
-                      <Text style={styles.badgeTitle}>{b.title}</Text>
-                      <Text style={styles.badgeSubtitle}>{b.subtitle}</Text>
-                    </View>
-                  ))
-                )}
-              </View>
-            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.badgesScroll}
+            >
+              {(stats?.badges ?? []).map((badge) => (
+                <BadgeChipView
+                  key={badge.title}
+                  title={badge.title}
+                  icon={badge.icon}
+                  unlocked={badge.unlocked}
+                />
+              ))}
+            </ScrollView>
 
             <SectionTitle title="Account" />
             <View style={styles.card}>
@@ -483,6 +607,7 @@ const styles = StyleSheet.create({
 
   body: {
     padding: 16,
+    paddingTop: 20,
     paddingBottom: 28,
     gap: 12,
   },
@@ -495,22 +620,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  topRow: {
+  profileHero: {
     flexDirection: "row",
-    gap: 12,
-    backgroundColor: "transparent",
     alignItems: "center",
-    marginTop: 2,
+    gap: 16,
+    backgroundColor: Colours.background.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 16,
+  },
+
+  profileHeroText: {
+    flex: 1,
+    justifyContent: "center",
   },
 
   avatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 76,
+    height: 76,
+    borderRadius: 24,
     overflow: "hidden",
-    backgroundColor: "rgba(47,140,255,0.25)",
+    backgroundColor: "rgba(47,140,255,0.18)",
     borderWidth: 1,
-    borderColor: Colours.ui.border,
+    borderColor: "rgba(47,140,255,0.28)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -521,27 +654,37 @@ const styles = StyleSheet.create({
   avatarText: {
     color: Colours.text.primary,
     fontWeight: "900",
-    fontSize: 22,
+    fontSize: 28,
   },
 
   name: {
     color: Colours.text.primary,
     fontWeight: "900",
-    fontSize: 18,
+    fontSize: 24,
+    lineHeight: 28,
   },
-  handle: {
-    marginTop: 3,
-    color: Colours.text.muted,
+  statusPill: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  statusPillText: {
     fontWeight: "800",
+    fontSize: 11,
+    letterSpacing: 0.2,
   },
-  location: {
-    marginTop: 6,
-    color: Colours.text.secondary,
+  metaLine: {
+    marginTop: 8,
+    color: Colours.text.muted,
     fontWeight: "700",
+    fontSize: 14,
   },
 
   slimRowCard: {
-    marginTop: 8,
+    marginTop: 2,
     backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 16,
     borderWidth: 1,
@@ -560,6 +703,43 @@ const styles = StyleSheet.create({
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 16,
+  },
+
+  pinnedGrid: {
+    gap: 12,
+  },
+  pinnedCard: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+  },
+  pinnedLabel: {
+    fontWeight: "900",
+    fontSize: 12,
+    letterSpacing: 0.2,
+    marginBottom: 8,
+  },
+  pinnedArtist: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 16,
+  },
+  pinnedMeta: {
+    marginTop: 4,
+    color: Colours.text.secondary,
+    fontWeight: "700",
+  },
+  pinnedDate: {
+    marginTop: 6,
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  pinnedEmpty: {
+    color: Colours.text.muted,
+    fontWeight: "700",
+    lineHeight: 20,
   },
 
   card: {
@@ -634,26 +814,34 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
 
-  badgeWrap: {
+  badgesScroll: {
+    paddingVertical: 8,
+    paddingRight: 12,
+  },
+  badgeChip: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-  },
-  badge: {
-    width: "48%",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    marginRight: 8,
     borderWidth: 1,
+  },
+  badgeChipOn: {
+    backgroundColor: "rgba(47,140,255,0.18)",
+    borderColor: "rgba(47,140,255,0.45)",
+  },
+  badgeChipOff: {
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderColor: Colours.ui.border,
-    borderRadius: 16,
-    padding: 12,
+    opacity: 0.5,
   },
-  badgeTitle: {
+  badgeChipIcon: {
+    marginRight: 6,
+    fontSize: 13,
+  },
+  badgeChipText: {
     color: Colours.text.primary,
-    fontWeight: "900",
-  },
-  badgeSubtitle: {
-    marginTop: 6,
-    color: Colours.text.muted,
     fontWeight: "800",
     fontSize: 12,
   },

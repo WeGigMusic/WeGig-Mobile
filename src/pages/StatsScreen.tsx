@@ -49,7 +49,7 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AppHeader title="Stats" onPressLogo={props.onPressLogo} />
+      <AppHeader onPressLogo={props.onPressLogo} />
 
       <View style={styles.body}>
         {loading ? (

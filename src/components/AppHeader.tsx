@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Image, Pressable, StyleSheet, Text } from "react-native";
+import { View, Image, Pressable, StyleSheet } from "react-native";
 import { Colours } from "../theme/colours";
 
 type AppHeaderProps = {
@@ -27,12 +27,6 @@ export function AppHeader(props: AppHeaderProps) {
             resizeMode="contain"
           />
         </Pressable>
-
-        {props.title ? (
-          <Text numberOfLines={1} style={styles.title}>
-            {props.title}
-          </Text>
-        ) : null}
 
         <View style={styles.spacer} />
 
@@ -67,14 +61,6 @@ const styles = StyleSheet.create({
     aspectRatio: 1.5,
   },
 
-  title: {
-    marginLeft: 12,
-    flexShrink: 1,
-    color: Colours.text.primary,
-    fontSize: 20,
-    fontWeight: "800",
-  },
-
   spacer: {
     flex: 1,
   },
@@ -84,9 +70,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  divider: {
-    marginTop: 10,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: Colours.ui.divider,
-  },
+ divider: {
+  marginTop: 8,
+  height: StyleSheet.hairlineWidth,
+  backgroundColor: "rgba(255,255,255,0.06)",
+},
 });

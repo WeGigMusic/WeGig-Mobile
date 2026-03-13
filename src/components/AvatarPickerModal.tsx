@@ -20,6 +20,10 @@ type Props = {
   showRemove?: boolean;
 };
 
+type GridItem =
+  | (AvatarPreset & { kind: "preset" })
+  | { id: "upload"; label: "Upload"; kind: "upload" };
+
 export function AvatarPickerModal({
   visible,
   onClose,
@@ -28,18 +32,43 @@ export function AvatarPickerModal({
   onRemove,
   showRemove,
 }: Props) {
-  const renderPreset = ({ item }: { item: AvatarPreset }) => (
-    <Pressable
-      style={({ pressed }) => [
-        styles.presetCard,
-        pressed ? { opacity: 0.92, transform: [{ scale: 0.98 }] } : null,
-      ]}
-      onPress={() => onPickPreset(item.id)}
-    >
-      <Image source={item.image} style={styles.presetImage} />
-      <Text style={styles.presetLabel}>{item.label}</Text>
-    </Pressable>
-  );
+  const gridItems: GridItem[] = [
+    ...avatarPresets.map((item) => ({ ...item, kind: "preset" as const })),
+    { id: "upload", label: "Upload", kind: "upload" as const },
+  ];
+
+  const renderItem = ({ item }: { item: GridItem }) => {
+    if (item.kind === "upload") {
+      return (
+        <Pressable
+          style={({ pressed }) => [
+            styles.presetCard,
+            styles.uploadCard,
+            pressed ? { opacity: 0.92, transform: [{ scale: 0.98 }] } : null,
+          ]}
+          onPress={onUpload}
+        >
+          <View style={styles.uploadIconWrap}>
+            <Text style={styles.uploadIcon}>＋</Text>
+          </View>
+          <Text style={styles.presetLabel}>Upload</Text>
+        </Pressable>
+      );
+    }
+
+    return (
+      <Pressable
+        style={({ pressed }) => [
+          styles.presetCard,
+          pressed ? { opacity: 0.92, transform: [{ scale: 0.98 }] } : null,
+        ]}
+        onPress={() => onPickPreset(item.id)}
+      >
+        <Image source={item.image} style={styles.presetImage} />
+        <Text style={styles.presetLabel}>{item.label}</Text>
+      </Pressable>
+    );
+  };
 
   return (
     <Modal
@@ -56,19 +85,15 @@ export function AvatarPickerModal({
           <Text style={styles.sectionTitle}>Instrument avatars</Text>
 
           <FlatList
-            data={avatarPresets}
+            data={gridItems}
             keyExtractor={(item) => item.id}
-            renderItem={renderPreset}
+            renderItem={renderItem}
             numColumns={3}
             columnWrapperStyle={styles.row}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             scrollEnabled={false}
           />
-
-          <Pressable style={styles.actionBtn} onPress={onUpload}>
-            <Text style={styles.actionText}>Upload your own photo</Text>
-          </Pressable>
 
           {showRemove ? (
             <Pressable style={styles.removeBtn} onPress={onRemove}>
@@ -144,6 +169,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
+    minHeight: 156,
+    justifyContent: "center",
   },
 
   presetImage: {
@@ -153,26 +180,36 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
+  uploadCard: {
+    backgroundColor: "rgba(47,140,255,0.08)",
+    borderColor: "rgba(47,140,255,0.28)",
+  },
+
+  uploadIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    marginBottom: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(47,140,255,0.14)",
+    borderWidth: 2,
+    borderColor: "#2F8CFF",
+  },
+
+  uploadIcon: {
+    color: "#2F8CFF",
+    fontSize: 34,
+    fontWeight: "500",
+    lineHeight: 34,
+    marginTop: -2,
+  },
+
   presetLabel: {
     color: Colours.text.primary,
     fontSize: 13,
     fontWeight: "800",
     textAlign: "center",
-  },
-
-  actionBtn: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-
-  actionText: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 15,
   },
 
   removeBtn: {

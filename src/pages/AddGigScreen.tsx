@@ -489,7 +489,7 @@ export function AddGigScreen(props: {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AppHeader title="Add Gig" onPressLogo={props.onPressLogo} />
+      <AppHeader onPressLogo={props.onPressLogo} />
 
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>

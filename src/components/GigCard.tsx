@@ -4,6 +4,8 @@ import * as Haptics from "expo-haptics";
 import { Colours } from "../theme/colours";
 import type { Gig } from "../shared/types/Gig";
 import { apiGet } from "../lib/api";
+import { AvatarStack } from "./AvatarStack";
+import { getGigSocialSignal } from "../lib/socialSignal";
 
 type TmEventByIdResponse = {
   url?: string;
@@ -13,10 +15,14 @@ export function GigCard({
   gig,
   onPress,
   onPressArtist,
+  isFirstGig,
+  isFavouriteGig,
 }: {
   gig: Gig;
   onPress?: () => void;
   onPressArtist?: (artist: string) => void;
+  isFirstGig?: boolean;
+  isFavouriteGig?: boolean;
 }) {
   const handlePress = async () => {
     try {
@@ -25,16 +31,18 @@ export function GigCard({
     onPress?.();
   };
 
-const handlePressArtist = async (e?: any) => {
-  if (!onPressArtist) return;
-  try {
-    e?.stopPropagation?.();
-  } catch {}
-  try {
-    await Haptics.selectionAsync();
-  } catch {}
-  onPressArtist(gig.artist);
-};
+  const handlePressArtist = async (e?: any) => {
+    if (!onPressArtist) return;
+    try {
+      e?.stopPropagation?.();
+    } catch {}
+    try {
+      await Haptics.selectionAsync();
+    } catch {}
+    onPressArtist(gig.artist);
+  };
+
+  const social = getGigSocialSignal(gig.id);
 
   const openTickets = async () => {
     try {
@@ -97,11 +105,32 @@ const handlePressArtist = async (e?: any) => {
 
       <Text style={styles.date}>{gig.date}</Text>
 
+      {isFirstGig || isFavouriteGig ? (
+        <View style={styles.tagRow}>
+          {isFirstGig ? (
+            <View style={[styles.tag, styles.firstGigTag]}>
+              <Text style={styles.tagText}>First gig</Text>
+            </View>
+          ) : null}
+
+          {isFavouriteGig ? (
+            <View style={[styles.tag, styles.favouriteTag]}>
+              <Text style={styles.tagText}>Favourite</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       {typeof gig.rating === "number" ? (
         <Text style={styles.rating}>★ {gig.rating}/5</Text>
       ) : null}
 
       {gig.notes ? <Text style={styles.notes}>{gig.notes}</Text> : null}
+
+      <View style={styles.socialBlock}>
+        <AvatarStack avatars={social.avatars} extraCount={social.count} />
+        <Text style={styles.socialCaption}>Fans on WeGig also went</Text>
+      </View>
 
       <View style={styles.actionsRow}>
         {hasTickets ? (
@@ -146,6 +175,32 @@ const styles = StyleSheet.create({
     color: Colours.text.muted,
     fontWeight: "600",
   },
+  tagRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  tag: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  firstGigTag: {
+    backgroundColor: "rgba(47,140,255,0.14)",
+    borderColor: "rgba(47,140,255,0.35)",
+  },
+  favouriteTag: {
+    backgroundColor: "rgba(138,91,255,0.14)",
+    borderColor: "rgba(138,91,255,0.35)",
+  },
+  tagText: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 11,
+    letterSpacing: 0.2,
+  },
   rating: {
     marginTop: 10,
     color: Colours.text.primary,
@@ -154,6 +209,18 @@ const styles = StyleSheet.create({
   notes: {
     marginTop: 8,
     color: Colours.text.secondary,
+  },
+  socialBlock: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  socialCaption: {
+    marginTop: 8,
+    color: Colours.text.muted,
+    fontWeight: "800",
+    fontSize: 12,
   },
   actionsRow: {
     marginTop: 12,

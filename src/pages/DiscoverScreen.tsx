@@ -5,9 +5,11 @@ import {
   View,
   FlatList,
   ActivityIndicator,
+  Image,
+  StyleSheet,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
+import { avatarPresets } from "../config/avatarPresets";
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { apiGet } from "../lib/api";
@@ -25,7 +27,7 @@ type TicketmasterEvent = {
   url?: string;
   dates?: {
     start?: {
-      localDate?: string; // YYYY-MM-DD
+      localDate?: string;
     };
   };
   _embedded?: {
@@ -60,6 +62,79 @@ function pickVenue(e: TicketmasterEvent) {
   };
 }
 
+type SocialAvatarKey = "guitar" | "drums" | "mic" | "piano" | "vinyl";
+
+const AVATAR_IMAGES: Record<SocialAvatarKey, any> = {
+  guitar: avatarPresets.find((p) => p.id === "guitar")?.image,
+  drums: avatarPresets.find((p) => p.id === "drums")?.image,
+  mic: avatarPresets.find((p) => p.id === "mic")?.image,
+  piano: avatarPresets.find((p) => p.id === "piano")?.image,
+  vinyl: avatarPresets.find((p) => p.id === "vinyl")?.image,
+};
+
+function getSocialSignal(seed: string) {
+  const options: Array<{
+    avatars: SocialAvatarKey[];
+    text: string;
+    extraCount?: number;
+  }> = [
+    {
+      avatars: ["guitar", "mic", "vinyl"],
+      text: "Popular with fans who saw similar artists",
+      extraCount: 12,
+    },
+    {
+      avatars: ["drums", "guitar", "mic"],
+      text: "High-energy crowd pick near you",
+      extraCount: 8,
+    },
+    {
+      avatars: ["vinyl", "piano", "mic"],
+      text: "Scene discovery favourite",
+      extraCount: 5,
+    },
+    {
+      avatars: ["guitar", "drums"],
+      text: "Big with live-music regulars",
+      extraCount: 14,
+    },
+    {
+      avatars: ["piano", "vinyl"],
+      text: "Strong match for your taste profile",
+      extraCount: 6,
+    },
+  ];
+
+  const hash = seed.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return options[hash % options.length];
+}
+
+function AvatarStack(props: {
+  avatars: SocialAvatarKey[];
+  extraCount?: number;
+}) {
+  return (
+    <View style={styles.socialRow}>
+      <View style={styles.avatarStack}>
+        {props.avatars.map((key, index) => (
+          <Image
+            key={`${key}-${index}`}
+            source={AVATAR_IMAGES[key]}
+            style={[
+              styles.socialAvatar,
+              index > 0 ? { marginLeft: -10 } : null,
+            ]}
+          />
+        ))}
+      </View>
+
+      {props.extraCount ? (
+        <Text style={styles.socialExtra}>+{props.extraCount}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
   onPressLogo?: () => void;
@@ -71,7 +146,6 @@ export function DiscoverScreen(props: {
   const [error, setError] = React.useState("");
   const [events, setEvents] = React.useState<TicketmasterEvent[]>([]);
 
-  // Home City default (only if user hasn't typed anything)
   React.useEffect(() => {
     let cancelled = false;
 
@@ -86,8 +160,6 @@ export function DiscoverScreen(props: {
     return () => {
       cancelled = true;
     };
-    // run once on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const search = React.useCallback(async () => {
@@ -131,9 +203,8 @@ export function DiscoverScreen(props: {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <AppHeader title="Discover" onPressLogo={props.onPressLogo} />
+      <AppHeader onPressLogo={props.onPressLogo} />
 
-      {/* Header + Search */}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
         <View
           style={{
@@ -196,7 +267,6 @@ export function DiscoverScreen(props: {
         </View>
       </View>
 
-      {/* Results */}
       <FlatList
         style={{ flex: 1 }}
         data={events}
@@ -209,6 +279,7 @@ export function DiscoverScreen(props: {
         renderItem={({ item }) => {
           const date = item.dates?.start?.localDate ?? "";
           const v = pickVenue(item);
+          const social = getSocialSignal(`${item.id}-${item.name}`);
 
           return (
             <View
@@ -233,6 +304,14 @@ export function DiscoverScreen(props: {
                   {date}
                 </Text>
               ) : null}
+
+              <View style={styles.socialBlock}>
+                <AvatarStack
+                  avatars={social.avatars}
+                  extraCount={social.extraCount}
+                />
+                <Text style={styles.socialText}>{social.text}</Text>
+              </View>
 
               <View style={{ marginTop: 12, alignSelf: "flex-start" }}>
                 <PrimaryButton
@@ -259,3 +338,41 @@ export function DiscoverScreen(props: {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  socialBlock: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  socialRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatarStack: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  socialAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#10101A",
+    backgroundColor: "#10101A",
+  },
+  socialExtra: {
+    marginLeft: 8,
+    color: Colours.text.muted,
+    fontWeight: "800",
+    fontSize: 12,
+  },
+  socialText: {
+    marginTop: 8,
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+});

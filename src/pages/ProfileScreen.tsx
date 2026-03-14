@@ -186,6 +186,7 @@ function PinnedGigCard(props: {
   gig: Gig | null;
   accent: string;
   emptyText: string;
+  onChoose?: () => void;
 }) {
   return (
     <View style={[styles.pinnedCard, { borderColor: props.accent }]}>
@@ -202,13 +203,30 @@ function PinnedGigCard(props: {
           <Text style={styles.pinnedDate}>{props.gig.date}</Text>
         </>
       ) : (
-        <Text style={styles.pinnedEmpty}>{props.emptyText}</Text>
+        <>
+          <Text style={styles.pinnedEmpty}>{props.emptyText}</Text>
+
+          {props.onChoose ? (
+            <Pressable
+              onPress={props.onChoose}
+              style={({ pressed }) => [
+                styles.chooseBtn,
+                pressed ? { opacity: 0.85 } : null,
+              ]}
+            >
+              <Text style={styles.chooseBtnText}>Choose from Gigs</Text>
+            </Pressable>
+          ) : null}
+        </>
       )}
     </View>
   );
 }
 
-export function ProfileScreen(_props: { onPressLogo?: () => void }) {
+export function ProfileScreen(props: {
+  onPressLogo?: () => void;
+  onGoToGigs?: () => void;
+}) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [stats, setStats] = React.useState<ReturnType<
@@ -442,14 +460,16 @@ export function ProfileScreen(_props: { onPressLogo?: () => void }) {
             label="First gig"
             gig={firstGig}
             accent="#2F8CFF"
-            emptyText="Choose this from any gig in Edit Gig."
+            emptyText="Pick your first ever gig from Gigs."
+            onChoose={() => props.onGoToGigs?.()}
           />
 
           <PinnedGigCard
             label="Favourite gig"
             gig={favouriteGig}
             accent="#8A5BFF"
-            emptyText="Choose this from any gig in Edit Gig."
+            emptyText="Choose your all-time favourite from Gigs."
+            onChoose={() => props.onGoToGigs?.()}
           />
         </View>
 
@@ -740,6 +760,21 @@ const styles = StyleSheet.create({
     color: Colours.text.muted,
     fontWeight: "700",
     lineHeight: 20,
+  },
+  chooseBtn: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+  },
+  chooseBtnText: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 12,
   },
 
   card: {

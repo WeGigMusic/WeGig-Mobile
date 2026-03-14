@@ -49,6 +49,36 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
     }
   }, []);
 
+  const toggleFavouriteGig = React.useCallback(
+    async (gigId: string) => {
+      try {
+        if (favouriteGigId === gigId) {
+          await AsyncStorage.removeItem(FAVOURITE_GIG_ID_KEY);
+          setFavouriteGigId("");
+        } else {
+          await AsyncStorage.setItem(FAVOURITE_GIG_ID_KEY, gigId);
+          setFavouriteGigId(gigId);
+        }
+      } catch {}
+    },
+    [favouriteGigId],
+  );
+
+  const toggleFirstGig = React.useCallback(
+    async (gigId: string) => {
+      try {
+        if (firstGigId === gigId) {
+          await AsyncStorage.removeItem(FIRST_GIG_ID_KEY);
+          setFirstGigId("");
+        } else {
+          await AsyncStorage.setItem(FIRST_GIG_ID_KEY, gigId);
+          setFirstGigId(gigId);
+        }
+      } catch {}
+    },
+    [firstGigId],
+  );
+
   const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
@@ -142,7 +172,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
             <FlatList
               data={gigs}
               keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingBottom: 24 }}
+              contentContainerStyle={{ paddingBottom: 120 }}
               ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
               renderItem={({ item }) => (
                 <GigCard
@@ -151,6 +181,8 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
                   onPressArtist={(artist: string) => setArtistView(artist)}
                   isFirstGig={item.id === firstGigId}
                   isFavouriteGig={item.id === favouriteGigId}
+                  onToggleFavourite={() => void toggleFavouriteGig(item.id)}
+                  onToggleFirstGig={() => void toggleFirstGig(item.id)}
                 />
               )}
               refreshing={loading}

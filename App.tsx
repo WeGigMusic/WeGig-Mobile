@@ -53,11 +53,11 @@ function TabItem(props: {
       : Colours.brand.primary
     : props.active
       ? Colours.text.primary
-      : "rgba(255,255,255,0.58)";
+      : "rgba(255,255,255,0.48)";
 
   const labelColor = props.active
     ? Colours.text.primary
-    : "rgba(255,255,255,0.58)";
+    : "rgba(255,255,255,0.48)";
 
   return (
     <Pressable
@@ -70,7 +70,15 @@ function TabItem(props: {
     >
       <Ionicons
         name={props.icon}
-        size={props.tabKey === "add" ? 25 : 22}
+        size={
+          props.tabKey === "add"
+            ? props.active
+              ? 26
+              : 25
+            : props.active
+              ? 23
+              : 22
+        }
         color={iconColor}
       />
       <Text style={[styles.tabLabel, { color: labelColor }]}>
@@ -199,16 +207,15 @@ export default function App() {
         ) : tab === "stats" ? (
           <StatsScreen key={`stats-${refreshKey}`} onPressLogo={goHome} />
         ) : (
-          <ProfileScreen onPressLogo={goHome} />
+          <ProfileScreen
+            onPressLogo={goHome}
+            onGoToGigs={() => setTab("gigs")}
+          />
         )}
       </View>
 
       <View pointerEvents="box-none" style={styles.tabWrap}>
-        <BlurView
-          intensity={38}
-          tint="dark"
-          style={styles.tabBar}
-        >
+        <BlurView intensity={60} tint="dark" style={styles.tabBar}>
           <View style={styles.tabRow}>
             {TABS.map((t) => (
               <TabItem
@@ -247,13 +254,13 @@ const styles = StyleSheet.create({
   tabBar: {
     backgroundColor:
       Platform.OS === "ios"
-        ? "rgba(8,8,10,0.55)"
-        : "rgba(8,8,10,0.94)",
+        ? "rgba(8,8,10,0.48)"
+        : "rgba(8,8,10,0.92)",
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.08)",
-    paddingTop: 10,
-    paddingBottom: Platform.OS === "ios" ? 28 : 14,
-    paddingHorizontal: 10,
+    borderTopColor: "rgba(255,255,255,0.05)",
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 30 : 14,
+    paddingHorizontal: 8,
   },
 
   tabRow: {
@@ -266,13 +273,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 6,
+    gap: 4,
+    paddingVertical: 5,
   },
 
   tabLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
-    letterSpacing: 0.2,
+    letterSpacing: 0.15,
   },
 });

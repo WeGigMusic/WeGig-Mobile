@@ -1,6 +1,15 @@
 import React from "react";
-import { Pressable, Text, StyleSheet, View, Linking, Alert } from "react-native";
+import {
+  Pressable,
+  Text,
+  StyleSheet,
+  View,
+  Linking,
+  Alert,
+  Animated,
+} from "react-native";
 import * as Haptics from "expo-haptics";
+import { Ionicons } from "@expo/vector-icons";
 import { Colours } from "../theme/colours";
 import type { Gig } from "../shared/types/Gig";
 import { apiGet } from "../lib/api";
@@ -17,13 +26,20 @@ export function GigCard({
   onPressArtist,
   isFirstGig,
   isFavouriteGig,
+  onToggleFavourite,
+  onToggleFirstGig,
 }: {
   gig: Gig;
   onPress?: () => void;
   onPressArtist?: (artist: string) => void;
   isFirstGig?: boolean;
   isFavouriteGig?: boolean;
+  onToggleFavourite?: () => void;
+  onToggleFirstGig?: () => void;
 }) {
+  const favouriteScaleAnim = React.useRef(new Animated.Value(1)).current;
+  const firstGigScaleAnim = React.useRef(new Animated.Value(1)).current;
+
   const handlePress = async () => {
     try {
       await Haptics.selectionAsync();
@@ -42,9 +58,61 @@ export function GigCard({
     onPressArtist(gig.artist);
   };
 
+  const handleToggleFavourite = async (e?: any) => {
+    try {
+      e?.stopPropagation?.();
+    } catch {}
+
+    try {
+      await Haptics.selectionAsync();
+    } catch {}
+
+    Animated.sequence([
+      Animated.spring(favouriteScaleAnim, {
+        toValue: 1.35,
+        useNativeDriver: true,
+      }),
+      Animated.spring(favouriteScaleAnim, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    onToggleFavourite?.();
+  };
+
+  const handleToggleFirstGig = async (e?: any) => {
+    try {
+      e?.stopPropagation?.();
+    } catch {}
+
+    try {
+      await Haptics.selectionAsync();
+    } catch {}
+
+    Animated.sequence([
+      Animated.spring(firstGigScaleAnim, {
+        toValue: 1.3,
+        useNativeDriver: true,
+      }),
+      Animated.spring(firstGigScaleAnim, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    onToggleFirstGig?.();
+  };
+
   const social = getGigSocialSignal(gig.id);
 
-  const openTickets = async () => {
+  const openTickets = async (e?: any) => {
+    try {
+      e?.stopPropagation?.();
+    } catch {}
+
     try {
       await Haptics.selectionAsync();
     } catch {}
@@ -91,13 +159,59 @@ export function GigCard({
       onPress={handlePress}
       style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
     >
-      {onPressArtist ? (
-        <Pressable onPress={handlePressArtist} hitSlop={6} style={{ alignSelf: "flex-start" }}>
-          <Text style={styles.artist}>{gig.artist}</Text>
-        </Pressable>
-      ) : (
-        <Text style={styles.artist}>{gig.artist}</Text>
-      )}
+      <View style={styles.topRow}>
+        <View style={{ flex: 1, paddingRight: 10 }}>
+          {onPressArtist ? (
+            <Pressable
+              onPress={handlePressArtist}
+              hitSlop={6}
+              style={{ alignSelf: "flex-start" }}
+            >
+              <Text style={styles.artist}>{gig.artist}</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.artist}>{gig.artist}</Text>
+          )}
+        </View>
+
+        <View style={styles.topActions}>
+          <Pressable
+            onPress={handleToggleFirstGig}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              pressed ? { opacity: 0.82 } : null,
+              isFirstGig ? styles.firstGigBtnActive : null,
+            ]}
+          >
+            <Animated.View style={{ transform: [{ scale: firstGigScaleAnim }] }}>
+              <Ionicons
+                name={isFirstGig ? "flag" : "flag-outline"}
+                size={17}
+                color={isFirstGig ? "#2F8CFF" : Colours.text.muted}
+              />
+            </Animated.View>
+          </Pressable>
+
+          <Pressable
+            onPress={handleToggleFavourite}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.iconBtn,
+              pressed ? { opacity: 0.82 } : null,
+              isFavouriteGig ? styles.favouriteBtnActive : null,
+            ]}
+          >
+            <Animated.View style={{ transform: [{ scale: favouriteScaleAnim }] }}>
+              <Ionicons
+                name={isFavouriteGig ? "star" : "star-outline"}
+                size={18}
+                color={isFavouriteGig ? "#FFD166" : Colours.text.muted}
+              />
+            </Animated.View>
+          </Pressable>
+        </View>
+      </View>
 
       <Text style={styles.meta}>
         {gig.venue} • {gig.city}
@@ -145,7 +259,7 @@ export function GigCard({
           <View />
         )}
 
-        <Text style={styles.editHint}>Tap card to edit</Text>
+        <Text style={styles.editHint}>Edit</Text>
       </View>
     </Pressable>
   );
@@ -159,69 +273,116 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colours.ui.border,
   },
-  pressed: { opacity: 0.85 },
+  pressed: {
+    opacity: 0.85,
+  },
+
+  topRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+
+  topActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
   artist: {
     color: Colours.text.primary,
     fontSize: 16,
     fontWeight: "900",
   },
+
+  iconBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  firstGigBtnActive: {
+    backgroundColor: "rgba(47,140,255,0.10)",
+    borderColor: "rgba(47,140,255,0.28)",
+  },
+
+  favouriteBtnActive: {
+    backgroundColor: "rgba(255,209,102,0.10)",
+    borderColor: "rgba(255,209,102,0.28)",
+  },
+
   meta: {
     marginTop: 4,
     color: Colours.text.secondary,
     fontWeight: "600",
   },
+
   date: {
     marginTop: 4,
     color: Colours.text.muted,
     fontWeight: "600",
   },
+
   tagRow: {
     marginTop: 10,
     flexDirection: "row",
     gap: 8,
     flexWrap: "wrap",
   },
+
   tag: {
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
   },
+
   firstGigTag: {
     backgroundColor: "rgba(47,140,255,0.14)",
     borderColor: "rgba(47,140,255,0.35)",
   },
+
   favouriteTag: {
     backgroundColor: "rgba(138,91,255,0.14)",
     borderColor: "rgba(138,91,255,0.35)",
   },
+
   tagText: {
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 11,
     letterSpacing: 0.2,
   },
+
   rating: {
     marginTop: 10,
     color: Colours.text.primary,
     fontWeight: "800",
   },
+
   notes: {
     marginTop: 8,
     color: Colours.text.secondary,
   },
+
   socialBlock: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.08)",
   },
+
   socialCaption: {
     marginTop: 8,
     color: Colours.text.muted,
     fontWeight: "800",
     fontSize: 12,
   },
+
   actionsRow: {
     marginTop: 12,
     flexDirection: "row",
@@ -229,6 +390,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
+
   smallBtn: {
     backgroundColor: "rgba(255,255,255,0.08)",
     borderWidth: 1,
@@ -237,12 +399,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
   },
+
   smallBtnText: {
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 12,
     letterSpacing: 0.2,
   },
+
   editHint: {
     color: Colours.text.muted,
     fontWeight: "800",

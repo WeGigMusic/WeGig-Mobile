@@ -38,37 +38,41 @@ export function TextField({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 8 },
+  wrap: {
+    gap: 6,
+  },
 
   label: {
     color: Colours.text.secondary,
-    fontWeight: "700",
-    fontSize: 13,
-    letterSpacing: 0.3,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.1,
   },
 
   input: {
     backgroundColor: Colours.background.card,
     borderWidth: 1,
     borderColor: Colours.ui.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 12,
     color: Colours.text.primary,
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "400",
   },
 
   multiline: {
-    minHeight: 100,
+    minHeight: 96,
     textAlignVertical: "top",
   },
 
   focused: {
     borderColor: Colours.brand.primary,
     shadowColor: Colours.brand.primary,
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
     shadowOffset: { width: 0, height: 0 },
   },
 });

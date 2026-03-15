@@ -65,7 +65,7 @@ export function DateField(props: {
 
         <Ionicons
           name="calendar-outline"
-          size={18}
+          size={17}
           color={Colours.text.muted}
         />
       </Pressable>
@@ -139,22 +139,24 @@ export function DateField(props: {
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: 8,
+    gap: 6,
   },
 
   label: {
     color: Colours.text.secondary,
-    fontWeight: "700",
-    fontSize: 13,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.1,
   },
 
   field: {
-    minHeight: 52,
+    minHeight: 48,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: Colours.ui.border,
     backgroundColor: Colours.background.card,
-    paddingHorizontal: 14,
+    paddingHorizontal: 13,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -162,13 +164,14 @@ const styles = StyleSheet.create({
 
   value: {
     color: Colours.text.primary,
-    fontWeight: "800",
+    fontWeight: "500",
     fontSize: 15,
+    lineHeight: 20,
   },
 
   placeholder: {
     color: Colours.text.muted,
-    fontWeight: "700",
+    fontWeight: "400",
   },
 
   overlay: {
@@ -197,8 +200,9 @@ const styles = StyleSheet.create({
 
   sheetTitle: {
     color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 16,
+    fontWeight: "700",
+    fontSize: 15,
+    lineHeight: 19,
   },
 
   sheetBtn: {
@@ -208,14 +212,16 @@ const styles = StyleSheet.create({
 
   sheetBtnText: {
     color: "#2F8CFF",
-    fontWeight: "900",
-    fontSize: 15,
+    fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 18,
   },
 
   sheetBtnTextMuted: {
     color: Colours.text.muted,
-    fontWeight: "800",
-    fontSize: 15,
+    fontWeight: "600",
+    fontSize: 14,
+    lineHeight: 18,
   },
 
   pickerWrap: {

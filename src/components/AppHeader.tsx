@@ -21,11 +21,13 @@ export function AppHeader(props: AppHeaderProps) {
           ]}
           hitSlop={12}
         >
-          <Image
-            source={require("../../assets/wegig-logo.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <View style={styles.logoBox}>
+            <Image
+              source={require("../../assets/wegig-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
         </Pressable>
 
         <View style={styles.spacer} />
@@ -56,9 +58,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  logo: {
+  logoBox: {
     height: 36,
-    aspectRatio: 1.5,
+    width: 72,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  logo: {
+    height: 42,
+    width: 72,
   },
 
   spacer: {
@@ -70,9 +79,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
- divider: {
-  marginTop: 8,
-  height: StyleSheet.hairlineWidth,
-  backgroundColor: "rgba(255,255,255,0.06)",
-},
+  divider: {
+    marginTop: 8,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
 });

@@ -6,11 +6,11 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   Alert,
   Switch,
   Platform,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -29,23 +29,11 @@ const DISPLAY_NAME_KEY = "wegig.displayName";
 const HAPTICS_KEY = "wegig.hapticsEnabled";
 const AVATAR_PRESET_KEY = "wegig.avatarPreset";
 const AVATAR_URI_KEY = "wegig.avatarUri";
-const FIRST_GIG_ID_KEY = "wegig.firstGigId";
-const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 
-type BadgeChip = {
-  title: string;
-  icon: string;
-  unlocked: boolean;
+type ProfileScreenProps = {
+  onPressLogo?: () => void;
+  onGoToGigs?: () => void;
 };
-
-function statLine(label: string, value: string) {
-  return (
-    <View style={styles.statRow} key={label}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
 
 function computeProfileStats(gigs: Gig[]) {
   const total = gigs.length;
@@ -53,13 +41,6 @@ function computeProfileStats(gigs: Gig[]) {
   const rated = gigs.filter((g) => typeof g.rating === "number") as Array<
     Gig & { rating: number }
   >;
-
-  const avgRating =
-    rated.length === 0
-      ? null
-      : Math.round(
-          (rated.reduce((sum, g) => sum + g.rating, 0) / rated.length) * 10,
-        ) / 10;
 
   const cities = gigs.reduce<Record<string, number>>((acc, g) => {
     const k = (g.city ?? "").trim() || "Unknown";
@@ -69,24 +50,6 @@ function computeProfileStats(gigs: Gig[]) {
   const cityEntries = Object.entries(cities).sort((a, b) => b[1] - a[1]);
   const topCity = cityEntries[0]?.[0];
   const cityCount = Object.keys(cities).length;
-
-  const venues = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.venue ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
-  const venueEntries = Object.entries(venues).sort((a, b) => b[1] - a[1]);
-  const topVenue = venueEntries[0]?.[0];
-  const venueCount = Object.keys(venues).length;
-
-  const artists = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.artist ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
-  const artistEntries = Object.entries(artists).sort((a, b) => b[1] - a[1]);
-  const topArtist = artistEntries[0]?.[0];
-  const topArtistCount = artistEntries[0]?.[1] ?? 0;
 
   let statusLabel = "New Fan";
   let statusColor = "#6B7280";
@@ -110,26 +73,8 @@ function computeProfileStats(gigs: Gig[]) {
     statusIcon = "🔥";
   }
 
-  const badges: BadgeChip[] = [
-    { title: "First Gig", icon: "🎟️", unlocked: total >= 1 },
-    { title: "Origin Story", icon: "🌱", unlocked: total >= 1 },
-    { title: "That One Night", icon: "✨", unlocked: rated.length >= 1 },
-    { title: "Regular", icon: "🔥", unlocked: total >= 5 },
-    { title: "Venue Hopper", icon: "🏟️", unlocked: venueCount >= 3 },
-    { title: "City Explorer", icon: "🌍", unlocked: cityCount >= 3 },
-    { title: "Superfan", icon: "⭐", unlocked: topArtistCount >= 3 },
-    { title: "Five-Star Night", icon: "🌟", unlocked: gigs.some((g) => g.rating === 5) },
-    { title: "Critic", icon: "📝", unlocked: rated.length >= 5 },
-  ];
-
   return {
-    total,
-    ratedCount: rated.length,
-    avgRating,
     topCity,
-    topVenue,
-    topArtist,
-    badges,
     statusLabel,
     statusColor,
     statusIcon,
@@ -167,75 +112,14 @@ function SectionTitle(props: { title: string }) {
   return <Text style={styles.sectionTitle}>{props.title}</Text>;
 }
 
-function BadgeChipView(props: BadgeChip) {
-  return (
-    <View
-      style={[
-        styles.badgeChip,
-        props.unlocked ? styles.badgeChipOn : styles.badgeChipOff,
-      ]}
-    >
-      <Text style={styles.badgeChipIcon}>{props.icon}</Text>
-      <Text style={styles.badgeChipText}>{props.title}</Text>
-    </View>
-  );
-}
-
-function PinnedGigCard(props: {
-  label: string;
-  gig: Gig | null;
-  accent: string;
-  emptyText: string;
-  onChoose?: () => void;
-}) {
-  return (
-    <View style={[styles.pinnedCard, { borderColor: props.accent }]}>
-      <Text style={[styles.pinnedLabel, { color: props.accent }]}>
-        {props.label}
-      </Text>
-
-      {props.gig ? (
-        <>
-          <Text style={styles.pinnedArtist}>{props.gig.artist}</Text>
-          <Text style={styles.pinnedMeta}>
-            {props.gig.venue} • {props.gig.city}
-          </Text>
-          <Text style={styles.pinnedDate}>{props.gig.date}</Text>
-        </>
-      ) : (
-        <>
-          <Text style={styles.pinnedEmpty}>{props.emptyText}</Text>
-
-          {props.onChoose ? (
-            <Pressable
-              onPress={props.onChoose}
-              style={({ pressed }) => [
-                styles.chooseBtn,
-                pressed ? { opacity: 0.85 } : null,
-              ]}
-            >
-              <Text style={styles.chooseBtnText}>Choose from Gigs</Text>
-            </Pressable>
-          ) : null}
-        </>
-      )}
-    </View>
-  );
-}
-
-export function ProfileScreen(props: {
-  onPressLogo?: () => void;
-  onGoToGigs?: () => void;
-}) {
+export function ProfileScreen({
+  onPressLogo,
+  onGoToGigs,
+}: ProfileScreenProps) {
   const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
   const [stats, setStats] = React.useState<ReturnType<
     typeof computeProfileStats
   > | null>(null);
-
-  const [gigs, setGigs] = React.useState<Gig[]>([]);
-  const [firstGigId, setFirstGigId] = React.useState("");
-  const [favouriteGigId, setFavouriteGigId] = React.useState("");
 
   const [displayName, setDisplayName] = React.useState("Nowar");
   const [homeCity, setHomeCity] = React.useState("");
@@ -249,26 +133,18 @@ export function ProfileScreen(props: {
 
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [dn, hc, hap, preset, uri, firstId, favouriteId] = await Promise.all([
+      const [dn, hc, hap, preset, uri] = await Promise.all([
         AsyncStorage.getItem(DISPLAY_NAME_KEY),
         AsyncStorage.getItem(HOME_CITY_KEY),
         AsyncStorage.getItem(HAPTICS_KEY),
         AsyncStorage.getItem(AVATAR_PRESET_KEY),
         AsyncStorage.getItem(AVATAR_URI_KEY),
-        AsyncStorage.getItem(FIRST_GIG_ID_KEY),
-        AsyncStorage.getItem(FAVOURITE_GIG_ID_KEY),
       ]);
 
       if (dn && dn.trim()) setDisplayName(dn.trim());
       if (hc && hc.trim()) setHomeCity(hc.trim());
       if (preset && preset.trim()) setAvatarPreset(preset.trim());
       if (uri && uri.trim()) setAvatarUri(uri.trim());
-
-      if (firstId && firstId.trim()) setFirstGigId(firstId.trim());
-      else setFirstGigId("");
-
-      if (favouriteId && favouriteId.trim()) setFavouriteGigId(favouriteId.trim());
-      else setFavouriteGigId("");
 
       if (hap != null) {
         setHapticsEnabled(hap === "1");
@@ -315,17 +191,13 @@ export function ProfileScreen(props: {
 
   const load = React.useCallback(async () => {
     setLoading(true);
-    setError("");
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const nextGigs = res.gigs ?? [];
-      setGigs(nextGigs);
       const s = computeProfileStats(nextGigs);
       setStats(s);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to load profile");
+    } catch {
       setStats(null);
-      setGigs([]);
     } finally {
       setLoading(false);
     }
@@ -398,8 +270,6 @@ export function ProfileScreen(props: {
     homeCity.trim() ? homeCity.trim() : stats?.topCity ? stats.topCity : "—";
 
   const selectedPreset = avatarPresets.find((p) => p.id === avatarPreset);
-  const firstGig = gigs.find((g) => g.id === firstGigId) ?? null;
-  const favouriteGig = gigs.find((g) => g.id === favouriteGigId) ?? null;
   const metaLine =
     location && location !== "—" ? `${handle} · ${location}` : handle;
 
@@ -426,52 +296,39 @@ export function ProfileScreen(props: {
           </Pressable>
 
           <View style={styles.profileHeroText}>
-            <Text style={styles.name}>{displayName}</Text>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{displayName}</Text>
 
-            <View
-              style={[
-                styles.statusPill,
-                { backgroundColor: `${stats?.statusColor ?? "#6B7280"}22` },
-                { borderColor: `${stats?.statusColor ?? "#6B7280"}55` },
-              ]}
-            >
-              <Text
+              <View
                 style={[
-                  styles.statusPillText,
-                  { color: stats?.statusColor ?? "#6B7280" },
+                  styles.statusPill,
+                  { backgroundColor: `${stats?.statusColor ?? "#6B7280"}22` },
+                  { borderColor: `${stats?.statusColor ?? "#6B7280"}55` },
                 ]}
               >
-                {(stats?.statusIcon ?? "✨") + " " + (stats?.statusLabel ?? "New Fan")}
-              </Text>
+                <Text
+                  style={[
+                    styles.statusPillText,
+                    { color: stats?.statusColor ?? "#6B7280" },
+                  ]}
+                >
+                  {(stats?.statusIcon ?? "✨") +
+                    " " +
+                    (stats?.statusLabel ?? "New Fan")}
+                </Text>
+              </View>
             </View>
 
             <Text style={styles.metaLine}>{metaLine}</Text>
           </View>
         </View>
 
-        <View style={styles.slimRowCard}>
-          <Text style={styles.slimLabel}>Total gigs</Text>
-          <Text style={styles.slimValue}>{stats?.total ?? 0}</Text>
-        </View>
-
-        <SectionTitle title="Pinned gigs" />
-        <View style={styles.pinnedGrid}>
-          <PinnedGigCard
-            label="First gig"
-            gig={firstGig}
-            accent="#2F8CFF"
-            emptyText="Pick your first ever gig from Gigs."
-            onChoose={() => props.onGoToGigs?.()}
-          />
-
-          <PinnedGigCard
-            label="Favourite gig"
-            gig={favouriteGig}
-            accent="#8A5BFF"
-            emptyText="Choose your all-time favourite from Gigs."
-            onChoose={() => props.onGoToGigs?.()}
-          />
-        </View>
+        {loading ? (
+          <View style={styles.inlineRow}>
+            <ActivityIndicator />
+            <Text style={styles.muted}>Loading profile…</Text>
+          </View>
+        ) : null}
 
         <SectionTitle title="Preferences" />
         <View style={styles.card}>
@@ -511,7 +368,9 @@ export function ProfileScreen(props: {
                   false: "rgba(255,255,255,0.18)",
                   true: "rgba(46,229,157,0.35)",
                 }}
-                thumbColor={hapticsEnabled ? "#2EE59D" : "rgba(255,255,255,0.75)"}
+                thumbColor={
+                  hapticsEnabled ? "#2EE59D" : "rgba(255,255,255,0.75)"
+                }
                 ios_backgroundColor="rgba(255,255,255,0.18)"
               />
             </View>
@@ -524,88 +383,24 @@ export function ProfileScreen(props: {
           </View>
         </View>
 
-        {loading ? (
-          <View style={styles.inlineRow}>
-            <ActivityIndicator />
-            <Text style={styles.muted}>Loading…</Text>
-          </View>
-        ) : error ? (
-          <Text style={styles.error}>{error}</Text>
-        ) : (
-          <>
-            <SectionTitle title="Your stats" />
-            <View style={styles.grid}>
-              <View style={styles.tile}>
-                <Text style={styles.tileLabel}>Rated</Text>
-                <Text style={styles.tileValue}>{stats?.ratedCount ?? 0}</Text>
-              </View>
-
-              <View style={styles.tile}>
-                <Text style={styles.tileLabel}>Avg rating</Text>
-                <Text style={styles.tileValue}>
-                  {stats?.avgRating == null ? "—" : stats.avgRating}
-                </Text>
-              </View>
-
-              <View style={styles.tileWide}>
-                <Text style={styles.tileLabel}>Top artist</Text>
-                <Text style={styles.tileValueSmall}>
-                  {stats?.topArtist ?? "—"}
-                </Text>
-              </View>
-
-              <View style={styles.tileWide}>
-                <Text style={styles.tileLabel}>Top venue</Text>
-                <Text style={styles.tileValueSmall}>
-                  {stats?.topVenue ?? "—"}
-                </Text>
-              </View>
-            </View>
-
-            <SectionTitle title="Highlights" />
-            <View style={styles.card}>
-              <View style={{ marginTop: 2 }}>
-                {statLine("Top city", stats?.topCity ?? "—")}
-                {statLine("Top venue", stats?.topVenue ?? "—")}
-              </View>
-            </View>
-
-            <SectionTitle title="Badges" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.badgesScroll}
-            >
-              {(stats?.badges ?? []).map((badge) => (
-                <BadgeChipView
-                  key={badge.title}
-                  title={badge.title}
-                  icon={badge.icon}
-                  unlocked={badge.unlocked}
-                />
-              ))}
-            </ScrollView>
-
-            <SectionTitle title="Account" />
-            <View style={styles.card}>
-              <ActionRow
-                title="Sign in to sync"
-                subtitle="Apple / Google / Facebook (next)"
-                onPress={() => {}}
-              />
-              <ActionRow
-                title="Export gigs"
-                subtitle="CSV / share (next)"
-                onPress={() => {}}
-              />
-              <ActionRow
-                title="About WeGig"
-                subtitle="Version, links (next)"
-                onPress={() => {}}
-              />
-            </View>
-          </>
-        )}
+        <SectionTitle title="Account" />
+        <View style={styles.card}>
+          <ActionRow
+            title="Sign in to sync"
+            subtitle="Apple / Google / Facebook (next)"
+            onPress={() => {}}
+          />
+          <ActionRow
+            title="Export gigs"
+            subtitle="CSV / share (next)"
+            onPress={() => {}}
+          />
+          <ActionRow
+            title="About WeGig"
+            subtitle="Version, links (next)"
+            onPress={() => {}}
+          />
+        </View>
 
         <View style={{ height: 24 }} />
       </ScrollView>
@@ -623,43 +418,52 @@ export function ProfileScreen(props: {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colours.background.app },
+  safe: {
+    flex: 1,
+    backgroundColor: Colours.background.app,
+  },
 
   body: {
     padding: 16,
-    paddingTop: 20,
+    paddingTop: 18,
     paddingBottom: 28,
     gap: 12,
   },
 
   sectionTitle: {
-    marginTop: 6,
+    marginTop: 4,
     color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 18,
-    letterSpacing: 0.2,
+    fontWeight: "700",
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: 0.1,
   },
 
   profileHero: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
+    gap: 14,
     backgroundColor: Colours.background.card,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: Colours.ui.border,
-    padding: 16,
+    padding: 14,
   },
 
   profileHeroText: {
     flex: 1,
-    justifyContent: "center",
+  },
+
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
 
   avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 24,
+    width: 72,
+    height: 72,
+    borderRadius: 22,
     overflow: "hidden",
     backgroundColor: "rgba(47,140,255,0.18)",
     borderWidth: 1,
@@ -667,114 +471,49 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   avatarImage: {
     width: "100%",
     height: "100%",
   },
+
   avatarText: {
     color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 28,
+    fontWeight: "800",
+    fontSize: 24,
+    lineHeight: 28,
   },
 
   name: {
     color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 24,
-    lineHeight: 28,
+    fontWeight: "800",
+    fontSize: 22,
+    lineHeight: 26,
+    flexShrink: 1,
+    paddingRight: 10,
   },
+
   statusPill: {
-    marginTop: 8,
     alignSelf: "flex-start",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
   },
+
   statusPillText: {
-    fontWeight: "800",
+    fontWeight: "700",
     fontSize: 11,
-    letterSpacing: 0.2,
+    lineHeight: 14,
+    letterSpacing: 0.1,
   },
+
   metaLine: {
     marginTop: 8,
     color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 14,
-  },
-
-  slimRowCard: {
-    marginTop: 2,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  slimLabel: {
-    color: Colours.text.muted,
-    fontWeight: "800",
-  },
-  slimValue: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 16,
-  },
-
-  pinnedGrid: {
-    gap: 12,
-  },
-  pinnedCard: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    padding: 14,
-  },
-  pinnedLabel: {
-    fontWeight: "900",
-    fontSize: 12,
-    letterSpacing: 0.2,
-    marginBottom: 8,
-  },
-  pinnedArtist: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 16,
-  },
-  pinnedMeta: {
-    marginTop: 4,
-    color: Colours.text.secondary,
-    fontWeight: "700",
-  },
-  pinnedDate: {
-    marginTop: 6,
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  pinnedEmpty: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    lineHeight: 20,
-  },
-  chooseBtn: {
-    marginTop: 10,
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-  },
-  chooseBtnText: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 12,
+    fontWeight: "600",
+    fontSize: 13,
+    lineHeight: 17,
   },
 
   card: {
@@ -791,96 +530,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-
-  tile: {
-    width: "48%",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
-  },
-  tileWide: {
-    width: "100%",
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
-  },
-
-  tileLabel: {
-    color: Colours.text.muted,
-    fontWeight: "900",
-    letterSpacing: 0.2,
-  },
-  tileValue: {
-    marginTop: 10,
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 22,
-  },
-  tileValueSmall: {
-    marginTop: 10,
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 14,
-  },
-
-  statRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colours.ui.divider ?? Colours.ui.border,
-  },
-  statLabel: {
-    color: Colours.text.muted,
-    fontWeight: "800",
-    flex: 1,
-  },
-  statValue: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-  },
-
-  badgesScroll: {
-    paddingVertical: 8,
-    paddingRight: 12,
-  },
-  badgeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    marginRight: 8,
-    borderWidth: 1,
-  },
-  badgeChipOn: {
-    backgroundColor: "rgba(47,140,255,0.18)",
-    borderColor: "rgba(47,140,255,0.45)",
-  },
-  badgeChipOff: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderColor: Colours.ui.border,
-    opacity: 0.5,
-  },
-  badgeChipIcon: {
-    marginRight: 6,
-    fontSize: 13,
-  },
-  badgeChipText: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 12,
-  },
-
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -889,20 +538,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colours.ui.divider ?? Colours.ui.border,
   },
+
   actionTitle: {
     color: Colours.text.primary,
-    fontWeight: "900",
+    fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 18,
   },
+
   actionSubtitle: {
     marginTop: 3,
     color: Colours.text.muted,
-    fontWeight: "700",
+    fontWeight: "500",
     fontSize: 12,
+    lineHeight: 16,
   },
+
   chevron: {
     color: Colours.text.muted,
-    fontWeight: "900",
-    fontSize: 18,
+    fontWeight: "700",
+    fontSize: 17,
+    lineHeight: 20,
   },
 
   toggleRow: {
@@ -914,17 +570,26 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.08)",
   },
+
   toggleTitle: {
     color: Colours.text.primary,
-    fontWeight: "900",
+    fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 18,
   },
+
   toggleSubtitle: {
     marginTop: 4,
     color: Colours.text.muted,
-    fontWeight: "700",
+    fontWeight: "500",
     fontSize: 12,
+    lineHeight: 16,
   },
 
-  muted: { color: Colours.text.muted, fontWeight: "800" },
-  error: { color: Colours.text.danger, fontWeight: "900" },
+  muted: {
+    color: Colours.text.muted,
+    fontWeight: "500",
+    fontSize: 13,
+    lineHeight: 18,
+  },
 });

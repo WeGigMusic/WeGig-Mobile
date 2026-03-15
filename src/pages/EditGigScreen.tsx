@@ -7,9 +7,9 @@ import {
   Text,
   ActivityIndicator,
   Pressable,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Haptics from "expo-haptics";
 
 import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -21,9 +21,6 @@ import { apiPatch, apiDelete, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
 import { parseYmdToUtcDate } from "../lib/date";
-
-const FIRST_GIG_ID_KEY = "wegig.firstGigId";
-const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 
 type TmVenue = {
   id: string;
@@ -49,7 +46,9 @@ export function EditGigScreen(props: {
   const [date, setDate] = React.useState(props.gig.date);
 
   const [notes, setNotes] = React.useState(props.gig.notes ?? "");
-  const [rating, setRating] = React.useState<number | undefined>(props.gig.rating);
+  const [rating, setRating] = React.useState<number | undefined>(
+    props.gig.rating,
+  );
 
   const [loading, setLoading] = React.useState(false);
 
@@ -78,6 +77,7 @@ export function EditGigScreen(props: {
   const [tmError, setTmError] = React.useState("");
   const [tmOpen, setTmOpen] = React.useState(false);
   const [justAutoCity, setJustAutoCity] = React.useState(false);
+  const [venueTouched, setVenueTouched] = React.useState(false);
 
   const runTmVenueSearch = React.useCallback(
     async (q: string, cityHint: string) => {
@@ -116,6 +116,8 @@ export function EditGigScreen(props: {
   );
 
   React.useEffect(() => {
+    if (!venueTouched) return;
+
     const q = venue.trim();
     if (q.length < 2) {
       setTmResults([]);
@@ -129,7 +131,7 @@ export function EditGigScreen(props: {
     }, 320);
 
     return () => clearTimeout(t);
-  }, [venue, city, runTmVenueSearch]);
+  }, [venue, city, runTmVenueSearch, venueTouched]);
 
   const chooseVenue = (v: TmVenue) => {
     setVenue(v.name);
@@ -152,32 +154,6 @@ export function EditGigScreen(props: {
     setTmError("");
   };
 
-  const setAsFirstGig = async () => {
-    try {
-      await AsyncStorage.setItem(FIRST_GIG_ID_KEY, props.gig.id);
-      try {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {}
-      Alert.alert("Saved", "This gig is now your first gig.");
-      props.onDone();
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to save first gig");
-    }
-  };
-
-  const setAsFavouriteGig = async () => {
-    try {
-      await AsyncStorage.setItem(FAVOURITE_GIG_ID_KEY, props.gig.id);
-      try {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {}
-      Alert.alert("Saved", "This gig is now your favourite gig.");
-      props.onDone();
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to save favourite gig");
-    }
-  };
-
   const save = async () => {
     const payload: Partial<CreateGigInput> = {
       artist: artist.trim(),
@@ -189,7 +165,10 @@ export function EditGigScreen(props: {
     };
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
-      Alert.alert("Missing fields", "Artist, venue, city and date are required.");
+      Alert.alert(
+        "Missing fields",
+        "Artist, venue, city and date are required.",
+      );
       return;
     }
 
@@ -232,141 +211,147 @@ export function EditGigScreen(props: {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
-      <AppHeader onPressLogo={props.onPressLogo} />
-
-      <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 26 }}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={8}
       >
-        <View style={styles.card}>
-          <Text style={styles.title}>Update details</Text>
-          <Text style={styles.subtitle}>
-            Rating is only available after the gig date.
-          </Text>
-        </View>
+        <AppHeader onPressLogo={props.onPressLogo} />
 
-        <View style={[styles.card, { gap: 12 }]}>
-          <TextField label="Artist" value={artist} onChangeText={setArtist} />
-
-          <TextField
-            label="Venue"
-            value={venue}
-            onChangeText={(t) => {
-              setVenue(t);
-              setTmOpen(true);
-            }}
-            placeholder="Start typing venue…"
-            autoCapitalize="words"
-          />
-
-          {tmLoading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator />
-              <Text style={styles.muted}>Searching venues…</Text>
-            </View>
-          ) : null}
-
-          {tmError ? (
-            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
-              {tmError}
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
+            <Text style={styles.title}>Update details</Text>
+            <Text style={styles.subtitle}>
+              Rating is only available after the gig date.
             </Text>
-          ) : null}
+          </View>
 
-          {tmOpen && !tmLoading && tmResults.length > 0 ? (
-            <View style={styles.suggestCard}>
-              {tmResults.map((v) => {
-                const meta = [v.city ?? "", v.countryCode ?? ""]
-                  .map((x) => String(x).trim())
-                  .filter(Boolean)
-                  .join(" • ");
+          <View style={[styles.card, { gap: 12 }]}>
+            <TextField label="Artist" value={artist} onChangeText={setArtist} />
 
-                return (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => chooseVenue(v)}
-                    style={({ pressed }) => [
-                      styles.suggestRow,
-                      pressed ? { opacity: 0.9 } : null,
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.suggestTitle}>{v.name}</Text>
-                      {meta ? <Text style={styles.suggestMeta}>{meta}</Text> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
+            <TextField
+              label="Venue"
+              value={venue}
+              onChangeText={(t) => {
+                setVenueTouched(true);
+                setVenue(t);
+                setTmOpen(true);
+              }}
+              placeholder="Start typing venue…"
+              autoCapitalize="words"
+            />
 
-          <TextField label="City" value={city} onChangeText={setCity} />
-          {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
+            {tmLoading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator />
+                <Text style={styles.muted}>Searching venues…</Text>
+              </View>
+            ) : null}
 
-          <DateField
-            label="Date"
-            value={date}
-            onChange={setDate}
-            placeholder="Select date"
-          />
+            {tmError ? (
+              <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
+                {tmError}
+              </Text>
+            ) : null}
 
-          {dateInvalid ? (
-            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
-              Date must be YYYY-MM-DD.
-            </Text>
-          ) : null}
+            {tmOpen && !tmLoading && tmResults.length > 0 ? (
+              <View style={styles.suggestCard}>
+                {tmResults.map((v) => {
+                  const meta = [v.city ?? "", v.countryCode ?? ""]
+                    .map((x) => String(x).trim())
+                    .filter(Boolean)
+                    .join(" • ");
 
-          {isFutureGig ? (
-            <Text style={styles.muted}>Rating available after the gig date.</Text>
-          ) : (
-            <View style={{ gap: 8 }}>
-              <Text style={styles.label}>Rating</Text>
-              <StarRating value={rating} onChange={setRating} showLabel />
-            </View>
-          )}
+                  return (
+                    <Pressable
+                      key={v.id}
+                      onPress={() => chooseVenue(v)}
+                      style={({ pressed }) => [
+                        styles.suggestRow,
+                        pressed ? { opacity: 0.9 } : null,
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestTitle}>{v.name}</Text>
+                        {meta ? (
+                          <Text style={styles.suggestMeta}>{meta}</Text>
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
-          <TextField label="Notes" value={notes} onChangeText={setNotes} multiline />
+            <TextField label="City" value={city} onChangeText={setCity} />
+            {justAutoCity ? (
+              <Text style={styles.muted}>City set from venue ✓</Text>
+            ) : null}
 
-          {requiredMissing ? (
-            <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
-              Artist, venue, city and date are required.
-            </Text>
-          ) : null}
+            <DateField
+              label="Date"
+              value={date}
+              onChange={setDate}
+              placeholder="Select date"
+            />
 
-          <PrimaryButton
-            title={loading ? "Saving…" : "Save changes"}
-            onPress={save}
-            disabled={loading || requiredMissing || dateInvalid}
-          />
+            {dateInvalid ? (
+              <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
+                Date must be YYYY-MM-DD.
+              </Text>
+            ) : null}
 
-          <PrimaryButton
-            title="Set as first gig"
-            onPress={setAsFirstGig}
-            disabled={loading}
-            style={{ backgroundColor: "#2F8CFF" }}
-          />
+            {isFutureGig ? (
+              <Text style={styles.muted}>
+                Rating available after the gig date.
+              </Text>
+            ) : (
+              <View style={{ gap: 8 }}>
+                <Text style={styles.label}>Rating</Text>
+                <StarRating value={rating} onChange={setRating} showLabel />
+              </View>
+            )}
 
-          <PrimaryButton
-            title="Set as favourite gig"
-            onPress={setAsFavouriteGig}
-            disabled={loading}
-            style={{ backgroundColor: "#8A5BFF" }}
-          />
+            <TextField
+              label="Notes"
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+            />
 
-          <PrimaryButton
-            title={loading ? "Working…" : "Delete gig"}
-            onPress={confirmDelete}
-            disabled={loading}
-            style={{ backgroundColor: Colours.text.danger }}
-          />
+            {requiredMissing ? (
+              <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
+                Artist, venue, city and date are required.
+              </Text>
+            ) : null}
 
-          {loading ? (
-            <View style={styles.loadingRow}>
-              <ActivityIndicator />
-              <Text style={styles.muted}>Please wait…</Text>
-            </View>
-          ) : null}
-        </View>
-      </ScrollView>
+            <PrimaryButton
+              title={loading ? "Saving…" : "Save changes"}
+              onPress={save}
+              disabled={loading || requiredMissing || dateInvalid}
+            />
+
+            <PrimaryButton
+              title={loading ? "Working…" : "Delete gig"}
+              onPress={confirmDelete}
+              disabled={loading}
+              style={{ backgroundColor: Colours.text.danger }}
+            />
+
+            {loading ? (
+              <View style={styles.loadingRow}>
+                <ActivityIndicator />
+                <Text style={styles.muted}>Please wait…</Text>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

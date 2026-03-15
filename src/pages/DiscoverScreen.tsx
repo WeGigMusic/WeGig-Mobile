@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Image,
   StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { avatarPresets } from "../config/avatarPresets";
@@ -160,7 +162,7 @@ export function DiscoverScreen(props: {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [city]);
 
   const search = React.useCallback(async () => {
     setLoading(true);
@@ -200,160 +202,284 @@ export function DiscoverScreen(props: {
   }, [query, search]);
 
   const hasResults = events.length > 0;
+  const isCompact = query.trim().length > 0 || hasResults;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <AppHeader onPressLogo={props.onPressLogo} />
+    <SafeAreaView style={styles.safe}>
+      <KeyboardAvoidingView
+        style={styles.keyboardWrap}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={8}
+      >
+        <AppHeader onPressLogo={props.onPressLogo} />
 
-      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 12 }}>
-        <View
-          style={{
-            backgroundColor: COLORS.card,
-            borderRadius: 18,
-            padding: 14,
-            borderWidth: 1,
-            borderColor: COLORS.faint,
-          }}
-        >
-          <Text style={{ color: COLORS.text, fontSize: 26, fontWeight: "900" }}>
-            Discover
-          </Text>
+        <View style={styles.heroWrap}>
+          <View style={[styles.heroCard, isCompact ? styles.heroCardCompact : null]}>
+            <Text style={styles.screenTitle}>Discover</Text>
 
-          <Text style={{ color: COLORS.muted, marginTop: 6, lineHeight: 20 }}>
-            Search Ticketmaster and prefill your gig log in one tap.
-          </Text>
-
-          <View style={{ marginTop: 12, gap: 12 }}>
-            <TextField
-              label="Search"
-              value={query}
-              onChangeText={setQuery}
-              placeholder="e.g. Coldplay"
-              autoCapitalize="none"
-            />
-
-            <TextField
-              label="City (optional)"
-              value={city}
-              onChangeText={setCity}
-              placeholder="e.g. Manchester"
-              autoCapitalize="words"
-            />
-
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <PrimaryButton title="Search Ticketmaster" onPress={search} />
-              {loading ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <ActivityIndicator />
-                  <Text style={{ color: COLORS.muted, fontWeight: "600" }}>
-                    Searching…
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            {error ? (
-              <Text style={{ color: COLORS.danger, fontWeight: "700" }}>
-                {error}
+            {!isCompact ? (
+              <Text style={styles.screenSubtitle}>
+                Search Ticketmaster and prefill your gig log in one tap.
               </Text>
             ) : null}
 
-            {!loading && !error && !hasResults ? (
-              <Text style={{ color: COLORS.muted }}>
-                Try searching an artist or band name (e.g. “Coldplay”).
-              </Text>
-            ) : null}
-          </View>
-        </View>
-      </View>
+            <View style={[styles.formBlock, isCompact ? styles.formBlockCompact : null]}>
+              <TextField
+                label="Search"
+                value={query}
+                onChangeText={setQuery}
+                placeholder="e.g. Coldplay"
+                autoCapitalize="none"
+              />
 
-      <FlatList
-        style={{ flex: 1 }}
-        data={events}
-        keyExtractor={(item) => item.id}
-        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: 24,
-        }}
-        renderItem={({ item }) => {
-          const date = item.dates?.start?.localDate ?? "";
-          const v = pickVenue(item);
-          const social = getSocialSignal(`${item.id}-${item.name}`);
+              <TextField
+                label="City (optional)"
+                value={city}
+                onChangeText={setCity}
+                placeholder="e.g. Manchester"
+                autoCapitalize="words"
+              />
 
-          return (
-            <View
-              style={{
-                backgroundColor: COLORS.card2,
-                borderRadius: 18,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: COLORS.faint,
-              }}
-            >
-              <Text style={{ color: COLORS.text, fontSize: 16, fontWeight: "900" }}>
-                {item.name}
-              </Text>
+              <View style={[styles.searchRow, isCompact ? styles.searchRowCompact : null]}>
+                <PrimaryButton title="Search Ticketmaster" onPress={search} />
 
-              <Text style={{ color: COLORS.muted, marginTop: 6, fontWeight: "600" }}>
-                {v.venue} • {v.city}
-              </Text>
+                {loading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator />
+                    <Text style={styles.loadingText}>Searching…</Text>
+                  </View>
+                ) : null}
+              </View>
 
-              {date ? (
-                <Text style={{ color: COLORS.muted, marginTop: 4 }}>
-                  {date}
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+              {!loading && !error && !hasResults && !isCompact ? (
+                <Text style={styles.emptyHint}>
+                  Try searching an artist or band name.
                 </Text>
               ) : null}
-
-              <View style={styles.socialBlock}>
-                <AvatarStack
-                  avatars={social.avatars}
-                  extraCount={social.extraCount}
-                />
-                <Text style={styles.socialText}>{social.text}</Text>
-              </View>
-
-              <View style={{ marginTop: 12, alignSelf: "flex-start" }}>
-                <PrimaryButton
-                  title="Add to gigs"
-                  onPress={() => {
-                    props.onAddToGigs({
-                      artist: item.name,
-                      venue: v.venue,
-                      city: v.city || city,
-                      date: date || new Date().toISOString().slice(0, 10),
-                      externalSource: "Ticketmaster",
-                      externalId: item.id,
-                      ticketUrl: item.url,
-                      notes: "Imported from Ticketmaster",
-                    });
-                  }}
-                  style={{ alignSelf: "flex-start" }}
-                />
-              </View>
             </View>
-          );
-        }}
-      />
+          </View>
+        </View>
+
+        <FlatList
+          style={styles.list}
+          data={events}
+          keyExtractor={(item) => item.id}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const date = item.dates?.start?.localDate ?? "";
+            const v = pickVenue(item);
+            const social = getSocialSignal(`${item.id}-${item.name}`);
+
+            return (
+              <View style={styles.resultCard}>
+                <Text style={styles.resultTitle}>{item.name}</Text>
+
+                <Text style={styles.resultMeta}>
+                  {v.venue} • {v.city}
+                </Text>
+
+                {date ? <Text style={styles.resultDate}>{date}</Text> : null}
+
+                <View style={styles.socialBlock}>
+                  <AvatarStack
+                    avatars={social.avatars}
+                    extraCount={social.extraCount}
+                  />
+                  <Text style={styles.socialText}>{social.text}</Text>
+                </View>
+
+                <View style={styles.resultActionWrap}>
+                  <PrimaryButton
+                    title="Add to gigs"
+                    onPress={() => {
+                      props.onAddToGigs({
+                        artist: item.name,
+                        venue: v.venue,
+                        city: v.city || city,
+                        date: date || new Date().toISOString().slice(0, 10),
+                        externalSource: "Ticketmaster",
+                        externalId: item.id,
+                        ticketUrl: item.url,
+                        notes: "Imported from Ticketmaster",
+                      });
+                    }}
+                    style={styles.resultActionBtn}
+                  />
+                </View>
+              </View>
+            );
+          }}
+        />
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: COLORS.bg,
+  },
+
+  keyboardWrap: {
+    flex: 1,
+  },
+
+  heroWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
+  },
+
+  heroCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.faint,
+  },
+
+  heroCardCompact: {
+    padding: 10,
+  },
+
+  screenTitle: {
+    color: COLORS.text,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "700",
+  },
+
+  screenSubtitle: {
+    color: COLORS.muted,
+    marginTop: 4,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+
+  formBlock: {
+    marginTop: 10,
+    gap: 10,
+  },
+
+  formBlockCompact: {
+    marginTop: 8,
+    gap: 8,
+  },
+
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  searchRowCompact: {
+    gap: 10,
+  },
+
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  loadingText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+
+  errorText: {
+    color: COLORS.danger,
+    fontSize: 13,
+    lineHeight: 17,
+    fontWeight: "700",
+  },
+
+  emptyHint: {
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+
+  list: {
+    flex: 1,
+  },
+
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+
+  separator: {
+    height: 10,
+  },
+
+  resultCard: {
+    backgroundColor: COLORS.card2,
+    borderRadius: 18,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: COLORS.faint,
+  },
+
+  resultTitle: {
+    color: COLORS.text,
+    fontSize: 17,
+    lineHeight: 21,
+    fontWeight: "700",
+  },
+
+  resultMeta: {
+    color: COLORS.muted,
+    marginTop: 5,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+
+  resultDate: {
+    color: COLORS.muted,
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "500",
+  },
+
+  resultActionWrap: {
+    marginTop: 12,
+    alignSelf: "flex-start",
+  },
+
+  resultActionBtn: {
+    alignSelf: "flex-start",
+  },
+
   socialBlock: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.08)",
   },
+
   socialRow: {
     flexDirection: "row",
     alignItems: "center",
   },
+
   avatarStack: {
     flexDirection: "row",
     alignItems: "center",
   },
+
   socialAvatar: {
     width: 28,
     height: 28,
@@ -362,17 +488,20 @@ const styles = StyleSheet.create({
     borderColor: "#10101A",
     backgroundColor: "#10101A",
   },
+
   socialExtra: {
     marginLeft: 8,
     color: Colours.text.muted,
-    fontWeight: "800",
+    fontWeight: "700",
     fontSize: 12,
+    lineHeight: 16,
   },
+
   socialText: {
     marginTop: 8,
     color: Colours.text.muted,
-    fontWeight: "700",
+    fontWeight: "600",
     fontSize: 12,
-    lineHeight: 18,
+    lineHeight: 16,
   },
 });

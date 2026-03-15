@@ -9,21 +9,22 @@ import {
   StyleSheet,
   Pressable,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Location from "expo-location";
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
 import { AppHeader } from "../components/AppHeader";
+import { DateField } from "../components/DateField";
 import { apiPost, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput, Gig, GigsResponse } from "../shared/types/Gig";
 
 import { getCachedGigs, setCachedGigs } from "../lib/gigsCache";
-
 import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
+import { parseYmdToUtcDate } from "../lib/date";
 
 type MbArtist = {
   id: string;
@@ -51,26 +52,6 @@ type TmVenueSearchResponse =
     }
   | any;
 
-function parseYmdToUtcDate(ymd: string): Date | null {
-  const s = (ymd ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const d = new Date(`${s}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function toYmdLocal(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function fromYmdToLocalDate(ymd: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test((ymd ?? "").trim())) return new Date();
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
 function norm(s: any) {
   return String(s ?? "")
     .trim()
@@ -84,7 +65,9 @@ function findDuplicate(existing: Gig[], payload: any): Gig | null {
 
   if (extSource && extId) {
     const dup = existing.find(
-      (g: any) => norm(g?.externalSource) === extSource && norm(g?.externalId) === extId,
+      (g: any) =>
+        norm(g?.externalSource) === extSource &&
+        norm(g?.externalId) === extId,
     );
     return dup ?? null;
   }
@@ -120,33 +103,34 @@ export function AddGigScreen(props: {
   const [date, setDate] = React.useState("");
   const [rating, setRating] = React.useState<number | undefined>(undefined);
 
-  // Date picker
-  const [showDatePicker, setShowDatePicker] = React.useState(false);
-
-  // MusicBrainz
-  const [artistMbid, setArtistMbid] = React.useState<string | undefined>(undefined);
+  const [artistMbid, setArtistMbid] = React.useState<string | undefined>(
+    undefined,
+  );
   const [mbLoading, setMbLoading] = React.useState(false);
   const [mbResults, setMbResults] = React.useState<MbArtist[]>([]);
   const [mbError, setMbError] = React.useState("");
   const [mbOpen, setMbOpen] = React.useState(false);
 
-  // Ticketmaster venues
   const [tmLoading, setTmLoading] = React.useState(false);
   const [tmResults, setTmResults] = React.useState<TmVenue[]>([]);
   const [tmError, setTmError] = React.useState("");
   const [tmOpen, setTmOpen] = React.useState(false);
 
-  // Import/meta
   const [notes, setNotes] = React.useState("");
-  const [externalSource, setExternalSource] = React.useState<string | undefined>(undefined);
-  const [externalId, setExternalId] = React.useState<string | undefined>(undefined);
-  const [ticketUrl, setTicketUrl] = React.useState<string | undefined>(undefined);
+  const [externalSource, setExternalSource] = React.useState<
+    string | undefined
+  >(undefined);
+  const [externalId, setExternalId] = React.useState<string | undefined>(
+    undefined,
+  );
+  const [ticketUrl, setTicketUrl] = React.useState<string | undefined>(
+    undefined,
+  );
 
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
   const [justAutoCity, setJustAutoCity] = React.useState(false);
 
-  // ✅ “No rating if future gig”
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
     if (!d) return false;
@@ -161,7 +145,6 @@ export function AddGigScreen(props: {
     if (isFutureGig && rating != null) setRating(undefined);
   }, [isFutureGig, rating]);
 
-  // Prefill from Discover
   React.useEffect(() => {
     if (!props.prefill) return;
 
@@ -169,11 +152,13 @@ export function AddGigScreen(props: {
     if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
     if (props.prefill.city != null) setCity(String(props.prefill.city));
     if (props.prefill.date != null) setDate(String(props.prefill.date));
-    if (typeof props.prefill.rating === "number") setRating(props.prefill.rating);
+    if (typeof props.prefill.rating === "number")
+      setRating(props.prefill.rating);
 
     if ((props.prefill as any).artistMbid != null)
       setArtistMbid(String((props.prefill as any).artistMbid));
-    if ((props.prefill as any).notes != null) setNotes(String((props.prefill as any).notes));
+    if ((props.prefill as any).notes != null)
+      setNotes(String((props.prefill as any).notes));
     if ((props.prefill as any).externalSource != null)
       setExternalSource(String((props.prefill as any).externalSource));
     if ((props.prefill as any).externalId != null)
@@ -188,7 +173,6 @@ export function AddGigScreen(props: {
     return () => clearTimeout(t);
   }, [props.prefill]);
 
-  // --- MusicBrainz artist autocomplete ---
   const runMbSearch = React.useCallback(async (q: string) => {
     const query = q.trim();
     if (query.length < 2) {
@@ -206,7 +190,9 @@ export function AddGigScreen(props: {
       );
 
       const artists: MbArtist[] =
-        (res?.artists as MbArtist[]) ?? (res?._embedded?.artists as MbArtist[]) ?? [];
+        (res?.artists as MbArtist[]) ??
+        (res?._embedded?.artists as MbArtist[]) ??
+        [];
 
       setMbResults(Array.isArray(artists) ? artists.slice(0, 8) : []);
       setMbOpen(true);
@@ -245,37 +231,41 @@ export function AddGigScreen(props: {
     setMbError("");
   };
 
-  // --- Ticketmaster venue autocomplete ---
-  const runTmVenueSearch = React.useCallback(async (q: string, cityHint: string) => {
-    const query = q.trim();
-    if (query.length < 2) {
-      setTmResults([]);
+  const runTmVenueSearch = React.useCallback(
+    async (q: string, cityHint: string) => {
+      const query = q.trim();
+      if (query.length < 2) {
+        setTmResults([]);
+        setTmError("");
+        setTmLoading(false);
+        return;
+      }
+
+      setTmLoading(true);
       setTmError("");
-      setTmLoading(false);
-      return;
-    }
+      try {
+        const qs = new URLSearchParams();
+        qs.set("q", query);
+        if (cityHint.trim()) qs.set("city", cityHint.trim());
+        qs.set("size", "8");
 
-    setTmLoading(true);
-    setTmError("");
-    try {
-      const qs = new URLSearchParams();
-      qs.set("q", query);
-      if (cityHint.trim()) qs.set("city", cityHint.trim());
-      qs.set("size", "8");
+        const res = await apiGet<TmVenueSearchResponse>(
+          `/tm/venues/search?${qs.toString()}`,
+        );
 
-      const res = await apiGet<TmVenueSearchResponse>(`/tm/venues/search?${qs.toString()}`);
-
-      const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
-      setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
-      setTmOpen(true);
-    } catch (e: any) {
-      setTmError(e?.message ?? "Venue search failed");
-      setTmResults([]);
-      setTmOpen(false);
-    } finally {
-      setTmLoading(false);
-    }
-  }, []);
+        const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
+        setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
+        setTmOpen(true);
+      } catch (e: any) {
+        setTmError(e?.message ?? "Venue search failed");
+        setTmResults([]);
+        setTmOpen(false);
+      } finally {
+        setTmLoading(false);
+      }
+    },
+    [],
+  );
 
   React.useEffect(() => {
     const q = venue.trim();
@@ -299,7 +289,8 @@ export function AddGigScreen(props: {
     const venueCity = (v.city ?? "").toString().trim();
     if (venueCity) {
       const current = city.trim().toLowerCase();
-      const shouldOverwrite = !current || current === "unknown city" || current === "unknown";
+      const shouldOverwrite =
+        !current || current === "unknown city" || current === "unknown";
 
       if (shouldOverwrite) {
         setCity(venueCity);
@@ -314,7 +305,6 @@ export function AddGigScreen(props: {
   };
 
   async function getExistingGigsBestEffort(): Promise<Gig[]> {
-    // Try API first (fresh), fallback to cache
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const gigs = res?.gigs ?? [];
@@ -326,38 +316,40 @@ export function AddGigScreen(props: {
   }
 
   const handleUseMyLocation = async () => {
-  console.log("Use my location pressed");
+    console.log("Use my location pressed");
 
-  const { status } = await Location.requestForegroundPermissionsAsync();
+    const { status } = await Location.requestForegroundPermissionsAsync();
 
-  if (status !== "granted") {
-    Alert.alert("Permission denied", "Location access is needed to auto-fill your city.");
-    return;
-  }
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission denied",
+        "Location access is needed to auto-fill your city.",
+      );
+      return;
+    }
 
-  const loc = await Location.getCurrentPositionAsync({});
+    const loc = await Location.getCurrentPositionAsync({});
 
-  const places = await Location.reverseGeocodeAsync({
-    latitude: loc.coords.latitude,
-    longitude: loc.coords.longitude,
-  });
+    const places = await Location.reverseGeocodeAsync({
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+    });
 
-  const place = places?.[0];
+    const place = places?.[0];
 
-  const inferredCity =
-    place?.city ||
-    place?.subregion ||
-    place?.region ||
-    "";
+    const inferredCity = place?.city || place?.subregion || place?.region || "";
 
-  if (inferredCity) {
-    setCity(inferredCity);
-    setJustAutoCity(true);
-    setTimeout(() => setJustAutoCity(false), 2200);
-  } else {
-    Alert.alert("Location detected", "Could not determine city automatically.");
-  }
-};
+    if (inferredCity) {
+      setCity(inferredCity);
+      setJustAutoCity(true);
+      setTimeout(() => setJustAutoCity(false), 2200);
+    } else {
+      Alert.alert(
+        "Location detected",
+        "Could not determine city automatically.",
+      );
+    }
+  };
 
   const submit = async () => {
     const payload: CreateGigInput = {
@@ -375,11 +367,13 @@ export function AddGigScreen(props: {
     (payload as any).ticketUrl = ticketUrl;
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
-      Alert.alert("Missing fields", "Artist, venue, city and date are required.");
+      Alert.alert(
+        "Missing fields",
+        "Artist, venue, city and date are required.",
+      );
       return;
     }
 
-    // ✅ Client-side duplicate prevention (online + offline using cache fallback)
     try {
       const existing = await getExistingGigsBestEffort();
       const dup = findDuplicate(existing, payload);
@@ -390,15 +384,12 @@ export function AddGigScreen(props: {
         );
         return;
       }
-    } catch {
-      // If cache read fails, don't block saving
-    }
+    } catch {}
 
     setLoading(true);
     try {
       const created = await apiPost<Gig>("/gigs", payload);
 
-      // keep cache warm
       try {
         const existing = await getCachedGigs();
         await setCachedGigs([created, ...existing]);
@@ -428,15 +419,16 @@ export function AddGigScreen(props: {
       setTmError("");
 
       setJustAutoCity(false);
-      setShowDatePicker(false);
     } catch (e: any) {
-      // ✅ If offline, queue it — but DO NOT queue duplicates (check cache)
       if (isOfflineError(e)) {
         try {
           const existing = await getCachedGigs();
           const dup = findDuplicate(existing, payload);
           if (dup) {
-            Alert.alert("Already logged", "This gig already exists (from your last sync).");
+            Alert.alert(
+              "Already logged",
+              "This gig already exists (from your last sync).",
+            );
             return;
           }
         } catch {}
@@ -447,7 +439,6 @@ export function AddGigScreen(props: {
             "Saved offline",
             "You’re offline. This gig was queued and will sync when you’re back online.",
           );
-          // Optional: clear form after queueing
           props.onCreated?.({} as any);
           setArtist("");
           setVenue("");
@@ -466,15 +457,16 @@ export function AddGigScreen(props: {
           setTmOpen(false);
           setTmError("");
           setJustAutoCity(false);
-          setShowDatePicker(false);
           return;
         } catch (qErr: any) {
-          Alert.alert("Offline save failed", qErr?.message ?? "Couldn’t queue gig.");
+          Alert.alert(
+            "Offline save failed",
+            qErr?.message ?? "Couldn’t queue gig.",
+          );
           return;
         }
       }
 
-      // Friendly message for API duplicate (409)
       const msg = String(e?.message ?? "");
       if (msg.includes("409")) {
         Alert.alert("Already logged", "You’ve already logged this gig.");
@@ -489,202 +481,257 @@ export function AddGigScreen(props: {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AppHeader onPressLogo={props.onPressLogo} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={8}
+      >
+        <AppHeader onPressLogo={props.onPressLogo} />
 
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
-          <Text style={styles.title}>Log a gig</Text>
-          <Text style={styles.subtitle}>
-            Use <Text style={styles.bold}>Discover</Text> to prefill shows faster.
-          </Text>
-
-          {justPrefilled ? <Text style={styles.ok}>Prefilled from Discover ✓</Text> : null}
-        </View>
-
-        <View style={[styles.card, { gap: 12 }]}>
-          <TextField
-            label="Artist"
-            value={artist}
-            onChangeText={(t) => {
-              setArtist(t);
-              setMbOpen(true);
-            }}
-            placeholder="Start typing (e.g. Coldplay)"
-            autoCapitalize="words"
-          />
-
-          {mbLoading ? (
-            <View style={styles.inlineRow}>
-              <ActivityIndicator />
-              <Text style={styles.muted}>Searching artists…</Text>
-            </View>
-          ) : null}
-
-          {mbError ? (
-            <Text style={{ color: Colours.text.danger, fontWeight: "700" }}>{mbError}</Text>
-          ) : null}
-
-          {mbOpen && !mbLoading && mbResults.length > 0 ? (
-            <View style={styles.suggestCard}>
-              {mbResults.map((a) => {
-                const meta = [a.country, a.disambiguation].filter(Boolean).join(" • ");
-                return (
-                  <Pressable
-                    key={a.id}
-                    onPress={() => chooseArtist(a)}
-                    style={({ pressed }) => [styles.suggestRow, pressed ? { opacity: 0.9 } : null]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.suggestTitle}>{a.name}</Text>
-                      {meta ? <Text style={styles.suggestMeta}>{meta}</Text> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-
-          {artistMbid ? <Text style={styles.muted}>Matched artist ✓</Text> : null}
-
-          <TextField
-            label="Venue"
-            value={venue}
-            onChangeText={(t) => {
-              setVenue(t);
-              setTmOpen(true);
-            }}
-            placeholder="Start typing venue…"
-            autoCapitalize="words"
-          />
-
-          {tmLoading ? (
-            <View style={styles.inlineRow}>
-              <ActivityIndicator />
-              <Text style={styles.muted}>Searching venues…</Text>
-            </View>
-          ) : null}
-
-          {tmError ? (
-            <Text style={{ color: Colours.text.danger, fontWeight: "700" }}>{tmError}</Text>
-          ) : null}
-
-          {tmOpen && !tmLoading && tmResults.length > 0 ? (
-            <View style={styles.suggestCard}>
-              {tmResults.map((v) => {
-                const meta = [v.city ?? "", v.countryCode ?? ""]
-                  .map((x) => String(x).trim())
-                  .filter(Boolean)
-                  .join(" • ");
-
-                return (
-                  <Pressable
-                    key={v.id}
-                    onPress={() => chooseVenue(v)}
-                    style={({ pressed }) => [styles.suggestRow, pressed ? { opacity: 0.9 } : null]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.suggestTitle}>{v.name}</Text>
-                      {meta ? <Text style={styles.suggestMeta}>{meta}</Text> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : null}
-
-          <TextField label="City" value={city} onChangeText={setCity} />
-
-          <Pressable
-            onPress={handleUseMyLocation}
-            style={({ pressed }) => [
-              {
-                marginTop: 8,
-                paddingVertical: 10,
-                borderRadius: 10,
-                backgroundColor: Colours.background.card,
-                borderWidth: 1,
-                borderColor: Colours.ui.border,
-                alignItems: "center",
-              },
-              pressed ? { opacity: 0.9 } : null,
-            ]}
-          >
-            <Text style={{ color: Colours.text.primary, fontWeight: "800" }}>
-              Use my current location
+        <ScrollView
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
+            <Text style={styles.title}>Log a gig</Text>
+            <Text style={styles.subtitle}>
+              Use <Text style={styles.bold}>Discover</Text> to prefill shows
+              faster.
             </Text>
-          </Pressable>
 
-          {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
-
-          {/* Date Picker */}
-          <Text style={styles.label}>Date</Text>
-
-          <View style={{ gap: 10 }}>
-            <PrimaryButton
-              title={date ? `Selected: ${date}` : "Select date"}
-              onPress={() => setShowDatePicker(true)}
-            />
-
-            {showDatePicker ? (
-              <DateTimePicker
-                value={fromYmdToLocalDate(date)}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(_, selected) => {
-                  if (Platform.OS !== "ios") setShowDatePicker(false);
-                  if (selected) setDate(toYmdLocal(selected));
-                }}
-              />
-            ) : null}
-
-            {Platform.OS === "ios" && showDatePicker ? (
-              <PrimaryButton title="Done" onPress={() => setShowDatePicker(false)} />
+            {justPrefilled ? (
+              <Text style={styles.ok}>Prefilled from Discover ✓</Text>
             ) : null}
           </View>
 
-          {/* Rating (only after gig date) */}
-          {isFutureGig ? (
-            <Text style={styles.muted}>Rating available after the gig date.</Text>
-          ) : (
-            <View style={{ gap: 8 }}>
-              <Text style={styles.label}>Rating</Text>
-              <StarRating value={rating} onChange={setRating} showLabel />
-            </View>
-          )}
+          <View style={[styles.card, styles.formCard]}>
+            <TextField
+              label="Artist"
+              value={artist}
+              onChangeText={(t) => {
+                setArtist(t);
+                setMbOpen(true);
+              }}
+              placeholder="Start typing an artist..."
+              autoCapitalize="words"
+            />
 
-          <PrimaryButton title={loading ? "Saving…" : "Save"} onPress={submit} disabled={loading} />
+            {mbLoading ? (
+              <View style={styles.inlineRow}>
+                <ActivityIndicator />
+                <Text style={styles.muted}>Searching artists…</Text>
+              </View>
+            ) : null}
 
-          {loading ? (
-            <View style={styles.inlineRow}>
-              <ActivityIndicator />
-              <Text style={styles.muted}>Saving…</Text>
-            </View>
-          ) : null}
-        </View>
-      </ScrollView>
+            {mbError ? <Text style={styles.errorText}>{mbError}</Text> : null}
+
+            {mbOpen && !mbLoading && mbResults.length > 0 ? (
+              <View style={styles.suggestCard}>
+                {mbResults.map((a) => {
+                  const meta = [a.country, a.disambiguation]
+                    .filter(Boolean)
+                    .join(" • ");
+                  return (
+                    <Pressable
+                      key={a.id}
+                      onPress={() => chooseArtist(a)}
+                      style={({ pressed }) => [
+                        styles.suggestRow,
+                        pressed ? { opacity: 0.9 } : null,
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestTitle}>{a.name}</Text>
+                        {meta ? (
+                          <Text style={styles.suggestMeta}>{meta}</Text>
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+
+            {artistMbid ? (
+              <Text style={styles.muted}>Matched artist ✓</Text>
+            ) : null}
+
+            <TextField
+              label="Venue"
+              value={venue}
+              onChangeText={(t) => {
+                setVenue(t);
+                setTmOpen(true);
+              }}
+              placeholder="Start typing venue…"
+              autoCapitalize="words"
+            />
+
+            {tmLoading ? (
+              <View style={styles.inlineRow}>
+                <ActivityIndicator />
+                <Text style={styles.muted}>Searching venues…</Text>
+              </View>
+            ) : null}
+
+            {tmError ? <Text style={styles.errorText}>{tmError}</Text> : null}
+
+            {tmOpen && !tmLoading && tmResults.length > 0 ? (
+              <View style={styles.suggestCard}>
+                {tmResults.map((v) => {
+                  const meta = [v.city ?? "", v.countryCode ?? ""]
+                    .map((x) => String(x).trim())
+                    .filter(Boolean)
+                    .join(" • ");
+
+                  return (
+                    <Pressable
+                      key={v.id}
+                      onPress={() => chooseVenue(v)}
+                      style={({ pressed }) => [
+                        styles.suggestRow,
+                        pressed ? { opacity: 0.9 } : null,
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestTitle}>{v.name}</Text>
+                        {meta ? (
+                          <Text style={styles.suggestMeta}>{meta}</Text>
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+
+            <TextField label="City" value={city} onChangeText={setCity} />
+
+            <Pressable
+              onPress={handleUseMyLocation}
+              style={({ pressed }) => [
+                styles.locationBtn,
+                pressed ? { opacity: 0.9 } : null,
+              ]}
+            >
+              <Text style={styles.locationBtnText}>Use my current location</Text>
+            </Pressable>
+
+            {justAutoCity ? (
+              <Text style={styles.muted}>City set from venue ✓</Text>
+            ) : null}
+
+            <DateField
+              label="Date"
+              value={date}
+              onChange={setDate}
+              placeholder="Select date"
+            />
+
+            {isFutureGig ? (
+              <Text style={styles.muted}>
+                Rating available after the gig date.
+              </Text>
+            ) : (
+              <View style={styles.ratingBlock}>
+                <Text style={styles.label}>Rating</Text>
+                <StarRating value={rating} onChange={setRating} showLabel />
+              </View>
+            )}
+
+            <PrimaryButton
+              title={loading ? "Saving…" : "Save"}
+              onPress={submit}
+              disabled={loading}
+            />
+
+            {loading ? (
+              <View style={styles.inlineRow}>
+                <ActivityIndicator />
+                <Text style={styles.muted}>Saving…</Text>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colours.background.app },
-  body: { padding: 16, gap: 12, paddingBottom: 28 },
+  safe: {
+    flex: 1,
+    backgroundColor: Colours.background.app,
+  },
+
+  body: {
+    padding: 16,
+    gap: 12,
+    paddingBottom: 140,
+  },
 
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: Colours.ui.border,
-    padding: 14,
+    padding: 13,
   },
 
-  title: { color: Colours.text.primary, fontSize: 26, fontWeight: "900" },
-  subtitle: { color: Colours.text.muted, marginTop: 6, lineHeight: 20 },
-  bold: { color: Colours.text.primary, fontWeight: "800" },
-  ok: { marginTop: 10, color: "#2EE59D", fontWeight: "800" },
+  formCard: {
+    gap: 12,
+  },
 
-  label: { color: Colours.text.secondary, fontWeight: "700", fontSize: 13 },
-  muted: { color: Colours.text.muted, fontWeight: "700" },
+  title: {
+    color: Colours.text.primary,
+    fontSize: 20,
+    lineHeight: 24,
+    fontWeight: "700",
+  },
+
+  subtitle: {
+    color: Colours.text.muted,
+    marginTop: 6,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+
+  bold: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+  },
+
+  ok: {
+    marginTop: 10,
+    color: "#2EE59D",
+    fontWeight: "600",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  label: {
+    color: Colours.text.secondary,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  muted: {
+    color: Colours.text.muted,
+    fontWeight: "500",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  errorText: {
+    color: Colours.text.danger,
+    fontWeight: "700",
+    fontSize: 13,
+    lineHeight: 17,
+  },
 
   inlineRow: {
     flexDirection: "row",
@@ -709,13 +756,37 @@ const styles = StyleSheet.create({
 
   suggestTitle: {
     color: Colours.text.primary,
-    fontWeight: "900",
+    fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 18,
   },
 
   suggestMeta: {
     marginTop: 2,
     color: Colours.text.muted,
-    fontWeight: "700",
+    fontWeight: "500",
     fontSize: 12,
+    lineHeight: 16,
+  },
+
+  locationBtn: {
+    marginTop: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colours.background.card,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    alignItems: "center",
+  },
+
+  locationBtnText: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  ratingBlock: {
+    gap: 8,
   },
 });

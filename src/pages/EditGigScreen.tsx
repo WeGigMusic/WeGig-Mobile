@@ -7,20 +7,20 @@ import {
   Text,
   ActivityIndicator,
   Pressable,
-  Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
 
 import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
+import { DateField } from "../components/DateField";
 
 import { apiPatch, apiDelete, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
+import { parseYmdToUtcDate } from "../lib/date";
 
 const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
@@ -38,26 +38,6 @@ type TmVenueSearchResponse =
     }
   | any;
 
-function parseYmdToUtcDate(ymd: string): Date | null {
-  const s = (ymd ?? "").trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
-  const d = new Date(`${s}T00:00:00Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function toYmdLocal(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function fromYmdToLocalDate(ymd: string): Date {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test((ymd ?? "").trim())) return new Date();
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
 export function EditGigScreen(props: {
   gig: Gig;
   onDone: () => void;
@@ -72,8 +52,6 @@ export function EditGigScreen(props: {
   const [rating, setRating] = React.useState<number | undefined>(props.gig.rating);
 
   const [loading, setLoading] = React.useState(false);
-
-  const [showDatePicker, setShowDatePicker] = React.useState(false);
 
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
@@ -324,30 +302,12 @@ export function EditGigScreen(props: {
           <TextField label="City" value={city} onChangeText={setCity} />
           {justAutoCity ? <Text style={styles.muted}>City set from venue ✓</Text> : null}
 
-          <Text style={styles.label}>Date</Text>
-
-          <View style={{ gap: 10 }}>
-            <PrimaryButton
-              title={date ? `Selected: ${date}` : "Select date"}
-              onPress={() => setShowDatePicker(true)}
-            />
-
-            {showDatePicker ? (
-              <DateTimePicker
-                value={fromYmdToLocalDate(date)}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(_, selected) => {
-                  if (Platform.OS !== "ios") setShowDatePicker(false);
-                  if (selected) setDate(toYmdLocal(selected));
-                }}
-              />
-            ) : null}
-
-            {Platform.OS === "ios" && showDatePicker ? (
-              <PrimaryButton title="Done" onPress={() => setShowDatePicker(false)} />
-            ) : null}
-          </View>
+          <DateField
+            label="Date"
+            value={date}
+            onChange={setDate}
+            placeholder="Select date"
+          />
 
           {dateInvalid ? (
             <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>

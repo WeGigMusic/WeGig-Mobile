@@ -27,7 +27,7 @@ function avg(nums: number[]) {
 
 function parseGigYear(value?: string) {
   const raw = String(value ?? "").trim();
-  const match = raw.match(/^(\d{4})-\d{2}-\d{2}$/);
+  const match = raw.match(/^(\d{4})/);
   return match ? match[1] : null;
 }
 
@@ -74,6 +74,7 @@ function buildStats(gigs: Gig[]) {
   const cityCount = cityEntries.length;
   const venueCount = venueEntries.length;
   const topArtistCount = topArtist?.[1] ?? 0;
+  const hasFiveStarGig = gigs.some((g) => g.rating === 5);
 
   let statusLabel = "New Fan";
   let statusColor = "#6B7280";
@@ -160,10 +161,8 @@ function buildStats(gigs: Gig[]) {
     {
       title: "Five-Star Night",
       icon: "🌟",
-      unlocked: gigs.some((g) => g.rating === 5),
-      progressLabel: gigs.some((g) => typeof g.rating === "number")
-        ? `${gigs.some((g) => g.rating === 5) ? 1 : 0}/1 five-star gigs`
-        : "0/1 five-star gigs",
+      unlocked: hasFiveStarGig,
+      progressLabel: `${hasFiveStarGig ? 1 : 0}/1 five-star gigs`,
     },
     {
       title: "Critic",
@@ -202,33 +201,31 @@ function SectionTitle(props: { title: string }) {
   return <Text style={styles.sectionTitle}>{props.title}</Text>;
 }
 
-function HighlightCard(props: {
-  emoji: string;
-  title: string;
-  value: string;
-  subtitle: string;
-}) {
+function StatCard(props: { label: string; value: string; subtitle?: string }) {
   return (
-    <View style={styles.highlightCard}>
-      <Text style={styles.highlightEmoji}>{props.emoji}</Text>
-      <Text style={styles.highlightTitle}>{props.title}</Text>
-      <Text style={styles.highlightValue}>{props.value}</Text>
-      <Text style={styles.highlightSubtitle}>{props.subtitle}</Text>
+    <View style={styles.statCard}>
+      <Text style={styles.statCardLabel}>{props.label}</Text>
+      <Text style={styles.statCardValue} numberOfLines={2}>
+        {props.value}
+      </Text>
+      {props.subtitle ? (
+        <Text style={styles.statCardSubtitle}>{props.subtitle}</Text>
+      ) : null}
     </View>
   );
 }
 
-function ProgressCard(props: {
-  title: string;
+function ProgressRow(props: {
+  label: string;
   valueText: string;
   progress: number;
   tint: string;
 }) {
   return (
-    <View style={styles.progressCard}>
-      <View style={styles.progressHeader}>
-        <Text style={styles.progressTitle}>{props.title}</Text>
-        <Text style={styles.progressValueText}>{props.valueText}</Text>
+    <View style={styles.progressRow}>
+      <View style={styles.progressRowHeader}>
+        <Text style={styles.progressLabel}>{props.label}</Text>
+        <Text style={styles.progressValue}>{props.valueText}</Text>
       </View>
 
       <View style={styles.progressTrack}>
@@ -236,7 +233,10 @@ function ProgressCard(props: {
           style={[
             styles.progressFill,
             {
-              width: `${Math.max(6, props.progress * 100)}%`,
+              width:
+                props.progress <= 0
+                  ? "0%"
+                  : `${Math.max(8, props.progress * 100)}%`,
               backgroundColor: props.tint,
             },
           ]}
@@ -246,30 +246,17 @@ function ProgressCard(props: {
   );
 }
 
-function AchievementChip(props: BadgeDef) {
+function AchievementPill(props: BadgeDef) {
   return (
     <View
       style={[
-        styles.badgeChip,
-        props.unlocked ? styles.badgeChipOn : styles.badgeChipOff,
+        styles.badgePill,
+        props.unlocked ? styles.badgePillOn : styles.badgePillOff,
       ]}
     >
-      <Text style={styles.badgeIcon}>{props.icon}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.badgeTitle}>{props.title}</Text>
-        {props.progressLabel ? (
-          <Text style={styles.badgeMeta}>{props.progressLabel}</Text>
-        ) : null}
-      </View>
-    </View>
-  );
-}
-
-function StatCard(props: { label: string; value: string }) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statCardLabel}>{props.label}</Text>
-      <Text style={styles.statCardValue}>{props.value}</Text>
+      <Text style={styles.badgePillText}>
+        {props.icon} {props.title}
+      </Text>
     </View>
   );
 }
@@ -318,61 +305,46 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyTitle}>No stats yet</Text>
             <Text style={styles.emptyText}>
-              Log your first gig and your live music journey will start to take shape.
+              Log your first gig to start building your live music story.
             </Text>
           </View>
         ) : (
           <>
-            <View
-              style={[
-                styles.heroCard,
-                {
-                  backgroundColor: `${stats.statusColor}18`,
-                  borderColor: `${stats.statusColor}40`,
-                },
-              ]}
-            >
-              <Text style={styles.heroKicker}>Your live journey</Text>
+            <View style={styles.heroCard}>
+              <Text style={styles.heroKicker}>Your journey</Text>
               <Text style={styles.heroTitle}>
-                {stats.statusIcon} You’re a {stats.statusLabel}
+                {stats.statusIcon} {stats.statusLabel}
               </Text>
               <Text style={styles.heroSubtitle}>
                 {stats.total} gigs attended
-                {stats.topCity ? ` • ${stats.topCity[0]} is your main scene` : ""}
+                {stats.topCity ? ` • ${stats.topCity[0]}` : ""}
               </Text>
             </View>
 
-            <SectionTitle title="Highlight moments" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.highlightsScroll}
-            >
-              <HighlightCard
-                emoji="⭐"
-                title="Best night"
-                value={stats.bestNight ? stats.bestNight.artist : "Still loading..."}
-                subtitle={
-                  stats.bestNight
-                    ? `★ ${stats.bestNight.rating}/5 • ${stats.bestNight.venue}`
-                    : "Rate a gig to unlock this"
-                }
-              />
-
-              <HighlightCard
-                emoji="🎤"
-                title="Top artist"
+            <SectionTitle title="Key stats" />
+            <View style={styles.statsGrid}>
+              <StatCard
+                label="Top artist"
                 value={stats.topArtist ? stats.topArtist[0] : "—"}
                 subtitle={
                   stats.topArtist
-                    ? `${stats.topArtist[1]} ${stats.topArtist[1] === 1 ? "show" : "shows"}`
-                    : "Log more gigs to reveal this"
+                    ? `${stats.topArtist[1]} ${
+                        stats.topArtist[1] === 1 ? "show" : "shows"
+                      }`
+                    : "Log more gigs"
                 }
               />
-
-              <HighlightCard
-                emoji="🌍"
-                title="Scene"
+              <StatCard
+                label="Favourite venue"
+                value={stats.topVenue ? stats.topVenue[0] : "—"}
+                subtitle={
+                  stats.topVenue
+                    ? `${stats.topVenue[1]} visits`
+                    : "No favourite yet"
+                }
+              />
+              <StatCard
+                label="Main scene"
                 value={stats.topCity ? stats.topCity[0] : "—"}
                 subtitle={
                   stats.topCity
@@ -380,79 +352,38 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
                     : "Your city story starts here"
                 }
               />
-            </ScrollView>
+              <StatCard
+                label="Best night"
+                value={stats.bestNight ? stats.bestNight.artist : "—"}
+                subtitle={
+                  stats.bestNight
+                    ? `★ ${stats.bestNight.rating}/5 • ${stats.bestNight.venue}`
+                    : "Rate a gig to unlock this"
+                }
+              />
+            </View>
 
-            <SectionTitle title="Progression goals" />
-            <View style={styles.sectionStack}>
-              <ProgressCard
-                title="Explorer progress"
+            <SectionTitle title="Progress" />
+            <View style={styles.card}>
+              <ProgressRow
+                label="Explorer"
                 valueText={`${Math.min(stats.cityCount, 3)}/3 cities`}
                 progress={stats.explorerProgress}
                 tint="#C0C4CC"
               />
-
-              <ProgressCard
-                title="Superfan progress"
+              <ProgressRow
+                label="Superfan"
                 valueText={`${Math.min(stats.topArtistCount, 3)}/3 same artist`}
                 progress={stats.superfanProgress}
                 tint="#FFD166"
               />
-
-              <ProgressCard
-                title="Venue Hopper"
+              <ProgressRow
+                label="Venue Hopper"
                 valueText={`${Math.min(stats.venueCount, 3)}/3 venues`}
                 progress={stats.venueProgress}
                 tint="#2F8CFF"
               />
             </View>
-
-            <SectionTitle title="Gig timeline" />
-            <View style={styles.timelineCard}>
-              {stats.timeline.length > 0 ? (
-                stats.timeline.map((item) => (
-                  <View key={item.year} style={styles.timelineRow}>
-                    <Text style={styles.timelineYear}>{item.year}</Text>
-                    <View style={styles.timelineDots}>
-                      {Array.from({ length: item.count }).map((_, i) => (
-                        <View key={`${item.year}-${i}`} style={styles.timelineDot} />
-                      ))}
-                    </View>
-                    <Text style={styles.timelineCount}>{item.count}</Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={styles.muted}>No dated gigs yet.</Text>
-              )}
-            </View>
-
-            <SectionTitle title="Achievements" />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.achievementsScroll}
-            >
-              {stats.badges.map((badge) => (
-                <AchievementChip
-                  key={badge.title}
-                  title={badge.title}
-                  icon={badge.icon}
-                  unlocked={badge.unlocked}
-                  progressLabel={badge.progressLabel}
-                />
-              ))}
-            </ScrollView>
-
-            {stats.nextBadge ? (
-              <View style={styles.nextUnlockCard}>
-                <Text style={styles.nextUnlockKicker}>Next unlock</Text>
-                <Text style={styles.nextUnlockTitle}>
-                  {stats.nextBadge.icon} {stats.nextBadge.title}
-                </Text>
-                <Text style={styles.nextUnlockText}>
-                  {stats.nextBadge.progressLabel ?? "Keep logging gigs to unlock this."}
-                </Text>
-              </View>
-            ) : null}
 
             <SectionTitle title="By the numbers" />
             <View style={styles.statsGrid}>
@@ -464,6 +395,61 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
               />
               <StatCard label="Cities visited" value={String(stats.cityCount)} />
             </View>
+
+            {stats.timeline.length > 0 ? (
+              <>
+                <SectionTitle title="Timeline" />
+                <View style={styles.card}>
+                  {stats.timeline.map((item) => {
+                    const maxCount = Math.max(
+                      ...stats.timeline.map((entry) => entry.count),
+                    );
+                    const width = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+
+                    return (
+                      <View key={item.year} style={styles.timelineRow}>
+                        <Text style={styles.timelineYear}>{item.year}</Text>
+                        <View style={styles.timelineBarTrack}>
+                          <View
+                            style={[
+                              styles.timelineBarFill,
+                              { width: `${Math.max(width, 8)}%` },
+                            ]}
+                          />
+                        </View>
+                        <Text style={styles.timelineCount}>{item.count}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            ) : null}
+
+            <SectionTitle title="Achievements" />
+            <View style={styles.badgesWrap}>
+              {stats.badges.map((badge) => (
+                <AchievementPill
+                  key={badge.title}
+                  title={badge.title}
+                  icon={badge.icon}
+                  unlocked={badge.unlocked}
+                  progressLabel={badge.progressLabel}
+                />
+              ))}
+            </View>
+
+            {stats.nextBadge ? (
+              <View style={styles.nextUnlockCard}>
+                <Text style={styles.nextUnlockKicker}>Next unlock</Text>
+                <Text style={styles.nextUnlockTitle}>
+                  {stats.nextBadge.icon} {stats.nextBadge.title}
+                </Text>
+                <Text style={styles.nextUnlockText}>
+                  {stats.nextBadge.progressLabel ??
+                    "Keep logging gigs to unlock this."}
+                </Text>
+              </View>
+            ) : null}
           </>
         )}
 
@@ -482,7 +468,7 @@ const styles = StyleSheet.create({
   body: {
     padding: 16,
     paddingTop: 12,
-    gap: 14,
+    gap: 12,
   },
 
   inlineRow: {
@@ -494,7 +480,7 @@ const styles = StyleSheet.create({
 
   muted: {
     color: Colours.text.muted,
-    fontWeight: "600",
+    fontWeight: "500",
     fontSize: 13,
     lineHeight: 18,
   },
@@ -530,71 +516,22 @@ const styles = StyleSheet.create({
   },
 
   heroCard: {
-    borderRadius: 24,
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
     borderWidth: 1,
-    padding: 18,
-    backgroundColor: "rgba(47,140,255,0.12)",
+    borderColor: "rgba(255,255,255,0.05)",
+    padding: 14,
   },
 
   heroKicker: {
     color: Colours.text.muted,
     fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.2,
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.15,
   },
 
   heroTitle: {
-    marginTop: 8,
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 28,
-    lineHeight: 34,
-  },
-
-  heroSubtitle: {
-    marginTop: 8,
-    color: Colours.text.secondary,
-    fontWeight: "600",
-    fontSize: 15,
-    lineHeight: 21,
-  },
-
-  sectionTitle: {
-    marginTop: 2,
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 18,
-    lineHeight: 22,
-  },
-
-  highlightsScroll: {
-    paddingRight: 8,
-  },
-
-  highlightCard: {
-    width: 220,
-    marginRight: 10,
-    backgroundColor: Colours.background.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
-  },
-
-  highlightEmoji: {
-    fontSize: 20,
-  },
-
-  highlightTitle: {
-    marginTop: 10,
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  highlightValue: {
     marginTop: 6,
     color: Colours.text.primary,
     fontWeight: "800",
@@ -602,180 +539,28 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
 
-  highlightSubtitle: {
-    marginTop: 6,
+  heroSubtitle: {
+    marginTop: 4,
     color: Colours.text.secondary,
     fontWeight: "500",
     fontSize: 13,
     lineHeight: 18,
   },
 
-  sectionStack: {
-    gap: 10,
-  },
-
-  progressCard: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
-  },
-
-  progressHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-
-  progressTitle: {
-    color: Colours.text.primary,
-    fontWeight: "700",
-    fontSize: 14,
-    lineHeight: 18,
-  },
-
-  progressValueText: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  progressTrack: {
-    marginTop: 12,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    overflow: "hidden",
-  },
-
-  progressFill: {
-    height: "100%",
-    borderRadius: 999,
-  },
-
-  timelineCard: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
-    gap: 12,
-  },
-
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  timelineYear: {
-    width: 44,
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 14,
-    lineHeight: 18,
-  },
-
-  timelineDots: {
-    flex: 1,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-  },
-
-  timelineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: Colours.brand.primary,
-  },
-
-  timelineCount: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  achievementsScroll: {
-    paddingRight: 8,
-  },
-
-  badgeChip: {
-    width: 180,
-    minHeight: 76,
-    marginRight: 10,
-    padding: 12,
-    borderRadius: 18,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
-  },
-
-  badgeChipOn: {
-    backgroundColor: "rgba(47,140,255,0.16)",
-    borderColor: "rgba(47,140,255,0.38)",
-  },
-
-  badgeChipOff: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderColor: Colours.ui.border,
-    opacity: 0.55,
-  },
-
-  badgeIcon: {
-    fontSize: 18,
-    marginTop: 1,
-  },
-
-  badgeTitle: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 13,
-    lineHeight: 17,
-  },
-
-  badgeMeta: {
-    marginTop: 5,
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 11,
-    lineHeight: 15,
-  },
-
-  nextUnlockCard: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
-  },
-
-  nextUnlockKicker: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  nextUnlockTitle: {
-    marginTop: 6,
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 18,
-    lineHeight: 22,
-  },
-
-  nextUnlockText: {
-    marginTop: 6,
+  sectionTitle: {
+    marginTop: 4,
     color: Colours.text.secondary,
-    fontWeight: "500",
-    fontSize: 13,
+    fontWeight: "700",
+    fontSize: 14,
     lineHeight: 18,
+  },
+
+  card: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+    padding: 14,
   },
 
   statsGrid: {
@@ -787,10 +572,10 @@ const styles = StyleSheet.create({
   statCard: {
     width: "48%",
     backgroundColor: Colours.background.card,
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 13,
+    borderColor: "rgba(255,255,255,0.05)",
+    padding: 12,
   },
 
   statCardLabel: {
@@ -802,10 +587,155 @@ const styles = StyleSheet.create({
   },
 
   statCardValue: {
-    marginTop: 8,
+    marginTop: 6,
     color: Colours.text.primary,
     fontWeight: "800",
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 22,
+  },
+
+  statCardSubtitle: {
+    marginTop: 4,
+    color: Colours.text.secondary,
+    fontWeight: "500",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  progressRow: {
+    gap: 8,
+    marginBottom: 14,
+  },
+
+  progressRowHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  progressLabel: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  progressValue: {
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
+  },
+
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
+
+  timelineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  timelineYear: {
+    width: 42,
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  timelineBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    overflow: "hidden",
+  },
+
+  timelineBarFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: Colours.brand.primary,
+  },
+
+  timelineCount: {
+    width: 20,
+    textAlign: "right",
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  badgesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+
+  badgePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+
+  badgePillOn: {
+    backgroundColor: "rgba(47,140,255,0.12)",
+    borderColor: "rgba(47,140,255,0.22)",
+  },
+
+  badgePillOff: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderColor: "rgba(255,255,255,0.05)",
+    opacity: 0.6,
+  },
+
+  badgePillText: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  nextUnlockCard: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+    padding: 14,
+  },
+
+  nextUnlockKicker: {
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
+  nextUnlockTitle: {
+    marginTop: 6,
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 16,
+    lineHeight: 20,
+  },
+
+  nextUnlockText: {
+    marginTop: 4,
+    color: Colours.text.secondary,
+    fontWeight: "500",
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

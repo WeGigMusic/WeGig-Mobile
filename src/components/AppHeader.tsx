@@ -1,14 +1,51 @@
 import React from "react";
-import { View, Image, Pressable, StyleSheet } from "react-native";
+import {
+  View,
+  Pressable,
+  StyleSheet,
+  Animated,
+} from "react-native";
 import { Colours } from "../theme/colours";
 
 type AppHeaderProps = {
-  title?: string;
   onPressLogo?: () => void;
   right?: React.ReactNode;
+  scrollY?: Animated.Value;
 };
 
 export function AppHeader(props: AppHeaderProps) {
+  const animatedLogoHeight = props.scrollY
+    ? props.scrollY.interpolate({
+        inputRange: [-60, 0, 120],
+        outputRange: [64, 56, 34],
+        extrapolate: "clamp",
+      })
+    : 56;
+
+  const animatedLogoWidth = props.scrollY
+    ? props.scrollY.interpolate({
+        inputRange: [-60, 0, 120],
+        outputRange: [156, 140, 90],
+        extrapolate: "clamp",
+      })
+    : 140;
+
+  const animatedTranslateY = props.scrollY
+    ? props.scrollY.interpolate({
+        inputRange: [-60, 0, 120],
+        outputRange: [2, 0, 0],
+        extrapolate: "clamp",
+      })
+    : 0;
+
+  const animatedDividerOpacity = props.scrollY
+    ? props.scrollY.interpolate({
+        inputRange: [0, 40],
+        outputRange: [0.2, 1],
+        extrapolate: "clamp",
+      })
+    : 0.2;
+
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
@@ -21,13 +58,15 @@ export function AppHeader(props: AppHeaderProps) {
           ]}
           hitSlop={12}
         >
-          <View style={styles.logoBox}>
-            <Image
-              source={require("../../assets/wegig-logo.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
+          <Animated.Image
+            source={require("../../assets/wegig-logo.png")}
+            resizeMode="contain"
+            style={{
+              height: animatedLogoHeight,
+              width: animatedLogoWidth,
+              transform: [{ translateY: animatedTranslateY }],
+            }}
+          />
         </Pressable>
 
         <View style={styles.spacer} />
@@ -35,7 +74,9 @@ export function AppHeader(props: AppHeaderProps) {
         {props.right ? <View style={styles.right}>{props.right}</View> : null}
       </View>
 
-      <View style={styles.divider} />
+      <Animated.View
+        style={[styles.divider, { opacity: animatedDividerOpacity }]}
+      />
     </View>
   );
 }
@@ -43,7 +84,7 @@ export function AppHeader(props: AppHeaderProps) {
 const styles = StyleSheet.create({
   wrap: {
     paddingTop: 6,
-    paddingBottom: 8,
+    paddingBottom: 4,
     paddingHorizontal: 16,
     backgroundColor: Colours.background.app,
   },
@@ -51,23 +92,11 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",
-    height: 52,
+    height: 56,
   },
 
   logoBtn: {
     justifyContent: "center",
-  },
-
-  logoBox: {
-    height: 36,
-    width: 72,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  logo: {
-    height: 42,
-    width: 72,
   },
 
   spacer: {
@@ -80,8 +109,8 @@ const styles = StyleSheet.create({
   },
 
   divider: {
-    marginTop: 8,
+    marginTop: 4,
     height: StyleSheet.hairlineWidth,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(255,255,255,0.04)",
   },
 });

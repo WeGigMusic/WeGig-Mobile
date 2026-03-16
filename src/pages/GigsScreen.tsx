@@ -6,6 +6,7 @@ import {
   FlatList,
   ActivityIndicator,
   ScrollView,
+  Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -23,6 +24,8 @@ import { Colours } from "../theme/colours";
 
 const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
+
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Gig>);
 
 type BadgeChip = {
   title: string;
@@ -67,7 +70,11 @@ function computeGigBadges(gigs: Gig[]) {
     { title: "Venue Hopper", icon: "🏟️", unlocked: venueCount >= 3 },
     { title: "City Explorer", icon: "🌍", unlocked: cityCount >= 3 },
     { title: "Superfan", icon: "⭐", unlocked: topArtistCount >= 3 },
-    { title: "Five-Star Night", icon: "🌟", unlocked: gigs.some((g) => g.rating === 5) },
+    {
+      title: "Five-Star Night",
+      icon: "🌟",
+      unlocked: gigs.some((g) => g.rating === 5),
+    },
     { title: "Critic", icon: "📝", unlocked: rated.length >= 5 },
   ];
 
@@ -105,6 +112,8 @@ function BadgeShowcaseChip(props: { title: string; icon: string }) {
 }
 
 export function GigsScreen(props: { onPressLogo?: () => void }) {
+  const scrollY = React.useRef(new Animated.Value(0)).current;
+
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [data, setData] = React.useState<GigsResponse | null>(null);
@@ -142,7 +151,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
         }
       } catch {}
     },
-    [favouriteGigId],
+    [favouriteGigId]
   );
 
   const toggleFirstGig = React.useCallback(
@@ -157,7 +166,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
         }
       } catch {}
     },
-    [firstGigId],
+    [firstGigId]
   );
 
   const load = React.useCallback(async () => {
@@ -214,7 +223,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
-      <AppHeader onPressLogo={props.onPressLogo} />
+      <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
 
       <View style={{ paddingHorizontal: 16, flex: 1 }}>
         {loading ? (
@@ -251,7 +260,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
             </Text>
           </View>
         ) : (
-          <FlatList
+          <AnimatedFlatList
             data={gigs}
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
@@ -306,7 +315,9 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
                 isFirstGig={item.id === firstGigId}
                 isFavouriteGig={item.id === favouriteGigId}
                 showFirstGigAction={!hasFirstGig || item.id === firstGigId}
-                showFavouriteAction={!hasFavouriteGig || item.id === favouriteGigId}
+                showFavouriteAction={
+                  !hasFavouriteGig || item.id === favouriteGigId
+                }
                 onToggleFavourite={() => void toggleFavouriteGig(item.id)}
                 onToggleFirstGig={() => void toggleFirstGig(item.id)}
               />
@@ -316,6 +327,11 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
               void load();
               void loadPinnedGigIds();
             }}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: false }
+            )}
+            scrollEventThrottle={16}
           />
         )}
       </View>

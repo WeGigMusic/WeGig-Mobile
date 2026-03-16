@@ -228,7 +228,7 @@ export function DiscoverScreen(props: {
                 label="Search"
                 value={query}
                 onChangeText={setQuery}
-                placeholder="e.g. Coldplay"
+                placeholder="e.g. Foo Fighters"
                 autoCapitalize="none"
               />
 

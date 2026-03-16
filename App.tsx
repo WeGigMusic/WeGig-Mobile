@@ -20,11 +20,15 @@ import { AddGigScreen } from "./src/pages/AddGigScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
 import { StatsScreen } from "./src/pages/StatsScreen";
 import { ProfileScreen } from "./src/pages/ProfileScreen";
+import AboutPrivacyScreen from "./src/pages/AboutPrivacyScreen";
+import HelpScreen from "./src/pages/HelpScreen";
+import FeedbackScreen from "./src/pages/FeedbackScreen";
 
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
 
 type Tab = "gigs" | "discover" | "add" | "stats" | "profile";
+type ProfileRoute = "home" | "about" | "help" | "feedback";
 
 const TABS: Array<{
   key: Tab;
@@ -90,9 +94,10 @@ function TabItem(props: {
 
 export default function App() {
   const [tab, setTab] = React.useState<Tab>("gigs");
+  const [profileRoute, setProfileRoute] = React.useState<ProfileRoute>("home");
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [prefill, setPrefill] = React.useState<Partial<CreateGigInput> | null>(
-    null,
+    null
   );
 
   const goHome = React.useCallback(() => setTab("gigs"), []);
@@ -167,9 +172,10 @@ export default function App() {
       } catch {}
 
       if (tab === "add" && next !== "add") setPrefill(null);
+      if (next !== "profile") setProfileRoute("home");
       setTab(next);
     },
-    [tab],
+    [tab]
   );
 
   return (
@@ -206,10 +212,19 @@ export default function App() {
           />
         ) : tab === "stats" ? (
           <StatsScreen key={`stats-${refreshKey}`} onPressLogo={goHome} />
+        ) : profileRoute === "about" ? (
+          <AboutPrivacyScreen onBack={() => setProfileRoute("home")} />
+        ) : profileRoute === "help" ? (
+          <HelpScreen onBack={() => setProfileRoute("home")} />
+        ) : profileRoute === "feedback" ? (
+          <FeedbackScreen onBack={() => setProfileRoute("home")} />
         ) : (
           <ProfileScreen
             onPressLogo={goHome}
             onGoToGigs={() => setTab("gigs")}
+            onOpenAbout={() => setProfileRoute("about")}
+            onOpenHelp={() => setProfileRoute("help")}
+            onOpenFeedback={() => setProfileRoute("feedback")}
           />
         )}
       </View>

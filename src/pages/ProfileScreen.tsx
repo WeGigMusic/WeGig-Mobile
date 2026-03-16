@@ -15,6 +15,9 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import * as Sharing from "expo-sharing";
+import { Ionicons } from "@expo/vector-icons";
+import ViewShot, { captureRef } from "react-native-view-shot";
 
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -33,6 +36,9 @@ const AVATAR_URI_KEY = "wegig.avatarUri";
 type ProfileScreenProps = {
   onPressLogo?: () => void;
   onGoToGigs?: () => void;
+  onOpenAbout?: () => void;
+  onOpenHelp?: () => void;
+  onOpenFeedback?: () => void;
 };
 
 function computeProfileStats(gigs: Gig[]) {
@@ -47,6 +53,7 @@ function computeProfileStats(gigs: Gig[]) {
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
+
   const cityEntries = Object.entries(cities).sort((a, b) => b[1] - a[1]);
   const topCity = cityEntries[0]?.[0];
   const cityCount = Object.keys(cities).length;
@@ -74,6 +81,7 @@ function computeProfileStats(gigs: Gig[]) {
   }
 
   return {
+    total,
     topCity,
     statusLabel,
     statusColor,
@@ -85,6 +93,7 @@ function ActionRow(props: {
   title: string;
   subtitle?: string;
   onPress?: () => void;
+  isLast?: boolean;
 }) {
   return (
     <Pressable
@@ -92,6 +101,7 @@ function ActionRow(props: {
       disabled={!props.onPress}
       style={({ pressed }) => [
         styles.actionRow,
+        props.isLast ? styles.actionRowLast : null,
         pressed ? { opacity: 0.9 } : null,
         !props.onPress ? { opacity: 0.55 } : null,
       ]}
@@ -115,7 +125,12 @@ function SectionTitle(props: { title: string }) {
 export function ProfileScreen({
   onPressLogo,
   onGoToGigs,
+  onOpenAbout,
+  onOpenHelp,
+  onOpenFeedback,
 }: ProfileScreenProps) {
+  const shareCardRef = React.useRef<ViewShot | null>(null);
+
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<ReturnType<
     typeof computeProfileStats
@@ -126,6 +141,7 @@ export function ProfileScreen({
   const [hapticsEnabled, setHapticsEnabled] = React.useState(true);
 
   const [savingPrefs, setSavingPrefs] = React.useState(false);
+  const [sharingProfile, setSharingProfile] = React.useState(false);
 
   const [avatarPickerVisible, setAvatarPickerVisible] = React.useState(false);
   const [avatarPreset, setAvatarPreset] = React.useState<string>("");
@@ -158,11 +174,17 @@ export function ProfileScreen({
 
     setSavingPrefs(true);
     try {
-      if (nextName) await AsyncStorage.setItem(DISPLAY_NAME_KEY, nextName);
-      else await AsyncStorage.removeItem(DISPLAY_NAME_KEY);
+      if (nextName) {
+        await AsyncStorage.setItem(DISPLAY_NAME_KEY, nextName);
+      } else {
+        await AsyncStorage.removeItem(DISPLAY_NAME_KEY);
+      }
 
-      if (nextCity) await AsyncStorage.setItem(HOME_CITY_KEY, nextCity);
-      else await AsyncStorage.removeItem(HOME_CITY_KEY);
+      if (nextCity) {
+        await AsyncStorage.setItem(HOME_CITY_KEY, nextCity);
+      } else {
+        await AsyncStorage.removeItem(HOME_CITY_KEY);
+      }
 
       await AsyncStorage.setItem(HAPTICS_KEY, hapticsEnabled ? "1" : "0");
 
@@ -194,8 +216,7 @@ export function ProfileScreen({
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const nextGigs = res.gigs ?? [];
-      const s = computeProfileStats(nextGigs);
-      setStats(s);
+      setStats(computeProfileStats(nextGigs));
     } catch {
       setStats(null);
     } finally {
@@ -226,7 +247,7 @@ export function ProfileScreen({
       if (!permission.granted) {
         Alert.alert(
           "Permission needed",
-          "Allow photo library access to upload a profile picture.",
+          "Allow photo library access to upload a profile picture."
         );
         return;
       }
@@ -265,13 +286,74 @@ export function ProfileScreen({
     } catch {}
   }, []);
 
+  const handleChangePassword = React.useCallback(() => {
+    Alert.alert(
+      "Change password",
+      "This will be available once email login is set up."
+    );
+  }, []);
+
+  const handleLogout = React.useCallback(() => {
+    Alert.alert("Log out", "Log out will be added once auth is connected.");
+  }, []);
+
+  const handleSignIn = React.useCallback(() => {
+    Alert.alert("Sign in", "Sign in to sync will be added next.");
+  }, []);
+
+  const handleExportGigs = React.useCallback(() => {
+    Alert.alert("Export gigs", "Gig export is planned for a future update.");
+  }, []);
+
+  const handleHelp = React.useCallback(() => {
+    if (onOpenHelp) {
+      onOpenHelp();
+      return;
+    }
+
+    Alert.alert("Help", "Help centre coming soon.");
+  }, [onOpenHelp]);
+
+  const handleFeedback = React.useCallback(() => {
+    if (onOpenFeedback) {
+      onOpenFeedback();
+      return;
+    }
+
+    Alert.alert("Feedback", "Feedback form coming soon.");
+  }, [onOpenFeedback]);
+
+  const handleShareProfile = React.useCallback(async () => {
+    if (!shareCardRef.current || sharingProfile) return;
+
+    setSharingProfile(true);
+    try {
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert("Unavailable", "Sharing is not available on this device.");
+        return;
+      }
+
+      const uri = await captureRef(shareCardRef, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+      });
+
+      await Sharing.shareAsync(uri);
+    } catch (e: any) {
+      Alert.alert("Share failed", e?.message ?? "Could not share profile.");
+    } finally {
+      setSharingProfile(false);
+    }
+  }, [sharingProfile]);
+
   const handle = "@wegig";
-  const location =
-    homeCity.trim() ? homeCity.trim() : stats?.topCity ? stats.topCity : "—";
+  const location = homeCity.trim() || stats?.topCity || "—";
+  const totalGigs = stats?.total ?? 0;
 
   const selectedPreset = avatarPresets.find((p) => p.id === avatarPreset);
-  const metaLine =
-    location && location !== "—" ? `${handle} · ${location}` : handle;
+  const metaLine = location !== "—" ? `${handle} · ${location}` : handle;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -296,30 +378,52 @@ export function ProfileScreen({
           </Pressable>
 
           <View style={styles.profileHeroText}>
-            <View style={styles.nameRow}>
-              <Text style={styles.name}>{displayName}</Text>
+            <View style={styles.heroTopRow}>
+              <View style={styles.nameAndStatus}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{displayName}</Text>
 
-              <View
-                style={[
-                  styles.statusPill,
-                  { backgroundColor: `${stats?.statusColor ?? "#6B7280"}22` },
-                  { borderColor: `${stats?.statusColor ?? "#6B7280"}55` },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusPillText,
-                    { color: stats?.statusColor ?? "#6B7280" },
-                  ]}
-                >
-                  {(stats?.statusIcon ?? "✨") +
-                    " " +
-                    (stats?.statusLabel ?? "New Fan")}
-                </Text>
+                  <View
+                    style={[
+                      styles.statusPill,
+                      {
+                        backgroundColor: `${stats?.statusColor ?? "#6B7280"}22`,
+                        borderColor: `${stats?.statusColor ?? "#6B7280"}55`,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.statusPillText,
+                        { color: stats?.statusColor ?? "#6B7280" },
+                      ]}
+                    >
+                      {(stats?.statusIcon ?? "✨") +
+                        " " +
+                        (stats?.statusLabel ?? "New Fan")}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={styles.metaLine}>{metaLine}</Text>
               </View>
-            </View>
 
-            <Text style={styles.metaLine}>{metaLine}</Text>
+              <Pressable
+                onPress={() => void handleShareProfile()}
+                style={({ pressed }) => [
+                  styles.shareButton,
+                  pressed ? { opacity: 0.78 } : null,
+                  sharingProfile ? { opacity: 0.5 } : null,
+                ]}
+                hitSlop={10}
+              >
+                <Ionicons
+                  name="share-outline"
+                  size={14}
+                  color={Colours.text.muted}
+                />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -387,23 +491,117 @@ export function ProfileScreen({
         <View style={styles.card}>
           <ActionRow
             title="Sign in to sync"
-            subtitle="Apple / Google / Facebook (next)"
-            onPress={() => {}}
+            subtitle="Apple, Google, Facebook or email"
+            onPress={handleSignIn}
+          />
+          <ActionRow
+            title="Change password"
+            subtitle="Email login only (coming soon)"
+            onPress={handleChangePassword}
+          />
+          <ActionRow
+            title="Log out"
+            subtitle="Coming soon"
+            onPress={handleLogout}
+            isLast
+          />
+        </View>
+
+        <SectionTitle title="Support" />
+        <View style={styles.card}>
+          <ActionRow
+            title="About WeGig"
+            subtitle="Story, version, privacy"
+            onPress={onOpenAbout}
+          />
+          <ActionRow
+            title="Help"
+            subtitle="FAQs and support"
+            onPress={handleHelp}
+          />
+          <ActionRow
+            title="Send feedback"
+            subtitle="Ideas, bugs and suggestions"
+            onPress={handleFeedback}
           />
           <ActionRow
             title="Export gigs"
             subtitle="CSV / share (next)"
-            onPress={() => {}}
-          />
-          <ActionRow
-            title="About WeGig"
-            subtitle="Version, links (next)"
-            onPress={() => {}}
+            onPress={handleExportGigs}
+            isLast
           />
         </View>
 
-        <View style={{ height: 24 }} />
+        <View style={{ height: 8 }} />
       </ScrollView>
+
+      <View style={styles.hiddenShareLayer} pointerEvents="none">
+        <ViewShot ref={shareCardRef} options={{ format: "png", quality: 1 }}>
+          <View style={styles.shareCard}>
+            <View style={styles.shareCardHeader}>
+              <Image
+                source={require("../../assets/wegig-logo.png")}
+                style={styles.shareCardLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.shareCardTag}>Live music memories</Text>
+            </View>
+
+            <View style={styles.shareCardProfileRow}>
+              <View style={styles.shareCardAvatar}>
+                {avatarUri ? (
+                  <Image
+                    source={{ uri: avatarUri }}
+                    style={styles.shareCardAvatarImage}
+                  />
+                ) : selectedPreset ? (
+                  <Image
+                    source={selectedPreset.image}
+                    style={styles.shareCardAvatarImage}
+                  />
+                ) : (
+                  <Text style={styles.shareCardAvatarText}>
+                    {displayName.slice(0, 1).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.shareCardName}>{displayName}</Text>
+                <Text style={styles.shareCardMeta}>{metaLine}</Text>
+                <Text
+                  style={[
+                    styles.shareCardStatus,
+                    { color: stats?.statusColor ?? "#6B7280" },
+                  ]}
+                >
+                  {(stats?.statusIcon ?? "✨") +
+                    " " +
+                    (stats?.statusLabel ?? "New Fan")}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.shareCardStatsRow}>
+              <View style={styles.shareCardStat}>
+                <Text style={styles.shareCardStatValue}>{totalGigs}</Text>
+                <Text style={styles.shareCardStatLabel}>Gigs logged</Text>
+              </View>
+
+              <View style={styles.shareCardDivider} />
+
+              <View style={styles.shareCardStat}>
+                <Text style={styles.shareCardStatValue}>
+                  {stats?.topCity ?? "—"}
+                </Text>
+                <Text style={styles.shareCardStatLabel}>Top city</Text>
+              </View>
+            </View>
+
+            <Text style={styles.shareCardFooter}>Tracked with WeGig</Text>
+          </View>
+        </ViewShot>
+      </View>
 
       <AvatarPickerModal
         visible={avatarPickerVisible}
@@ -424,19 +622,19 @@ const styles = StyleSheet.create({
   },
 
   body: {
-    padding: 16,
-    paddingTop: 18,
-    paddingBottom: 28,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 88,
     gap: 12,
   },
 
   sectionTitle: {
-    marginTop: 4,
+    marginTop: 2,
+    marginBottom: 2,
     color: Colours.text.primary,
-    fontWeight: "700",
-    fontSize: 16,
-    lineHeight: 20,
-    letterSpacing: 0.1,
+    fontWeight: "800",
+    fontSize: 17,
+    letterSpacing: 0.2,
   },
 
   profileHero: {
@@ -451,6 +649,16 @@ const styles = StyleSheet.create({
   },
 
   profileHeroText: {
+    flex: 1,
+  },
+
+  heroTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+
+  nameAndStatus: {
     flex: 1,
   },
 
@@ -499,6 +707,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
+    marginLeft: 8,
   },
 
   statusPillText: {
@@ -516,12 +725,25 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 
+  shareButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    marginTop: 3,
+  },
+
   card: {
     backgroundColor: Colours.background.card,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: Colours.ui.border,
-    padding: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
   },
 
   inlineRow: {
@@ -534,9 +756,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colours.ui.divider ?? Colours.ui.border,
+  },
+
+  actionRowLast: {
+    borderBottomWidth: 0,
   },
 
   actionTitle: {
@@ -550,8 +776,8 @@ const styles = StyleSheet.create({
     marginTop: 3,
     color: Colours.text.muted,
     fontWeight: "500",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
   },
 
   chevron: {
@@ -591,5 +817,133 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 13,
     lineHeight: 18,
+  },
+
+  hiddenShareLayer: {
+    position: "absolute",
+    left: -9999,
+    top: -9999,
+    opacity: 0,
+  },
+
+  shareCard: {
+    width: 1080,
+    backgroundColor: "#0B0B0F",
+    padding: 72,
+    borderRadius: 48,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  shareCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 56,
+  },
+
+  shareCardLogo: {
+    width: 220,
+    height: 72,
+  },
+
+  shareCardTag: {
+    color: "rgba(255,255,255,0.64)",
+    fontSize: 28,
+    fontWeight: "600",
+  },
+
+  shareCardProfileRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 28,
+    marginBottom: 56,
+  },
+
+  shareCardAvatar: {
+    width: 132,
+    height: 132,
+    borderRadius: 36,
+    overflow: "hidden",
+    backgroundColor: "rgba(47,140,255,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.28)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  shareCardAvatarImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  shareCardAvatarText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 46,
+  },
+
+  shareCardName: {
+    color: "#fff",
+    fontSize: 56,
+    fontWeight: "800",
+    lineHeight: 62,
+    marginBottom: 10,
+  },
+
+  shareCardMeta: {
+    color: "rgba(255,255,255,0.66)",
+    fontSize: 28,
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+
+  shareCardStatus: {
+    fontSize: 30,
+    fontWeight: "700",
+  },
+
+  shareCardStatsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    borderRadius: 32,
+    paddingVertical: 34,
+    paddingHorizontal: 38,
+    marginBottom: 42,
+  },
+
+  shareCardStat: {
+    flex: 1,
+  },
+
+  shareCardStatValue: {
+    color: "#fff",
+    fontSize: 44,
+    fontWeight: "800",
+    lineHeight: 50,
+    marginBottom: 8,
+  },
+
+  shareCardStatLabel: {
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 24,
+    fontWeight: "600",
+  },
+
+  shareCardDivider: {
+    width: 1,
+    alignSelf: "stretch",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    marginHorizontal: 24,
+  },
+
+  shareCardFooter: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 24,
+    fontWeight: "600",
   },
 });

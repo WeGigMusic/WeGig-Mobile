@@ -4,13 +4,19 @@ import {
   Pressable,
   StyleSheet,
   Animated,
+  Text,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { Colours } from "../theme/colours";
 
 type AppHeaderProps = {
   onPressLogo?: () => void;
   right?: React.ReactNode;
   scrollY?: Animated.Value;
+
+  /** NEW */
+  onPressBack?: () => void;
+  backLabel?: string;
 };
 
 export function AppHeader(props: AppHeaderProps) {
@@ -49,25 +55,45 @@ export function AppHeader(props: AppHeaderProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
-        <Pressable
-          onPress={props.onPressLogo}
-          disabled={!props.onPressLogo}
-          style={({ pressed }) => [
-            styles.logoBtn,
-            props.onPressLogo ? { opacity: pressed ? 0.85 : 1 } : null,
-          ]}
-          hitSlop={12}
-        >
-          <Animated.Image
-            source={require("../../assets/wegig-logo.png")}
-            resizeMode="contain"
-            style={{
-              height: animatedLogoHeight,
-              width: animatedLogoWidth,
-              transform: [{ translateY: animatedTranslateY }],
-            }}
-          />
-        </Pressable>
+        {props.onPressBack ? (
+          <Pressable
+            onPress={props.onPressBack}
+            style={({ pressed }) => [
+              styles.backBtn,
+              pressed ? { opacity: 0.7 } : null,
+            ]}
+            hitSlop={10}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={Colours.text.primary}
+            />
+            <Text style={styles.backText}>
+              {props.backLabel ?? "Back"}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={props.onPressLogo}
+            disabled={!props.onPressLogo}
+            style={({ pressed }) => [
+              styles.logoBtn,
+              props.onPressLogo ? { opacity: pressed ? 0.85 : 1 } : null,
+            ]}
+            hitSlop={12}
+          >
+            <Animated.Image
+              source={require("../../assets/wegig-logo.png")}
+              resizeMode="contain"
+              style={{
+                height: animatedLogoHeight,
+                width: animatedLogoWidth,
+                transform: [{ translateY: animatedTranslateY }],
+              }}
+            />
+          </Pressable>
+        )}
 
         <View style={styles.spacer} />
 
@@ -97,6 +123,20 @@ const styles = StyleSheet.create({
 
   logoBtn: {
     justifyContent: "center",
+  },
+
+  backBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingRight: 8,
+  },
+
+  backText: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 15,
   },
 
   spacer: {

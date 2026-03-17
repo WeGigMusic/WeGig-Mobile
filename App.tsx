@@ -16,7 +16,6 @@ import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
 import { apiGet } from "./src/lib/api";
 
 import { GigsScreen } from "./src/pages/GigsScreen";
-import { AddGigScreen } from "./src/pages/AddGigScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
 import { StatsScreen } from "./src/pages/StatsScreen";
 import { ProfileScreen } from "./src/pages/ProfileScreen";
@@ -27,7 +26,7 @@ import FeedbackScreen from "./src/pages/FeedbackScreen";
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
 
-type Tab = "gigs" | "discover" | "add" | "stats" | "profile";
+type Tab = "gigs" | "discover" | "stats" | "profile";
 type ProfileRoute = "home" | "about" | "help" | "feedback";
 
 const TABS: Array<{
@@ -37,7 +36,6 @@ const TABS: Array<{
 }> = [
   { key: "gigs", label: "Gigs", icon: "musical-notes" },
   { key: "discover", label: "Discover", icon: "sparkles" },
-  { key: "add", label: "Add", icon: "add" },
   { key: "stats", label: "Stats", icon: "bar-chart" },
   { key: "profile", label: "Profile", icon: "person" },
 ];
@@ -49,15 +47,9 @@ function TabItem(props: {
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
 }) {
-  const isAdd = props.tabKey === "add";
-
-  const iconColor = isAdd
-    ? props.active
-      ? Colours.text.primary
-      : Colours.brand.primary
-    : props.active
-      ? Colours.text.primary
-      : "rgba(255,255,255,0.48)";
+  const iconColor = props.active
+    ? Colours.text.primary
+    : "rgba(255,255,255,0.48)";
 
   const labelColor = props.active
     ? Colours.text.primary
@@ -74,15 +66,7 @@ function TabItem(props: {
     >
       <Ionicons
         name={props.icon}
-        size={
-          props.tabKey === "add"
-            ? props.active
-              ? 26
-              : 25
-            : props.active
-              ? 23
-              : 22
-        }
+        size={props.active ? 23 : 22}
         color={iconColor}
       />
       <Text style={[styles.tabLabel, { color: labelColor }]}>
@@ -96,11 +80,15 @@ export default function App() {
   const [tab, setTab] = React.useState<Tab>("gigs");
   const [profileRoute, setProfileRoute] = React.useState<ProfileRoute>("home");
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const [gigsResetSignal, setGigsResetSignal] = React.useState(0);
   const [prefill, setPrefill] = React.useState<Partial<CreateGigInput> | null>(
-    null
+    null,
   );
 
-  const goHome = React.useCallback(() => setTab("gigs"), []);
+  const goHome = React.useCallback(() => {
+    setTab("gigs");
+    setGigsResetSignal((n) => n + 1);
+  }, []);
 
   const [queuedCount, setQueuedCount] = React.useState(0);
   const [isOnline, setIsOnline] = React.useState(true);
@@ -140,6 +128,7 @@ export default function App() {
       if (before > 0 && after === 0) {
         setJustSynced(true);
         setTimeout(() => setJustSynced(false), 1800);
+        setRefreshKey((k) => k + 1);
       }
     } finally {
       setSyncing(false);
@@ -156,26 +145,27 @@ export default function App() {
 
   const pressTab = React.useCallback(
     async (next: Tab) => {
-      if (next === tab) {
-        try {
-          await Haptics.selectionAsync();
-        } catch {}
+      const isSameTab = next === tab;
+
+      try {
+        await Haptics.selectionAsync();
+      } catch {}
+
+      if (isSameTab) {
+        if (next === "gigs") {
+          setPrefill(null);
+          setGigsResetSignal((n) => n + 1);
+        }
+        if (next === "profile") {
+          setProfileRoute("home");
+        }
         return;
       }
 
-      try {
-        if (next === "add") {
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        } else {
-          await Haptics.selectionAsync();
-        }
-      } catch {}
-
-      if (tab === "add" && next !== "add") setPrefill(null);
       if (next !== "profile") setProfileRoute("home");
       setTab(next);
     },
-    [tab]
+    [tab],
   );
 
   return (
@@ -189,25 +179,24 @@ export default function App() {
 
       <View style={styles.content}>
         {tab === "gigs" ? (
-          <GigsScreen key={`gigs-${refreshKey}`} onPressLogo={goHome} />
+          <GigsScreen
+            key={`gigs-${refreshKey}`}
+            onPressLogo={goHome}
+            resetSignal={gigsResetSignal}
+            prefill={prefill}
+            onPrefillUsed={() => setPrefill(null)}
+            onGigCreated={() => {
+              setPrefill(null);
+              setRefreshKey((k) => k + 1);
+              void runSync();
+            }}
+          />
         ) : tab === "discover" ? (
           <DiscoverScreen
             onPressLogo={goHome}
             onAddToGigs={(draft) => {
               setPrefill(draft);
-              setTab("add");
-            }}
-          />
-        ) : tab === "add" ? (
-          <AddGigScreen
-            onPressLogo={goHome}
-            prefill={prefill}
-            onPrefillUsed={() => setPrefill(null)}
-            onCreated={() => {
-              setPrefill(null);
               setTab("gigs");
-              setRefreshKey((k) => k + 1);
-              void runSync();
             }}
           />
         ) : tab === "stats" ? (

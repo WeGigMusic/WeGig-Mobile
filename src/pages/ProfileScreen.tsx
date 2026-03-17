@@ -11,11 +11,13 @@ import {
   Platform,
   Image,
   ActivityIndicator,
+  Share,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
 import ViewShot, { captureRef } from "react-native-view-shot";
 
@@ -120,6 +122,21 @@ function ActionRow(props: {
 
 function SectionTitle(props: { title: string }) {
   return <Text style={styles.sectionTitle}>{props.title}</Text>;
+}
+
+function formatUkDateForFile(date = new Date()) {
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear());
+  return `${day}-${month}-${year}`;
+}
+
+function toFileSafePart(value: string) {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 export function ProfileScreen({
@@ -334,19 +351,50 @@ export function ProfileScreen({
         return;
       }
 
-      const uri = await captureRef(shareCardRef, {
+      const rawName = displayName.trim() || "profile";
+      const safeName = toFileSafePart(rawName) || "profile";
+      const ukDate = formatUkDateForFile();
+      const fileName = `wegig-profile-${safeName}-${ukDate}.png`;
+      const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+      const tempUri = await captureRef(shareCardRef, {
         format: "png",
         quality: 1,
         result: "tmpfile",
       });
 
-      await Sharing.shareAsync(uri);
+      try {
+        await FileSystem.deleteAsync(targetUri, { idempotent: true });
+      } catch {}
+
+      await FileSystem.copyAsync({
+        from: tempUri,
+        to: targetUri,
+      });
+
+      const shareMessage =
+  "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
+
+      await Share.share(
+        {
+          title: "Share your WeGig profile",
+          message:
+            Platform.OS === "android"
+              ? `${shareMessage}\n${targetUri}`
+              : shareMessage,
+          url: targetUri,
+        },
+        {
+          dialogTitle: "Share your WeGig profile",
+          subject: "My WeGig profile",
+        }
+      );
     } catch (e: any) {
       Alert.alert("Share failed", e?.message ?? "Could not share profile.");
     } finally {
       setSharingProfile(false);
     }
-  }, [sharingProfile]);
+  }, [displayName, sharingProfile]);
 
   const handle = "@wegig";
   const location = homeCity.trim() || stats?.topCity || "—";

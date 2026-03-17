@@ -9,7 +9,9 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from "react-native";
+import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { avatarPresets } from "../config/avatarPresets";
 import { TextField } from "../components/TextField";
@@ -54,6 +56,7 @@ const COLORS = {
   muted: "rgba(255,255,255,0.65)",
   faint: "rgba(255,255,255,0.12)",
   danger: "#FF4D4D",
+  accent: "#2F8CFF",
 };
 
 function pickVenue(e: TicketmasterEvent) {
@@ -137,6 +140,59 @@ function AvatarStack(props: {
   );
 }
 
+function SectionTitle(props: { title: string }) {
+  return <Text style={styles.sectionTitle}>{props.title}</Text>;
+}
+
+function EventCard(props: {
+  item: TicketmasterEvent;
+  cityFallback: string;
+  onAddToGigs: (draft: Partial<CreateGigInput>) => void;
+}) {
+  const date = props.item.dates?.start?.localDate ?? "";
+  const v = pickVenue(props.item);
+  const social = getSocialSignal(`${props.item.id}-${props.item.name}`);
+
+  return (
+    <View style={styles.resultCard}>
+      <Text style={styles.resultTitle}>{props.item.name}</Text>
+
+      <Text style={styles.resultMeta}>
+        {v.venue} • {v.city}
+      </Text>
+
+      {date ? <Text style={styles.resultDate}>{date}</Text> : null}
+
+      <View style={styles.socialBlock}>
+        <AvatarStack
+          avatars={social.avatars}
+          extraCount={social.extraCount}
+        />
+        <Text style={styles.socialText}>{social.text}</Text>
+      </View>
+
+      <View style={styles.resultActionWrap}>
+        <PrimaryButton
+          title="Add to gigs"
+          onPress={() => {
+            props.onAddToGigs({
+              artist: props.item.name,
+              venue: v.venue,
+              city: v.city || props.cityFallback,
+              date: date || new Date().toISOString().slice(0, 10),
+              externalSource: "Ticketmaster",
+              externalId: props.item.id,
+              ticketUrl: props.item.url,
+              notes: "Imported from Ticketmaster",
+            });
+          }}
+          style={styles.resultActionBtn}
+        />
+      </View>
+    </View>
+  );
+}
+
 export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
   onPressLogo?: () => void;
@@ -148,29 +204,99 @@ export function DiscoverScreen(props: {
   const [error, setError] = React.useState("");
   const [events, setEvents] = React.useState<TicketmasterEvent[]>([]);
 
+  const [nearYouLoading, setNearYouLoading] = React.useState(false);
+  const [nearYouEvents, setNearYouEvents] = React.useState<TicketmasterEvent[]>([]);
+
+  const [detectedCity, setDetectedCity] = React.useState("");
+  const [locationLoading, setLocationLoading] = React.useState(true);
+  const [locationError, setLocationError] = React.useState("");
+
+  const activeCity = city.trim() || detectedCity.trim();
+
+  const resolveDeviceCity = React.useCallback(async () => {
+    setLocationLoading(true);
+    setLocationError("");
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+
+      if (status !== "granted") {
+        setDetectedCity("");
+        setLocationError("Location permission not granted");
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const places = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+
+      const place = places[0];
+      const resolved =
+        place?.city ||
+        place?.subregion ||
+        place?.region ||
+        "";
+
+      if (!resolved.trim()) {
+        setDetectedCity("");
+        setLocationError("Could not detect your city");
+        return;
+      }
+
+      setDetectedCity(resolved.trim());
+    } catch {
+      setDetectedCity("");
+      setLocationError("Could not detect your location");
+    } finally {
+      setLocationLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
         const saved = await AsyncStorage.getItem(HOME_CITY_KEY);
-        if (cancelled) return;
-        if (!city.trim() && saved?.trim()) setCity(saved.trim());
-      } catch {}
+        if (!cancelled && saved?.trim()) {
+          setCity(saved.trim());
+        }
+      } catch {
+        // ignore
+      }
     })();
 
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  React.useEffect(() => {
+    void resolveDeviceCity();
+  }, [resolveDeviceCity]);
+
+  React.useEffect(() => {
+    const value = city.trim();
+
+    if (!value) return;
+
+    AsyncStorage.setItem(HOME_CITY_KEY, value).catch(() => {});
   }, [city]);
 
   const search = React.useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       const qs = new URLSearchParams();
+
       if (query.trim()) qs.set("keyword", query.trim());
-      if (city.trim()) qs.set("city", city.trim());
+      if (activeCity) qs.set("city", activeCity);
       qs.set("size", "20");
 
       const res = await apiGet<TicketmasterResponse>(
@@ -184,13 +310,45 @@ export function DiscoverScreen(props: {
     } finally {
       setLoading(false);
     }
-  }, [city, query]);
+  }, [activeCity, query]);
+
+  const loadNearYou = React.useCallback(async () => {
+    if (!activeCity) {
+      setNearYouEvents([]);
+      return;
+    }
+
+    setNearYouLoading(true);
+
+    try {
+      const qs = new URLSearchParams();
+      qs.set("city", activeCity);
+      qs.set("size", "6");
+
+      const res = await apiGet<TicketmasterResponse>(
+        `/tm/events/search?${qs.toString()}`,
+      );
+
+      setNearYouEvents(res._embedded?.events ?? []);
+    } catch {
+      setNearYouEvents([]);
+    } finally {
+      setNearYouLoading(false);
+    }
+  }, [activeCity]);
+
+  React.useEffect(() => {
+    if (!activeCity) return;
+    if (query.trim().length > 0) return;
+    void loadNearYou();
+  }, [activeCity, query, loadNearYou]);
 
   React.useEffect(() => {
     const q = query.trim();
 
     if (q.length < 2) {
       setEvents([]);
+      setError("");
       return;
     }
 
@@ -203,6 +361,8 @@ export function DiscoverScreen(props: {
 
   const hasResults = events.length > 0;
   const isCompact = query.trim().length > 0 || hasResults;
+  const showingSearchResults = query.trim().length > 0;
+  const isUsingManualCity = city.trim().length > 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -233,12 +393,36 @@ export function DiscoverScreen(props: {
               />
 
               <TextField
-                label="City (optional)"
+                label="City override"
                 value={city}
                 onChangeText={setCity}
-                placeholder="e.g. Manchester"
+                placeholder={
+                  detectedCity
+                    ? `Leave blank to use ${detectedCity}`
+                    : "e.g. Manchester"
+                }
                 autoCapitalize="words"
               />
+
+              <View style={styles.locationMetaWrap}>
+                {locationLoading ? (
+                  <Text style={styles.locationMetaText}>Detecting your location…</Text>
+                ) : activeCity ? (
+                  <Text style={styles.locationMetaText}>
+                    {isUsingManualCity
+                      ? `Using city override: ${city.trim()}`
+                      : `Using your location: ${detectedCity}`}
+                  </Text>
+                ) : locationError ? (
+                  <Text style={styles.locationMetaText}>
+                    {locationError}. Add a city to browse gigs.
+                  </Text>
+                ) : (
+                  <Text style={styles.locationMetaText}>
+                    Add a city to browse gigs near you.
+                  </Text>
+                )}
+              </View>
 
               <View style={[styles.searchRow, isCompact ? styles.searchRowCompact : null]}>
                 <PrimaryButton title="Search Ticketmaster" onPress={search} />
@@ -262,59 +446,76 @@ export function DiscoverScreen(props: {
           </View>
         </View>
 
-        <FlatList
-          style={styles.list}
-          data={events}
-          keyExtractor={(item) => item.id}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => {
-            const date = item.dates?.start?.localDate ?? "";
-            const v = pickVenue(item);
-            const social = getSocialSignal(`${item.id}-${item.name}`);
-
-            return (
-              <View style={styles.resultCard}>
-                <Text style={styles.resultTitle}>{item.name}</Text>
-
-                <Text style={styles.resultMeta}>
-                  {v.venue} • {v.city}
+        {showingSearchResults ? (
+          <FlatList
+            style={styles.list}
+            data={events}
+            keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <EventCard
+                item={item}
+                cityFallback={activeCity}
+                onAddToGigs={props.onAddToGigs}
+              />
+            )}
+            ListEmptyComponent={
+              !loading ? (
+                <Text style={styles.emptyResultsText}>
+                  No results yet. Try another artist or city.
                 </Text>
+              ) : null
+            }
+          />
+        ) : (
+          <ScrollView
+            style={styles.list}
+            contentContainerStyle={styles.discoverContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.sectionBlock}>
+              <SectionTitle
+                title={
+                  activeCity
+                    ? isUsingManualCity
+                      ? `Gigs in ${city.trim()}`
+                      : `Near you · ${detectedCity}`
+                    : "Near you"
+                }
+              />
 
-                {date ? <Text style={styles.resultDate}>{date}</Text> : null}
-
-                <View style={styles.socialBlock}>
-                  <AvatarStack
-                    avatars={social.avatars}
-                    extraCount={social.extraCount}
-                  />
-                  <Text style={styles.socialText}>{social.text}</Text>
+              {nearYouLoading ? (
+                <View style={styles.inlineInfoRow}>
+                  <ActivityIndicator />
+                  <Text style={styles.loadingText}>Loading nearby gigs…</Text>
                 </View>
-
-                <View style={styles.resultActionWrap}>
-                  <PrimaryButton
-                    title="Add to gigs"
-                    onPress={() => {
-                      props.onAddToGigs({
-                        artist: item.name,
-                        venue: v.venue,
-                        city: v.city || city,
-                        date: date || new Date().toISOString().slice(0, 10),
-                        externalSource: "Ticketmaster",
-                        externalId: item.id,
-                        ticketUrl: item.url,
-                        notes: "Imported from Ticketmaster",
-                      });
-                    }}
-                    style={styles.resultActionBtn}
-                  />
+              ) : nearYouEvents.length > 0 ? (
+                <View style={styles.nearYouList}>
+                  {nearYouEvents.map((item) => (
+                    <View key={item.id} style={styles.nearYouCardWrap}>
+                      <EventCard
+                        item={item}
+                        cityFallback={activeCity}
+                        onAddToGigs={props.onAddToGigs}
+                      />
+                    </View>
+                  ))}
                 </View>
-              </View>
-            );
-          }}
-        />
+              ) : (
+                <Text style={styles.emptyHint}>
+                  {activeCity
+                    ? `No gigs found for ${activeCity} yet. Try searching for an artist.`
+                    : "Enable location or add a city above to see nearby events."}
+                </Text>
+              )}
+            </View>
+          </ScrollView>
+        )}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -389,6 +590,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
+  inlineInfoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+  },
+
   loadingText: {
     color: COLORS.muted,
     fontSize: 12,
@@ -410,6 +618,14 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
+  emptyResultsText: {
+    paddingTop: 12,
+    color: COLORS.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+
   list: {
     flex: 1,
   },
@@ -417,6 +633,43 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 24,
+  },
+
+  discoverContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 18,
+  },
+
+  sectionBlock: {
+    marginTop: 4,
+  },
+
+  sectionTitle: {
+    color: COLORS.text,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+
+  locationMetaWrap: {
+    paddingHorizontal: 2,
+  },
+
+  locationMetaText: {
+    color: COLORS.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+
+  nearYouList: {
+    gap: 10,
+  },
+
+  nearYouCardWrap: {
+    width: "100%",
   },
 
   separator: {

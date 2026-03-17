@@ -39,6 +39,7 @@ export function EditGigScreen(props: {
   gig: Gig;
   onDone: () => void;
   onPressLogo?: () => void;
+  onBack?: () => void;
 }) {
   const [artist, setArtist] = React.useState(props.gig.artist);
   const [venue, setVenue] = React.useState(props.gig.venue);
@@ -216,7 +217,11 @@ export function EditGigScreen(props: {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={8}
       >
-        <AppHeader onPressLogo={props.onPressLogo} />
+        <AppHeader
+          onPressLogo={props.onPressLogo}
+          onPressBack={props.onBack}
+          backLabel="Gigs"
+        />
 
         <ScrollView
           contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }}

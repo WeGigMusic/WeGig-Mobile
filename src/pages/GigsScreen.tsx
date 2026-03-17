@@ -7,13 +7,16 @@ import {
   ActivityIndicator,
   ScrollView,
   Animated,
+  Pressable,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 
 import { setCachedGigs } from "../lib/gigsCache";
 import { apiGet } from "../lib/api";
-import type { Gig, GigsResponse } from "../shared/types/Gig";
+import type { Gig, GigsResponse, CreateGigInput } from "../shared/types/Gig";
 
+import { AddGigScreen } from "./AddGigScreen";
 import { EditGigScreen } from "./EditGigScreen";
 import { ArtistScreen } from "./ArtistScreen";
 
@@ -111,18 +114,37 @@ function BadgeShowcaseChip(props: { title: string; icon: string }) {
   );
 }
 
-export function GigsScreen(props: { onPressLogo?: () => void }) {
+export function GigsScreen(props: {
+  onPressLogo?: () => void;
+  resetSignal?: number;
+  prefill?: Partial<CreateGigInput> | null;
+  onPrefillUsed?: () => void;
+  onGigCreated?: () => void;
+}) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [data, setData] = React.useState<GigsResponse | null>(null);
 
+  const [addingGig, setAddingGig] = React.useState(false);
   const [editingGig, setEditingGig] = React.useState<Gig | null>(null);
   const [artistView, setArtistView] = React.useState<string | null>(null);
 
   const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
+
+  React.useEffect(() => {
+    if (props.prefill) {
+      setAddingGig(true);
+    }
+  }, [props.prefill]);
+
+  React.useEffect(() => {
+    setAddingGig(false);
+    setEditingGig(null);
+    setArtistView(null);
+  }, [props.resetSignal]);
 
   const loadPinnedGigIds = React.useCallback(async () => {
     try {
@@ -151,7 +173,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
         }
       } catch {}
     },
-    [favouriteGigId]
+    [favouriteGigId],
   );
 
   const toggleFirstGig = React.useCallback(
@@ -166,7 +188,7 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
         }
       } catch {}
     },
-    [firstGigId]
+    [firstGigId],
   );
 
   const load = React.useCallback(async () => {
@@ -189,11 +211,32 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
     void loadPinnedGigIds();
   }, [load, loadPinnedGigIds]);
 
+  if (addingGig) {
+    return (
+      <AddGigScreen
+        onPressLogo={props.onPressLogo}
+        prefill={props.prefill}
+        onPrefillUsed={props.onPrefillUsed}
+        onBack={() => {
+          setAddingGig(false);
+          props.onPrefillUsed?.();
+        }}
+        onCreated={() => {
+          setAddingGig(false);
+          void load();
+          void loadPinnedGigIds();
+          props.onGigCreated?.();
+        }}
+      />
+    );
+  }
+
   if (editingGig) {
     return (
       <EditGigScreen
         gig={editingGig}
         onPressLogo={props.onPressLogo}
+        onBack={() => setEditingGig(null)}
         onDone={() => {
           setEditingGig(null);
           void load();
@@ -258,81 +301,118 @@ export function GigsScreen(props: { onPressLogo?: () => void }) {
             >
               Start by adding one manually or discover shows to prefill faster.
             </Text>
+
+            <View style={{ width: "100%", maxWidth: 240, marginTop: 4 }}>
+              <PrimaryButton
+                title="Add your first gig"
+                onPress={() => setAddingGig(true)}
+              />
+            </View>
           </View>
         ) : (
-          <AnimatedFlatList
-            data={gigs}
-            keyExtractor={(item) => item.id}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
-            ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-            ListHeaderComponent={
-              <View style={{ marginBottom: 14, gap: 8 }}>
-                <Text
-                  style={{
-                    color: Colours.text.primary,
-                    fontWeight: "700",
-                    fontSize: 14,
-                    lineHeight: 18,
-                  }}
-                >
-                  My badges
-                </Text>
-
-                {showcaseBadges.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingRight: 8 }}
-                  >
-                    {showcaseBadges.map((badge) => (
-                      <BadgeShowcaseChip
-                        key={badge.title}
-                        title={badge.title}
-                        icon={badge.icon}
-                      />
-                    ))}
-                  </ScrollView>
-                ) : (
+          <>
+            <AnimatedFlatList
+              data={gigs}
+              keyExtractor={(item) => item.id}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
+              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+              ListHeaderComponent={
+                <View style={{ marginBottom: 14, gap: 8 }}>
                   <Text
                     style={{
-                      color: Colours.text.muted,
-                      fontWeight: "500",
-                      fontSize: 13,
+                      color: Colours.text.primary,
+                      fontWeight: "700",
+                      fontSize: 14,
                       lineHeight: 18,
                     }}
                   >
-                    Log your first gig to start earning badges.
+                    My badges
                   </Text>
-                )}
-              </View>
-            }
-            renderItem={({ item }) => (
-              <GigCard
-                gig={item}
-                onPress={() => setEditingGig(item)}
-                onPressArtist={(artist: string) => setArtistView(artist)}
-                isFirstGig={item.id === firstGigId}
-                isFavouriteGig={item.id === favouriteGigId}
-                showFirstGigAction={!hasFirstGig || item.id === firstGigId}
-                showFavouriteAction={
-                  !hasFavouriteGig || item.id === favouriteGigId
-                }
-                onToggleFavourite={() => void toggleFavouriteGig(item.id)}
-                onToggleFirstGig={() => void toggleFirstGig(item.id)}
-              />
-            )}
-            refreshing={loading}
-            onRefresh={() => {
-              void load();
-              void loadPinnedGigIds();
-            }}
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-              { useNativeDriver: false }
-            )}
-            scrollEventThrottle={16}
-          />
+
+                  {showcaseBadges.length > 0 ? (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ paddingRight: 8 }}
+                    >
+                      {showcaseBadges.map((badge) => (
+                        <BadgeShowcaseChip
+                          key={badge.title}
+                          title={badge.title}
+                          icon={badge.icon}
+                        />
+                      ))}
+                    </ScrollView>
+                  ) : (
+                    <Text
+                      style={{
+                        color: Colours.text.muted,
+                        fontWeight: "500",
+                        fontSize: 13,
+                        lineHeight: 18,
+                      }}
+                    >
+                      Log your first gig to start earning badges.
+                    </Text>
+                  )}
+                </View>
+              }
+              renderItem={({ item }) => (
+                <GigCard
+                  gig={item}
+                  onPress={() => setEditingGig(item)}
+                  onPressArtist={(artist: string) => setArtistView(artist)}
+                  isFirstGig={item.id === firstGigId}
+                  isFavouriteGig={item.id === favouriteGigId}
+                  showFirstGigAction={!hasFirstGig || item.id === firstGigId}
+                  showFavouriteAction={
+                    !hasFavouriteGig || item.id === favouriteGigId
+                  }
+                  onToggleFavourite={() => void toggleFavouriteGig(item.id)}
+                  onToggleFirstGig={() => void toggleFirstGig(item.id)}
+                />
+              )}
+              refreshing={loading}
+              onRefresh={() => {
+                void load();
+                void loadPinnedGigIds();
+              }}
+              onScroll={Animated.event(
+                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+                { useNativeDriver: false },
+              )}
+              scrollEventThrottle={16}
+            />
+
+            <Pressable
+              onPress={() => setAddingGig(true)}
+              style={({ pressed }) => [
+                {
+                  position: "absolute",
+                  right: 20,
+                  bottom: 96,
+                  width: 58,
+                  height: 58,
+                  borderRadius: 29,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: Colours.brand.primary,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.12)",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.3,
+                  shadowRadius: 10,
+                  shadowOffset: { width: 0, height: 6 },
+                  elevation: 8,
+                },
+                pressed ? { transform: [{ scale: 0.97 }], opacity: 0.92 } : null,
+              ]}
+              hitSlop={10}
+            >
+              <Ionicons name="add" size={28} color={Colours.text.primary} />
+            </Pressable>
+          </>
         )}
       </View>
     </SafeAreaView>

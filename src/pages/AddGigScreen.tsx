@@ -96,6 +96,7 @@ export function AddGigScreen(props: {
   prefill?: Partial<CreateGigInput> | null;
   onPrefillUsed?: () => void;
   onPressLogo?: () => void;
+  onBack?: () => void;
 }) {
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
@@ -486,7 +487,11 @@ export function AddGigScreen(props: {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={8}
       >
-        <AppHeader onPressLogo={props.onPressLogo} />
+        <AppHeader
+          onPressLogo={props.onPressLogo}
+          onPressBack={props.onBack}
+          backLabel="Gigs"
+        />
 
         <ScrollView
           contentContainerStyle={styles.body}

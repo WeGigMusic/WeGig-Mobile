@@ -10,6 +10,12 @@ export type Gig = {
   externalSource?: string;
   externalId?: string;
   artistMbid?: string;
+  ticketUrl?: string;
+
+  venueLatitude?: number;
+  venueLongitude?: number;
+  venuePlaceName?: string;
+  venueMapboxId?: string;
 };
 
 export type GigsResponse = {
@@ -17,7 +23,6 @@ export type GigsResponse = {
   gigs: Gig[];
 };
 
-// ✅ Added: input type for creating (and also useful for edit forms)
 export type CreateGigInput = {
   artist: string;
   venue: string;
@@ -30,4 +35,9 @@ export type CreateGigInput = {
   externalId?: string;
   ticketUrl?: string;
   artistMbid?: string;
+
+  venueLatitude?: number;
+  venueLongitude?: number;
+  venuePlaceName?: string;
+  venueMapboxId?: string;
 };

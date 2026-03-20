@@ -25,6 +25,7 @@ import type { CreateGigInput, Gig, GigsResponse } from "../shared/types/Gig";
 import { getCachedGigs, setCachedGigs } from "../lib/gigsCache";
 import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
 import { parseYmdToUtcDate } from "../lib/date";
+import { reverseGeocodeCity, searchPlaces } from "../lib/mapbox";
 
 type MbArtist = {
   id: string;
@@ -51,6 +52,17 @@ type TmVenueSearchResponse =
       venues?: TmVenue[];
     }
   | any;
+
+type MapboxPlace = {
+  id: string;
+  name: string;
+  placeName: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  latitude: number;
+  longitude: number;
+};
 
 function norm(s: any) {
   return String(s ?? "")
@@ -112,10 +124,26 @@ export function AddGigScreen(props: {
   const [mbError, setMbError] = React.useState("");
   const [mbOpen, setMbOpen] = React.useState(false);
 
-  const [tmLoading, setTmLoading] = React.useState(false);
+  const [venueLoading, setVenueLoading] = React.useState(false);
+  const [venueError, setVenueError] = React.useState("");
+  const [venueOpen, setVenueOpen] = React.useState(false);
+  const [mapboxVenueResults, setMapboxVenueResults] = React.useState<
+    MapboxPlace[]
+  >([]);
   const [tmResults, setTmResults] = React.useState<TmVenue[]>([]);
-  const [tmError, setTmError] = React.useState("");
-  const [tmOpen, setTmOpen] = React.useState(false);
+
+  const [selectedVenueLat, setSelectedVenueLat] = React.useState<number | undefined>(
+    undefined,
+  );
+  const [selectedVenueLng, setSelectedVenueLng] = React.useState<number | undefined>(
+    undefined,
+  );
+  const [selectedVenuePlaceName, setSelectedVenuePlaceName] = React.useState<
+    string | undefined
+  >(undefined);
+  const [selectedVenueMapboxId, setSelectedVenueMapboxId] = React.useState<
+    string | undefined
+  >(undefined);
 
   const [notes, setNotes] = React.useState("");
   const [externalSource, setExternalSource] = React.useState<
@@ -232,18 +260,35 @@ export function AddGigScreen(props: {
     setMbError("");
   };
 
-  const runTmVenueSearch = React.useCallback(
+  const runVenueSearch = React.useCallback(
     async (q: string, cityHint: string) => {
       const query = q.trim();
       if (query.length < 2) {
+        setMapboxVenueResults([]);
         setTmResults([]);
-        setTmError("");
-        setTmLoading(false);
+        setVenueError("");
+        setVenueLoading(false);
         return;
       }
 
-      setTmLoading(true);
-      setTmError("");
+      setVenueLoading(true);
+      setVenueError("");
+
+      try {
+        const mapboxPlaces = await searchPlaces({
+          query,
+          cityHint: cityHint.trim() || undefined,
+          limit: 8,
+        });
+
+        setMapboxVenueResults(mapboxPlaces);
+        setTmResults([]);
+        setVenueOpen(true);
+        return;
+      } catch {
+        // fall through to Ticketmaster fallback
+      }
+
       try {
         const qs = new URLSearchParams();
         qs.set("q", query);
@@ -256,13 +301,15 @@ export function AddGigScreen(props: {
 
         const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
         setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
-        setTmOpen(true);
+        setMapboxVenueResults([]);
+        setVenueOpen(true);
       } catch (e: any) {
-        setTmError(e?.message ?? "Venue search failed");
+        setVenueError(e?.message ?? "Venue search failed");
+        setMapboxVenueResults([]);
         setTmResults([]);
-        setTmOpen(false);
+        setVenueOpen(false);
       } finally {
-        setTmLoading(false);
+        setVenueLoading(false);
       }
     },
     [],
@@ -270,21 +317,49 @@ export function AddGigScreen(props: {
 
   React.useEffect(() => {
     const q = venue.trim();
+
+    setSelectedVenueLat(undefined);
+    setSelectedVenueLng(undefined);
+    setSelectedVenuePlaceName(undefined);
+    setSelectedVenueMapboxId(undefined);
+
     if (q.length < 2) {
+      setMapboxVenueResults([]);
       setTmResults([]);
-      setTmOpen(false);
-      setTmError("");
+      setVenueOpen(false);
+      setVenueError("");
       return;
     }
 
     const t = setTimeout(() => {
-      void runTmVenueSearch(q, city);
+      void runVenueSearch(q, city);
     }, 320);
 
     return () => clearTimeout(t);
-  }, [venue, city, runTmVenueSearch]);
+  }, [venue, city, runVenueSearch]);
 
-  const chooseVenue = (v: TmVenue) => {
+  const chooseMapboxVenue = (place: MapboxPlace) => {
+    setVenue(place.name);
+
+    const placeCity = (place.city ?? "").trim();
+    if (placeCity) {
+      setCity(placeCity);
+      setJustAutoCity(true);
+      setTimeout(() => setJustAutoCity(false), 2200);
+    }
+
+    setSelectedVenueLat(place.latitude);
+    setSelectedVenueLng(place.longitude);
+    setSelectedVenuePlaceName(place.placeName);
+    setSelectedVenueMapboxId(place.id);
+
+    setVenueOpen(false);
+    setMapboxVenueResults([]);
+    setTmResults([]);
+    setVenueError("");
+  };
+
+  const chooseTicketmasterVenue = (v: TmVenue) => {
     setVenue(v.name);
 
     const venueCity = (v.city ?? "").toString().trim();
@@ -300,9 +375,15 @@ export function AddGigScreen(props: {
       }
     }
 
-    setTmOpen(false);
+    setSelectedVenueLat(undefined);
+    setSelectedVenueLng(undefined);
+    setSelectedVenuePlaceName(undefined);
+    setSelectedVenueMapboxId(undefined);
+
+    setVenueOpen(false);
+    setMapboxVenueResults([]);
     setTmResults([]);
-    setTmError("");
+    setVenueError("");
   };
 
   async function getExistingGigsBestEffort(): Promise<Gig[]> {
@@ -317,38 +398,56 @@ export function AddGigScreen(props: {
   }
 
   const handleUseMyLocation = async () => {
-    console.log("Use my location pressed");
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
 
-    const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission denied",
+          "Location access is needed to auto-fill your city.",
+        );
+        return;
+      }
 
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission denied",
-        "Location access is needed to auto-fill your city.",
-      );
-      return;
-    }
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
 
-    const loc = await Location.getCurrentPositionAsync({});
+      const coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
 
-    const places = await Location.reverseGeocodeAsync({
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-    });
+      try {
+        const resolvedCity = await reverseGeocodeCity(coords);
 
-    const place = places?.[0];
+        if (resolvedCity.trim()) {
+          setCity(resolvedCity.trim());
+          setJustAutoCity(true);
+          setTimeout(() => setJustAutoCity(false), 2200);
+          return;
+        }
+      } catch {
+        // fallback below
+      }
 
-    const inferredCity = place?.city || place?.subregion || place?.region || "";
+      const places = await Location.reverseGeocodeAsync(coords);
+      const place = places?.[0];
+      const inferredCity =
+        place?.city || place?.subregion || place?.region || "";
 
-    if (inferredCity) {
-      setCity(inferredCity);
-      setJustAutoCity(true);
-      setTimeout(() => setJustAutoCity(false), 2200);
-    } else {
-      Alert.alert(
-        "Location detected",
-        "Could not determine city automatically.",
-      );
+      if (inferredCity) {
+        setCity(inferredCity);
+        setJustAutoCity(true);
+        setTimeout(() => setJustAutoCity(false), 2200);
+      } else {
+        Alert.alert(
+          "Location detected",
+          "Could not determine city automatically.",
+        );
+      }
+    } catch {
+      Alert.alert("Location error", "Could not detect your current location.");
     }
   };
 
@@ -361,11 +460,16 @@ export function AddGigScreen(props: {
       rating: isFutureGig ? undefined : rating,
     };
 
-    (payload as any).notes = notes.trim() || undefined;
-    (payload as any).artistMbid = artistMbid;
-    (payload as any).externalSource = externalSource;
-    (payload as any).externalId = externalId;
-    (payload as any).ticketUrl = ticketUrl;
+ payload.notes = notes.trim() || undefined;
+payload.artistMbid = artistMbid;
+payload.externalSource = externalSource;
+payload.externalId = externalId;
+payload.ticketUrl = ticketUrl;
+
+payload.venueLatitude = selectedVenueLat;
+payload.venueLongitude = selectedVenueLng;
+payload.venuePlaceName = selectedVenuePlaceName;
+payload.venueMapboxId = selectedVenueMapboxId;
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
       Alert.alert(
@@ -411,13 +515,19 @@ export function AddGigScreen(props: {
       setExternalId(undefined);
       setTicketUrl(undefined);
 
+      setSelectedVenueLat(undefined);
+      setSelectedVenueLng(undefined);
+      setSelectedVenuePlaceName(undefined);
+      setSelectedVenueMapboxId(undefined);
+
       setMbResults([]);
       setMbOpen(false);
       setMbError("");
 
+      setMapboxVenueResults([]);
       setTmResults([]);
-      setTmOpen(false);
-      setTmError("");
+      setVenueOpen(false);
+      setVenueError("");
 
       setJustAutoCity(false);
     } catch (e: any) {
@@ -451,12 +561,17 @@ export function AddGigScreen(props: {
           setExternalSource(undefined);
           setExternalId(undefined);
           setTicketUrl(undefined);
+          setSelectedVenueLat(undefined);
+          setSelectedVenueLng(undefined);
+          setSelectedVenuePlaceName(undefined);
+          setSelectedVenueMapboxId(undefined);
           setMbResults([]);
           setMbOpen(false);
           setMbError("");
+          setMapboxVenueResults([]);
           setTmResults([]);
-          setTmOpen(false);
-          setTmError("");
+          setVenueOpen(false);
+          setVenueError("");
           setJustAutoCity(false);
           return;
         } catch (qErr: any) {
@@ -568,23 +683,50 @@ export function AddGigScreen(props: {
               value={venue}
               onChangeText={(t) => {
                 setVenue(t);
-                setTmOpen(true);
+                setVenueOpen(true);
               }}
               placeholder="Start typing venue…"
               autoCapitalize="words"
             />
 
-            {tmLoading ? (
+            {venueLoading ? (
               <View style={styles.inlineRow}>
                 <ActivityIndicator />
                 <Text style={styles.muted}>Searching venues…</Text>
               </View>
             ) : null}
 
-            {tmError ? <Text style={styles.errorText}>{tmError}</Text> : null}
+            {venueError ? <Text style={styles.errorText}>{venueError}</Text> : null}
 
-            {tmOpen && !tmLoading && tmResults.length > 0 ? (
+            {venueOpen &&
+            !venueLoading &&
+            (mapboxVenueResults.length > 0 || tmResults.length > 0) ? (
               <View style={styles.suggestCard}>
+                {mapboxVenueResults.map((place) => {
+                  const meta = [place.city, place.region, place.country]
+                    .filter(Boolean)
+                    .join(" • ");
+
+                  return (
+                    <Pressable
+                      key={place.id}
+                      onPress={() => chooseMapboxVenue(place)}
+                      style={({ pressed }) => [
+                        styles.suggestRow,
+                        pressed ? { opacity: 0.9 } : null,
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestTitle}>{place.name}</Text>
+                        {meta ? (
+                          <Text style={styles.suggestMeta}>{meta}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.sourcePill}>Mapbox</Text>
+                    </Pressable>
+                  );
+                })}
+
                 {tmResults.map((v) => {
                   const meta = [v.city ?? "", v.countryCode ?? ""]
                     .map((x) => String(x).trim())
@@ -594,7 +736,7 @@ export function AddGigScreen(props: {
                   return (
                     <Pressable
                       key={v.id}
-                      onPress={() => chooseVenue(v)}
+                      onPress={() => chooseTicketmasterVenue(v)}
                       style={({ pressed }) => [
                         styles.suggestRow,
                         pressed ? { opacity: 0.9 } : null,
@@ -606,6 +748,7 @@ export function AddGigScreen(props: {
                           <Text style={styles.suggestMeta}>{meta}</Text>
                         ) : null}
                       </View>
+                      <Text style={styles.sourcePillMuted}>TM</Text>
                     </Pressable>
                   );
                 })}
@@ -625,7 +768,7 @@ export function AddGigScreen(props: {
             </Pressable>
 
             {justAutoCity ? (
-              <Text style={styles.muted}>City set from venue ✓</Text>
+              <Text style={styles.muted}>City auto-filled ✓</Text>
             ) : null}
 
             <DateField
@@ -757,6 +900,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colours.ui.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
   },
 
   suggestTitle: {
@@ -772,6 +918,32 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 12,
     lineHeight: 16,
+  },
+
+  sourcePill: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 11,
+    lineHeight: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(47,140,255,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.4)",
+  },
+
+  sourcePillMuted: {
+    color: Colours.text.muted,
+    fontWeight: "800",
+    fontSize: 11,
+    lineHeight: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
   },
 
   locationBtn: {

@@ -13,15 +13,16 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { reverseGeocodeCity } from "../lib/mapbox";
 import { avatarPresets } from "../config/avatarPresets";
 import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { apiGet } from "../lib/api";
-
-import type { CreateGigInput } from "../shared/types/Gig";
-
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
+
+import type { CreateGigInput } from "../shared/types/Gig";
 
 const HOME_CITY_KEY = "wegig.homeCity";
 
@@ -110,7 +111,10 @@ function getSocialSignal(seed: string) {
     },
   ];
 
-  const hash = seed.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const hash = seed
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
   return options[hash % options.length];
 }
 
@@ -205,7 +209,9 @@ export function DiscoverScreen(props: {
   const [events, setEvents] = React.useState<TicketmasterEvent[]>([]);
 
   const [nearYouLoading, setNearYouLoading] = React.useState(false);
-  const [nearYouEvents, setNearYouEvents] = React.useState<TicketmasterEvent[]>([]);
+  const [nearYouEvents, setNearYouEvents] = React.useState<TicketmasterEvent[]>(
+    [],
+  );
 
   const [detectedCity, setDetectedCity] = React.useState("");
   const [locationLoading, setLocationLoading] = React.useState(true);
@@ -230,25 +236,37 @@ export function DiscoverScreen(props: {
         accuracy: Location.Accuracy.Balanced,
       });
 
-      const places = await Location.reverseGeocodeAsync({
+      const coords = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
-      });
+      };
 
-      const place = places[0];
-      const resolved =
-        place?.city ||
-        place?.subregion ||
-        place?.region ||
-        "";
+      try {
+        const resolved = await reverseGeocodeCity(coords);
 
-      if (!resolved.trim()) {
+        if (!resolved.trim()) {
+          setDetectedCity("");
+          setLocationError("Could not detect your city");
+          return;
+        }
+
+        setDetectedCity(resolved.trim());
+        return;
+      } catch {
+        const places = await Location.reverseGeocodeAsync(coords);
+
+        const place = places[0];
+        const fallbackCity =
+          place?.city || place?.subregion || place?.region || "";
+
+        if (fallbackCity.trim()) {
+          setDetectedCity(fallbackCity.trim());
+          return;
+        }
+
         setDetectedCity("");
         setLocationError("Could not detect your city");
-        return;
       }
-
-      setDetectedCity(resolved.trim());
     } catch {
       setDetectedCity("");
       setLocationError("Could not detect your location");
@@ -374,7 +392,12 @@ export function DiscoverScreen(props: {
         <AppHeader onPressLogo={props.onPressLogo} />
 
         <View style={styles.heroWrap}>
-          <View style={[styles.heroCard, isCompact ? styles.heroCardCompact : null]}>
+          <View
+            style={[
+              styles.heroCard,
+              isCompact ? styles.heroCardCompact : null,
+            ]}
+          >
             <Text style={styles.screenTitle}>Discover</Text>
 
             {!isCompact ? (
@@ -383,7 +406,12 @@ export function DiscoverScreen(props: {
               </Text>
             ) : null}
 
-            <View style={[styles.formBlock, isCompact ? styles.formBlockCompact : null]}>
+            <View
+              style={[
+                styles.formBlock,
+                isCompact ? styles.formBlockCompact : null,
+              ]}
+            >
               <TextField
                 label="Search"
                 value={query}
@@ -406,7 +434,9 @@ export function DiscoverScreen(props: {
 
               <View style={styles.locationMetaWrap}>
                 {locationLoading ? (
-                  <Text style={styles.locationMetaText}>Detecting your location…</Text>
+                  <Text style={styles.locationMetaText}>
+                    Detecting your location…
+                  </Text>
                 ) : activeCity ? (
                   <Text style={styles.locationMetaText}>
                     {isUsingManualCity
@@ -424,7 +454,12 @@ export function DiscoverScreen(props: {
                 )}
               </View>
 
-              <View style={[styles.searchRow, isCompact ? styles.searchRowCompact : null]}>
+              <View
+                style={[
+                  styles.searchRow,
+                  isCompact ? styles.searchRowCompact : null,
+                ]}
+              >
                 <PrimaryButton title="Search Ticketmaster" onPress={search} />
 
                 {loading ? (

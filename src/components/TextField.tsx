@@ -8,34 +8,44 @@ import {
 } from "react-native";
 import { Colours } from "../theme/colours";
 
-export function TextField({
-  label,
-  multiline,
-  style,
-  ...props
-}: TextInputProps & { label: string }) {
-  const [focused, setFocused] = React.useState(false);
+type Props = TextInputProps & {
+  label: string;
+};
 
-  return (
-    <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+export const TextField = React.forwardRef<TextInput, Props>(
+  ({ label, multiline, style, onFocus, onBlur, ...props }, ref) => {
+    const [focused, setFocused] = React.useState(false);
 
-      <TextInput
-        {...props}
-        multiline={multiline}
-        placeholderTextColor={Colours.text.muted}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        style={[
-          styles.input,
-          multiline ? styles.multiline : null,
-          focused ? styles.focused : null,
-          style,
-        ]}
-      />
-    </View>
-  );
-}
+    return (
+      <View style={styles.wrap}>
+        <Text style={styles.label}>{label}</Text>
+
+        <TextInput
+          ref={ref}
+          {...props}
+          multiline={multiline}
+          placeholderTextColor={Colours.text.muted}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
+          style={[
+            styles.input,
+            multiline ? styles.multiline : null,
+            focused ? styles.focused : null,
+            style,
+          ]}
+        />
+      </View>
+    );
+  },
+);
+
+TextField.displayName = "TextField";
 
 const styles = StyleSheet.create({
   wrap: {

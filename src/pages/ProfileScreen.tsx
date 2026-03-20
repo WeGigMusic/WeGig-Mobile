@@ -26,6 +26,7 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
+import { searchPlaces } from "../lib/mapbox";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 import { avatarPresets } from "../config/avatarPresets";
 
@@ -39,8 +40,18 @@ type ProfileScreenProps = {
   onPressLogo?: () => void;
   onGoToGigs?: () => void;
   onOpenAbout?: () => void;
-  onOpenHelp?: () => void;
   onOpenFeedback?: () => void;
+};
+
+type MapboxPlace = {
+  id: string;
+  name: string;
+  placeName: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  latitude: number;
+  longitude: number;
 };
 
 function computeProfileStats(gigs: Gig[]) {
@@ -143,7 +154,6 @@ export function ProfileScreen({
   onPressLogo,
   onGoToGigs,
   onOpenAbout,
-  onOpenHelp,
   onOpenFeedback,
 }: ProfileScreenProps) {
   const shareCardRef = React.useRef<ViewShot | null>(null);
@@ -163,6 +173,12 @@ export function ProfileScreen({
   const [avatarPickerVisible, setAvatarPickerVisible] = React.useState(false);
   const [avatarPreset, setAvatarPreset] = React.useState<string>("");
   const [avatarUri, setAvatarUri] = React.useState<string>("");
+
+  const [cityLoading, setCityLoading] = React.useState(false);
+  const [cityResults, setCityResults] = React.useState<MapboxPlace[]>([]);
+  const [cityOpen, setCityOpen] = React.useState(false);
+  const [cityError, setCityError] = React.useState("");
+  const [cityTouched, setCityTouched] = React.useState(false);
 
   const loadPrefs = React.useCallback(async () => {
     try {
@@ -246,6 +262,68 @@ export function ProfileScreen({
     void load();
   }, [load, loadPrefs]);
 
+  const runCitySearch = React.useCallback(async (q: string) => {
+    const query = q.trim();
+
+    if (query.length < 2) {
+      setCityResults([]);
+      setCityError("");
+      setCityLoading(false);
+      return;
+    }
+
+    setCityLoading(true);
+    setCityError("");
+
+    try {
+      const results = await searchPlaces({
+        query,
+        limit: 6,
+      });
+
+      const mapped = results.filter(
+        (place) => !!(place.city || place.region || place.name),
+      );
+
+      setCityResults(mapped);
+      setCityOpen(true);
+    } catch (e: any) {
+      setCityError(e?.message ?? "City search failed");
+      setCityResults([]);
+      setCityOpen(false);
+    } finally {
+      setCityLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (!cityTouched) return;
+
+    const q = homeCity.trim();
+    if (q.length < 2) {
+      setCityResults([]);
+      setCityOpen(false);
+      setCityError("");
+      return;
+    }
+
+    const t = setTimeout(() => {
+      void runCitySearch(q);
+    }, 320);
+
+    return () => clearTimeout(t);
+  }, [homeCity, cityTouched, runCitySearch]);
+
+  const chooseCity = React.useCallback((place: MapboxPlace) => {
+    const best =
+      place.city?.trim() || place.region?.trim() || place.name.trim();
+
+    setHomeCity(best);
+    setCityOpen(false);
+    setCityResults([]);
+    setCityError("");
+  }, []);
+
   const handlePickPreset = React.useCallback(async (presetId: string) => {
     setAvatarPreset(presetId);
     setAvatarUri("");
@@ -264,7 +342,7 @@ export function ProfileScreen({
       if (!permission.granted) {
         Alert.alert(
           "Permission needed",
-          "Allow photo library access to upload a profile picture."
+          "Allow photo library access to upload a profile picture.",
         );
         return;
       }
@@ -306,7 +384,7 @@ export function ProfileScreen({
   const handleChangePassword = React.useCallback(() => {
     Alert.alert(
       "Change password",
-      "This will be available once email login is set up."
+      "This will be available once email login is set up.",
     );
   }, []);
 
@@ -321,15 +399,6 @@ export function ProfileScreen({
   const handleExportGigs = React.useCallback(() => {
     Alert.alert("Export gigs", "Gig export is planned for a future update.");
   }, []);
-
-  const handleHelp = React.useCallback(() => {
-    if (onOpenHelp) {
-      onOpenHelp();
-      return;
-    }
-
-    Alert.alert("Help", "Help centre coming soon.");
-  }, [onOpenHelp]);
 
   const handleFeedback = React.useCallback(() => {
     if (onOpenFeedback) {
@@ -373,7 +442,7 @@ export function ProfileScreen({
       });
 
       const shareMessage =
-  "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
+        "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
 
       await Share.share(
         {
@@ -387,7 +456,7 @@ export function ProfileScreen({
         {
           dialogTitle: "Share your WeGig profile",
           subject: "My WeGig profile",
-        }
+        },
       );
     } catch (e: any) {
       Alert.alert("Share failed", e?.message ?? "Could not share profile.");
@@ -496,10 +565,57 @@ export function ProfileScreen({
             <TextField
               label="City (optional)"
               value={homeCity}
-              onChangeText={setHomeCity}
+              onChangeText={(value) => {
+                setCityTouched(true);
+                setHomeCity(value);
+                setCityOpen(true);
+              }}
               placeholder="e.g. Fleet"
               autoCapitalize="words"
             />
+
+            {cityLoading ? (
+              <View style={styles.inlineRow}>
+                <ActivityIndicator />
+                <Text style={styles.muted}>Searching cities…</Text>
+              </View>
+            ) : null}
+
+            {cityError ? <Text style={styles.errorText}>{cityError}</Text> : null}
+
+            {cityOpen && !cityLoading && cityResults.length > 0 ? (
+              <View style={styles.suggestCard}>
+                {cityResults.map((place) => {
+                  const label =
+                    place.city?.trim() ||
+                    place.region?.trim() ||
+                    place.name.trim();
+
+                  const meta = [place.region, place.country]
+                    .filter(Boolean)
+                    .join(" • ");
+
+                  return (
+                    <Pressable
+                      key={place.id}
+                      onPress={() => chooseCity(place)}
+                      style={({ pressed }) => [
+                        styles.suggestRow,
+                        pressed ? { opacity: 0.9 } : null,
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestTitle}>{label}</Text>
+                        {meta ? (
+                          <Text style={styles.suggestMeta}>{meta}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={styles.sourcePill}>Mapbox</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
             <Text style={styles.muted}>
               Used to personalise Discover + “Next gig near you”.
@@ -561,11 +677,6 @@ export function ProfileScreen({
             title="About WeGig"
             subtitle="Story, version, privacy"
             onPress={onOpenAbout}
-          />
-          <ActionRow
-            title="Help"
-            subtitle="FAQs and support"
-            onPress={handleHelp}
           />
           <ActionRow
             title="Send feedback"
@@ -865,6 +976,59 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 13,
     lineHeight: 18,
+  },
+
+  errorText: {
+    color: Colours.text.danger,
+    fontWeight: "700",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  suggestCard: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    overflow: "hidden",
+  },
+
+  suggestRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colours.ui.border,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  suggestTitle: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  suggestMeta: {
+    marginTop: 2,
+    color: Colours.text.muted,
+    fontWeight: "500",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  sourcePill: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 11,
+    lineHeight: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: "rgba(47,140,255,0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.4)",
   },
 
   hiddenShareLayer: {

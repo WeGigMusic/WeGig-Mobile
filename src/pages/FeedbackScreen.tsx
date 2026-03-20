@@ -7,6 +7,11 @@ import {
   Pressable,
   View,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
+  TextInput,
 } from "react-native";
 import { Colours } from "../theme/colours";
 import { TextField } from "../components/TextField";
@@ -32,7 +37,9 @@ function TypeChip(props: {
         pressed ? { opacity: 0.9 } : null,
       ]}
     >
-      <Text style={[styles.chipText, props.active ? styles.chipTextActive : null]}>
+      <Text
+        style={[styles.chipText, props.active ? styles.chipTextActive : null]}
+      >
         {props.label}
       </Text>
     </Pressable>
@@ -40,6 +47,9 @@ function TypeChip(props: {
 }
 
 export default function FeedbackScreen({ onBack }: FeedbackScreenProps) {
+  const messageRef = React.useRef<TextInput | null>(null);
+  const replyEmailRef = React.useRef<TextInput | null>(null);
+
   const [type, setType] = React.useState<FeedbackType>("General");
   const [subject, setSubject] = React.useState("");
   const [message, setMessage] = React.useState("");
@@ -49,7 +59,6 @@ export default function FeedbackScreen({ onBack }: FeedbackScreenProps) {
   const handleSubmit = React.useCallback(async () => {
     const trimmedSubject = subject.trim();
     const trimmedMessage = message.trim();
-    const trimmedEmail = replyEmail.trim();
 
     if (!trimmedSubject) {
       Alert.alert("Missing subject", "Please add a short subject.");
@@ -67,13 +76,14 @@ export default function FeedbackScreen({ onBack }: FeedbackScreenProps) {
 
       Alert.alert(
         "Feedback sent",
-        "Thanks for sharing this with us. We really appreciate it."
+        "Thanks for sharing this with us. We really appreciate it.",
       );
 
       setType("General");
       setSubject("");
       setMessage("");
       setReplyEmail("");
+      Keyboard.dismiss();
 
       onBack?.();
     } catch {
@@ -81,93 +91,118 @@ export default function FeedbackScreen({ onBack }: FeedbackScreenProps) {
     } finally {
       setSubmitting(false);
     }
-  }, [message, onBack, replyEmail, subject]);
+  }, [message, onBack, subject]);
 
   return (
     <SafeAreaView style={styles.safe}>
-      {onBack ? (
-        <View style={styles.header}>
-          <Pressable onPress={onBack} style={styles.backButton}>
-            <Text style={styles.backText}>‹ Back</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={8}
       >
-        <Text style={styles.title}>Send feedback</Text>
-        <Text style={styles.intro}>
-          Found a bug, got an idea, or want to suggest something? Send it here.
-        </Text>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.flex}>
+            {onBack ? (
+              <View style={styles.header}>
+                <Pressable onPress={onBack} style={styles.backButton}>
+                  <Text style={styles.backText}>‹ Back</Text>
+                </Pressable>
+              </View>
+            ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Type</Text>
-          <View style={styles.chipRow}>
-            <TypeChip
-              label="Bug"
-              active={type === "Bug"}
-              onPress={() => setType("Bug")}
-            />
-            <TypeChip
-              label="Idea"
-              active={type === "Idea"}
-              onPress={() => setType("Idea")}
-            />
-            <TypeChip
-              label="General"
-              active={type === "General"}
-              onPress={() => setType("General")}
-            />
+            <ScrollView
+              style={styles.container}
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.title}>Send feedback</Text>
+              <Text style={styles.intro}>
+                Found a bug, got an idea, or want to suggest something? Send it
+                here.
+              </Text>
+
+              <View style={styles.card}>
+                <Text style={styles.label}>Type</Text>
+                <View style={styles.chipRow}>
+                  <TypeChip
+                    label="Bug"
+                    active={type === "Bug"}
+                    onPress={() => setType("Bug")}
+                  />
+                  <TypeChip
+                    label="Idea"
+                    active={type === "Idea"}
+                    onPress={() => setType("Idea")}
+                  />
+                  <TypeChip
+                    label="General"
+                    active={type === "General"}
+                    onPress={() => setType("General")}
+                  />
+                </View>
+
+                <View style={styles.fieldGap} />
+
+                <TextField
+                  label="Subject"
+                  value={subject}
+                  onChangeText={setSubject}
+                  placeholder="e.g. Search is not showing results"
+                  autoCapitalize="sentences"
+                  returnKeyType="next"
+                  onSubmitEditing={() => messageRef.current?.focus()}
+                />
+
+                <View style={styles.fieldGap} />
+
+                <TextField
+                  ref={messageRef}
+                  label="Message"
+                  value={message}
+                  onChangeText={setMessage}
+                  placeholder="Tell us what happened or what you would like to see"
+                  autoCapitalize="sentences"
+                  multiline
+                  numberOfLines={6}
+                  returnKeyType="next"
+                  blurOnSubmit
+                  onSubmitEditing={() => replyEmailRef.current?.focus()}
+                />
+
+                <View style={styles.fieldGap} />
+
+                <TextField
+                  ref={replyEmailRef}
+                  label="Reply email (optional)"
+                  value={replyEmail}
+                  onChangeText={setReplyEmail}
+                  placeholder="e.g. name@email.com"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    Keyboard.dismiss();
+                    void handleSubmit();
+                  }}
+                />
+
+                <Text style={styles.helperText}>
+                  This is an MVP form for now. Later this can post to your
+                  backend and save feedback properly.
+                </Text>
+
+                <PrimaryButton
+                  title={submitting ? "Sending…" : "Send feedback"}
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                />
+              </View>
+            </ScrollView>
           </View>
-
-          <View style={styles.fieldGap} />
-
-          <TextField
-            label="Subject"
-            value={subject}
-            onChangeText={setSubject}
-            placeholder="e.g. Search is not showing results"
-            autoCapitalize="sentences"
-          />
-
-          <View style={styles.fieldGap} />
-
-          <TextField
-            label="Message"
-            value={message}
-            onChangeText={setMessage}
-            placeholder="Tell us what happened or what you would like to see"
-            autoCapitalize="sentences"
-            multiline
-            numberOfLines={6}
-          />
-
-          <View style={styles.fieldGap} />
-
-          <TextField
-            label="Reply email (optional)"
-            value={replyEmail}
-            onChangeText={setReplyEmail}
-            placeholder="e.g. name@email.com"
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-
-          <Text style={styles.helperText}>
-            This is an MVP form for now. Later this can post to your backend and
-            save feedback properly.
-          </Text>
-
-          <PrimaryButton
-            title={submitting ? "Sending…" : "Send feedback"}
-            onPress={handleSubmit}
-            disabled={submitting}
-          />
-        </View>
-      </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -176,6 +211,10 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: Colours.background.app,
+  },
+
+  flex: {
+    flex: 1,
   },
 
   header: {

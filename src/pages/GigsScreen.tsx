@@ -8,12 +8,13 @@ import {
   ScrollView,
   Animated,
   Pressable,
+  Alert,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
 import { setCachedGigs } from "../lib/gigsCache";
-import { apiGet } from "../lib/api";
+import { apiGet, apiPost, ApiError } from "../lib/api";
 import type { Gig, GigsResponse, CreateGigInput } from "../shared/types/Gig";
 
 import { AddGigScreen } from "./AddGigScreen";
@@ -128,23 +129,12 @@ export function GigsScreen(props: {
   const [data, setData] = React.useState<GigsResponse | null>(null);
 
   const [addingGig, setAddingGig] = React.useState(false);
+  const [autoCreatingGig, setAutoCreatingGig] = React.useState(false);
   const [editingGig, setEditingGig] = React.useState<Gig | null>(null);
   const [artistView, setArtistView] = React.useState<string | null>(null);
 
   const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
-
-  React.useEffect(() => {
-    if (props.prefill) {
-      setAddingGig(true);
-    }
-  }, [props.prefill]);
-
-  React.useEffect(() => {
-    setAddingGig(false);
-    setEditingGig(null);
-    setArtistView(null);
-  }, [props.resetSignal]);
 
   const loadPinnedGigIds = React.useCallback(async () => {
     try {
@@ -211,6 +201,82 @@ export function GigsScreen(props: {
     void loadPinnedGigIds();
   }, [load, loadPinnedGigIds]);
 
+  React.useEffect(() => {
+    setAddingGig(false);
+    setEditingGig(null);
+    setArtistView(null);
+  }, [props.resetSignal]);
+
+  React.useEffect(() => {
+    const prefill = props.prefill;
+    if (!prefill) return;
+
+    const artist = prefill.artist?.trim();
+    const venue = prefill.venue?.trim();
+    const city = prefill.city?.trim();
+    const date = prefill.date?.trim();
+
+    const canAutoCreate = Boolean(artist && venue && city && date);
+
+    if (!canAutoCreate) {
+      setAddingGig(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    const createFromPrefill = async () => {
+      setAutoCreatingGig(true);
+      setError("");
+
+      try {
+        const payload: CreateGigInput = {
+          ...prefill,
+          artist,
+          venue,
+          city,
+          date,
+          notes:
+            typeof prefill.notes === "string"
+              ? prefill.notes.trim()
+              : prefill.notes,
+        } as CreateGigInput;
+
+        await apiPost<Gig>("/gigs", payload);
+
+        if (cancelled) return;
+
+        props.onPrefillUsed?.();
+        await load();
+        await loadPinnedGigIds();
+        props.onGigCreated?.();
+      } catch (e: any) {
+        if (cancelled) return;
+
+        if (e instanceof ApiError && e.status === 409) {
+          props.onPrefillUsed?.();
+          await load();
+          await loadPinnedGigIds();
+          Alert.alert("Already logged", "This gig is already in your list.");
+          return;
+        }
+
+        setError(e?.message ?? "Failed to add gig from Discover");
+        props.onPrefillUsed?.();
+      } finally {
+        if (!cancelled) {
+          setAutoCreatingGig(false);
+        }
+      }
+    };
+
+    void createFromPrefill();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [props.prefill, props.onGigCreated, props.onPrefillUsed, load, loadPinnedGigIds]);
+
   if (addingGig) {
     return (
       <AddGigScreen
@@ -254,6 +320,35 @@ export function GigsScreen(props: {
         onBack={() => setArtistView(null)}
         onEditGig={(g) => setEditingGig(g)}
       />
+    );
+  }
+
+  if (autoCreatingGig) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
+        <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 24,
+            gap: 12,
+          }}
+        >
+          <ActivityIndicator />
+          <Text
+            style={{
+              color: Colours.text.primary,
+              fontWeight: "700",
+              fontSize: 15,
+              textAlign: "center",
+            }}
+          >
+            Adding gig to your list…
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 

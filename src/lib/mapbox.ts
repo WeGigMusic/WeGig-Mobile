@@ -49,6 +49,7 @@ export async function reverseGeocodeCity(params: {
     `?access_token=${encodeURIComponent(token)}` +
     `&types=place,locality,district,region` +
     `&language=en` +
+    `&country=gb` +
     `&limit=1`;
 
   const res = await fetch(url);
@@ -105,8 +106,9 @@ export async function searchPlaces(params: {
     `?access_token=${encodeURIComponent(token)}` +
     `&autocomplete=true` +
     `&language=en` +
+    `&country=gb` +
     `&limit=${encodeURIComponent(String(params.limit ?? 8))}` +
-    `&types=poi,address,place,locality`;
+    `&types=place,locality,district`;
 
   const res = await fetch(url);
 
@@ -116,12 +118,28 @@ export async function searchPlaces(params: {
   }
 
   const json = (await res.json()) as MapboxResponse;
+  const queryLower = query.toLowerCase();
 
   return (json.features ?? [])
     .filter(
       (feature): feature is MapboxFeature & { center: [number, number] } =>
         Array.isArray(feature.center) && feature.center.length === 2,
     )
+    .filter((feature) => {
+      const haystack = [
+        feature.text,
+        feature.place_name,
+        getContextText(feature, "place"),
+        getContextText(feature, "locality"),
+        getContextText(feature, "district"),
+        getContextText(feature, "region"),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(queryLower);
+    })
     .map((feature) => ({
       id: feature.id,
       name:
@@ -138,5 +156,14 @@ export async function searchPlaces(params: {
       country: getContextText(feature, "country"),
       latitude: feature.center[1],
       longitude: feature.center[0],
-    }));
+    }))
+    .sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+
+      const aStarts = aName.startsWith(queryLower) ? 1 : 0;
+      const bStarts = bName.startsWith(queryLower) ? 1 : 0;
+
+      return bStarts - aStarts;
+    });
 }

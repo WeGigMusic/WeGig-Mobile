@@ -1,49 +1,105 @@
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "https://wegig-api.onrender.com"; // ✅ fallback to Render (never localhost)
+  "https://wegig-api.onrender.com";
 
-const DEFAULT_TIMEOUT_MS = 45000; // 45s for Render cold start
+console.log("API BASE URL:", BASE_URL);
+
+const DEFAULT_TIMEOUT_MS = 45000;
+
+export class ApiError extends Error {
+  status: number;
+  statusText: string;
+  body: string;
+  url: string;
+  method: string;
+
+  constructor(input: {
+    status: number;
+    statusText: string;
+    body: string;
+    url: string;
+    method: string;
+  }) {
+    super(
+      `HTTP ${input.status} ${input.statusText}${input.body ? ` — ${input.body}` : ""}`,
+    );
+    this.name = "ApiError";
+    this.status = input.status;
+    this.statusText = input.statusText;
+    this.body = input.body;
+    this.url = input.url;
+    this.method = input.method;
+  }
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number) {
   return new Promise<T>((resolve, reject) => {
     const id = setTimeout(() => reject(new Error("Request timed out")), ms);
+
     promise
-      .then((v) => {
+      .then((value) => {
         clearTimeout(id);
-        resolve(v);
+        resolve(value);
       })
-      .catch((e) => {
+      .catch((error) => {
         clearTimeout(id);
-        reject(e);
+        reject(error);
       });
   });
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const url = `${BASE_URL}${normalizedPath}`;
+  const method = init?.method ?? "GET";
 
-  const res = await withTimeout(
-    fetch(url, {
-      ...init,
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...(init?.headers || {}),
-      },
-    }),
-    DEFAULT_TIMEOUT_MS
-  );
+  console.log("API request:", url);
+
+  let res: Response;
+
+  try {
+    res = await withTimeout(
+      fetch(url, {
+        ...init,
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(init?.headers || {}),
+        },
+      }),
+      DEFAULT_TIMEOUT_MS,
+    );
+  } catch (error: any) {
+    console.log("API network error:", {
+      url,
+      method,
+      message: error?.message ?? String(error),
+    });
+    throw error;
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `HTTP ${res.status} ${res.statusText}${text ? ` — ${text}` : ""}`
-    );
+    throw new ApiError({
+      url,
+      method,
+      status: res.status,
+      statusText: res.statusText,
+      body: text,
+    });
   }
 
-  // handle empty responses
   const text = await res.text();
-  return (text ? JSON.parse(text) : null) as T;
+
+  if (!text) {
+    return null as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("Invalid JSON response from API");
+  }
 }
 
 export function apiGet<T>(path: string) {
@@ -51,11 +107,17 @@ export function apiGet<T>(path: string) {
 }
 
 export function apiPost<T>(path: string, body: unknown) {
-  return request<T>(path, { method: "POST", body: JSON.stringify(body) });
+  return request<T>(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 export function apiPatch<T>(path: string, body: unknown) {
-  return request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+  return request<T>(path, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
 }
 
 export function apiDelete<T>(path: string) {

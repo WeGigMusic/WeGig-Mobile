@@ -409,61 +409,61 @@ export function ProfileScreen({
     Alert.alert("Feedback", "Feedback form coming soon.");
   }, [onOpenFeedback]);
 
-  const handleShareProfile = React.useCallback(async () => {
-    if (!shareCardRef.current || sharingProfile) return;
+const handleShareProfile = React.useCallback(async () => {
+  if (!shareCardRef.current || sharingProfile) return;
 
-    setSharingProfile(true);
-    try {
-      const available = await Sharing.isAvailableAsync();
-      if (!available) {
-        Alert.alert("Unavailable", "Sharing is not available on this device.");
-        return;
-      }
-
-      const rawName = displayName.trim() || "profile";
-      const safeName = toFileSafePart(rawName) || "profile";
-      const ukDate = formatUkDateForFile();
-      const fileName = `wegig-profile-${safeName}-${ukDate}.png`;
-      const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
-
-      const tempUri = await captureRef(shareCardRef, {
-        format: "png",
-        quality: 1,
-        result: "tmpfile",
-      });
-
-      try {
-        await FileSystem.deleteAsync(targetUri, { idempotent: true });
-      } catch {}
-
-      await FileSystem.copyAsync({
-        from: tempUri,
-        to: targetUri,
-      });
-
-      const shareMessage =
-        "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
-
-      await Share.share(
-        {
-          title: "Share your WeGig profile",
-          message:
-            Platform.OS === "android"
-              ? `${shareMessage}\n${targetUri}`
-              : shareMessage,
-          url: targetUri,
-        },
-        {
-          dialogTitle: "Share your WeGig profile",
-          subject: "My WeGig profile",
-        },
-      );
-    } catch (e: any) {
-      Alert.alert("Share failed", e?.message ?? "Could not share profile.");
-    } finally {
-      setSharingProfile(false);
+  setSharingProfile(true);
+  try {
+    const available = await Sharing.isAvailableAsync();
+    if (!available) {
+      Alert.alert("Unavailable", "Sharing is not available on this device.");
+      return;
     }
-  }, [displayName, sharingProfile]);
+
+    const rawName = displayName.trim() || "profile";
+    const safeName = toFileSafePart(rawName) || "profile";
+    const ukDate = formatUkDateForFile();
+    const fileName = `wegig-profile-${safeName}-${ukDate}.png`;
+    const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+    const tempUri = await captureRef(shareCardRef, {
+      format: "png",
+      quality: 1,
+      result: "tmpfile",
+    });
+
+    try {
+      await FileSystem.deleteAsync(targetUri, { idempotent: true });
+    } catch {}
+
+    await FileSystem.copyAsync({
+      from: tempUri,
+      to: targetUri,
+    });
+
+    const shareMessage =
+      "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
+
+    await Share.share(
+      {
+        title: "Share your WeGig profile",
+        message:
+          Platform.OS === "android"
+            ? `${shareMessage}\n${targetUri}`
+            : shareMessage,
+        url: targetUri,
+      },
+      {
+        dialogTitle: "Share your WeGig profile",
+        subject: "My WeGig profile",
+      },
+    );
+  } catch (e: any) {
+    Alert.alert("Share failed", e?.message ?? "Could not share profile.");
+  } finally {
+    setSharingProfile(false);
+  }
+}, [displayName, sharingProfile]);
 
   const handle = "@wegig";
   const location = homeCity.trim() || stats?.topCity || "—";

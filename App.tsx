@@ -41,7 +41,6 @@ const TABS: Array<{
 ];
 
 function TabItem(props: {
-  tabKey: Tab;
   active: boolean;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
@@ -85,21 +84,28 @@ export default function App() {
     null,
   );
 
-  const goHome = React.useCallback(() => {
-    setTab("gigs");
-    setGigsResetSignal((n) => n + 1);
-  }, []);
-
   const [queuedCount, setQueuedCount] = React.useState(0);
   const [isOnline, setIsOnline] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [justSynced, setJustSynced] = React.useState(false);
 
+  const syncInFlightRef = React.useRef(false);
+  const justSyncedTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+
+  const goHome = React.useCallback(() => {
+    setTab("gigs");
+    setGigsResetSignal((n) => n + 1);
+  }, []);
+
   const refreshQueuedCount = React.useCallback(async () => {
     try {
       const n = await getQueuedGigsCount();
       setQueuedCount(n);
-    } catch {}
+    } catch {
+      // Intentionally silent for now
+    }
   }, []);
 
   const checkOnline = React.useCallback(async () => {
@@ -114,33 +120,56 @@ export default function App() {
   }, []);
 
   const runSync = React.useCallback(async () => {
-    const online = await checkOnline();
-    await refreshQueuedCount();
-    if (!online) return;
+    if (syncInFlightRef.current) return;
+    syncInFlightRef.current = true;
 
-    setSyncing(true);
     try {
-      const before = await getQueuedGigsCount();
-      await flushGigQueue();
-      const after = await getQueuedGigsCount();
-      setQueuedCount(after);
+      const online = await checkOnline();
+      await refreshQueuedCount();
+      if (!online) return;
 
-      if (before > 0 && after === 0) {
-        setJustSynced(true);
-        setTimeout(() => setJustSynced(false), 1800);
-        setRefreshKey((k) => k + 1);
+      setSyncing(true);
+      try {
+        const before = await getQueuedGigsCount();
+        await flushGigQueue();
+        const after = await getQueuedGigsCount();
+        setQueuedCount(after);
+
+        if (before > 0 && after === 0) {
+          setJustSynced(true);
+
+          if (justSyncedTimeoutRef.current) {
+            clearTimeout(justSyncedTimeoutRef.current);
+          }
+
+          justSyncedTimeoutRef.current = setTimeout(() => {
+            setJustSynced(false);
+          }, 1800);
+
+          setRefreshKey((k) => k + 1);
+        }
+      } finally {
+        setSyncing(false);
       }
     } finally {
-      setSyncing(false);
+      syncInFlightRef.current = false;
     }
   }, [checkOnline, refreshQueuedCount]);
 
   React.useEffect(() => {
     void runSync();
+
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") void runSync();
     });
-    return () => sub.remove();
+
+    return () => {
+      sub.remove();
+
+      if (justSyncedTimeoutRef.current) {
+        clearTimeout(justSyncedTimeoutRef.current);
+      }
+    };
   }, [runSync]);
 
   const pressTab = React.useCallback(
@@ -149,16 +178,20 @@ export default function App() {
 
       try {
         await Haptics.selectionAsync();
-      } catch {}
+      } catch {
+        // Intentionally silent for now
+      }
 
       if (isSameTab) {
         if (next === "gigs") {
           setPrefill(null);
           setGigsResetSignal((n) => n + 1);
         }
+
         if (next === "profile") {
           setProfileRoute("home");
         }
+
         return;
       }
 
@@ -209,11 +242,10 @@ export default function App() {
           <FeedbackScreen onBack={() => setProfileRoute("home")} />
         ) : (
           <ProfileScreen
-            onPressLogo={goHome}
-            onGoToGigs={() => setTab("gigs")}
-            onOpenAbout={() => setProfileRoute("about")}
-            onOpenHelp={() => setProfileRoute("help")}
-            onOpenFeedback={() => setProfileRoute("feedback")}
+     onPressLogo={goHome}
+  onGoToGigs={() => setTab("gigs")}
+  onOpenAbout={() => setProfileRoute("about")}
+  onOpenFeedback={() => setProfileRoute("feedback")}
           />
         )}
       </View>
@@ -224,7 +256,6 @@ export default function App() {
             {TABS.map((t) => (
               <TabItem
                 key={t.key}
-                tabKey={t.key}
                 active={tab === t.key}
                 label={t.label}
                 icon={t.icon}

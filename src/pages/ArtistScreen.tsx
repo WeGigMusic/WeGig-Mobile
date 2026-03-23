@@ -90,7 +90,8 @@ export function ArtistScreen(props: {
   const [gigs, setGigs] = React.useState<Gig[]>([]);
 
   const [spotifyLoading, setSpotifyLoading] = React.useState(true);
-  const [spotifyArtist, setSpotifyArtist] = React.useState<SpotifyArtistResponse["artist"]>(null);
+  const [spotifyArtist, setSpotifyArtist] =
+    React.useState<SpotifyArtistResponse["artist"]>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -135,14 +136,14 @@ export function ArtistScreen(props: {
 
   const stats = computeArtistStats(gigs);
 
-const handleOpenSpotify = React.useCallback(async () => {
-  const url = spotifyArtist?.spotifyUrl?.trim();
-  if (!url) return;
+  const handleOpenSpotify = React.useCallback(async () => {
+    const url = spotifyArtist?.spotifyUrl?.trim();
+    if (!url) return;
 
-  try {
-    await Linking.openURL(url);
-  } catch {}
-}, [spotifyArtist?.spotifyUrl]);
+    try {
+      await Linking.openURL(url);
+    } catch {}
+  }, [spotifyArtist?.spotifyUrl]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -156,7 +157,12 @@ const handleOpenSpotify = React.useCallback(async () => {
         <View style={styles.artistHero}>
           <View style={styles.artistHeroTop}>
             {spotifyLoading ? (
-              <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
+              <View
+                style={[
+                  styles.artistImageWrap,
+                  styles.artistImagePlaceholder,
+                ]}
+              >
                 <ActivityIndicator />
               </View>
             ) : spotifyArtist?.imageUrl ? (
@@ -165,7 +171,12 @@ const handleOpenSpotify = React.useCallback(async () => {
                 style={styles.artistImage}
               />
             ) : (
-              <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
+              <View
+                style={[
+                  styles.artistImageWrap,
+                  styles.artistImagePlaceholder,
+                ]}
+              >
                 <Text style={styles.artistImageFallback}>
                   {props.artist.slice(0, 1).toUpperCase()}
                 </Text>
@@ -261,10 +272,7 @@ const handleOpenSpotify = React.useCallback(async () => {
                   ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
                   contentContainerStyle={{ paddingBottom: 4 }}
                   renderItem={({ item }) => (
-                    <GigCard
-                      gig={item}
-                      onPress={() => props.onEditGig?.(item)}
-                    />
+                    <GigCard gig={item} onPress={() => props.onEditGig?.(item)} />
                   )}
                 />
               )}

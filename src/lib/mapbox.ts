@@ -19,6 +19,10 @@ type MapboxResponse = {
   features?: MapboxFeature[];
 };
 
+type AllowedPlaceType = "place" | "locality";
+
+const ALLOWED_PLACE_TYPES = new Set<AllowedPlaceType>(["place", "locality"]);
+
 function getContextText(
   feature: MapboxFeature,
   prefix: string,
@@ -26,15 +30,93 @@ function getContextText(
   return feature.context?.find((item) => item.id?.startsWith(prefix))?.text;
 }
 
-function pickBestCity(feature: MapboxFeature): string {
+function getPrimaryPlaceType(
+  feature: MapboxFeature,
+): AllowedPlaceType | undefined {
+  const primaryType = feature.place_type?.[0];
+
+  if (primaryType === "place" || primaryType === "locality") {
+    return primaryType;
+  }
+
+  return undefined;
+}
+
+function isAllowedPlaceFeature(
+  feature: MapboxFeature,
+): feature is MapboxFeature & {
+  center: [number, number];
+  place_type: AllowedPlaceType[];
+} {
   return (
-    feature.text ||
-    getContextText(feature, "place") ||
-    getContextText(feature, "locality") ||
-    getContextText(feature, "district") ||
-    getContextText(feature, "region") ||
-    ""
+    Array.isArray(feature.center) &&
+    feature.center.length === 2 &&
+    !!getPrimaryPlaceType(feature)
   );
+}
+
+function normalizeText(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function getDisplayName(feature: MapboxFeature): string {
+  return feature.text?.trim() || "";
+}
+
+function getRegion(feature: MapboxFeature): string | undefined {
+  return getContextText(feature, "region");
+}
+
+function getCountry(feature: MapboxFeature): string | undefined {
+  return getContextText(feature, "country");
+}
+
+function getFullPlaceLabel(feature: MapboxFeature): string {
+  const name = getDisplayName(feature);
+  const region = getRegion(feature);
+  const country = getCountry(feature);
+
+  return [name, region, country].filter(Boolean).join(", ");
+}
+
+function scoreFeature(feature: MapboxFeature, query: string): number {
+  const normalizedQuery = normalizeText(query);
+  const name = normalizeText(feature.text || "");
+  const placeName = normalizeText(feature.place_name || "");
+  const primaryType = getPrimaryPlaceType(feature);
+
+  let score = 0;
+
+  if (name === normalizedQuery) score += 100;
+  if (name.startsWith(normalizedQuery)) score += 40;
+  if (name.includes(normalizedQuery)) score += 20;
+  if (placeName.includes(normalizedQuery)) score += 10;
+  if (primaryType === "place") score += 5;
+
+  return score;
+}
+
+function dedupePlaces(
+  places: MapboxPlaceResult[],
+): MapboxPlaceResult[] {
+  const seen = new Set<string>();
+
+  return places.filter((place) => {
+    const key = [
+      normalizeText(place.name),
+      normalizeText(place.region || ""),
+      normalizeText(place.country || ""),
+    ].join("|");
+
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export async function reverseGeocodeCity(params: {
@@ -47,10 +129,10 @@ export async function reverseGeocodeCity(params: {
     `https://api.mapbox.com/geocoding/v5/mapbox.places/` +
     `${params.longitude},${params.latitude}.json` +
     `?access_token=${encodeURIComponent(token)}` +
-    `&types=place,locality,district,region` +
+    `&types=place,locality` +
     `&language=en` +
     `&country=gb` +
-    `&limit=1`;
+    `&limit=5`;
 
   const res = await fetch(url);
 
@@ -60,16 +142,19 @@ export async function reverseGeocodeCity(params: {
   }
 
   const json = (await res.json()) as MapboxResponse;
-  const feature = json.features?.[0];
+
+  const feature = (json.features ?? []).find(
+    (item) => !!getPrimaryPlaceType(item) && !!item.text?.trim(),
+  );
 
   if (!feature) {
-    throw new Error("No Mapbox location result found");
+    throw new Error("No Mapbox town/city result found");
   }
 
-  const city = pickBestCity(feature).trim();
+  const city = getDisplayName(feature);
 
   if (!city) {
-    throw new Error("Mapbox could not resolve a city");
+    throw new Error("Mapbox could not resolve a town/city");
   }
 
   return city;
@@ -108,7 +193,7 @@ export async function searchPlaces(params: {
     `&language=en` +
     `&country=gb` +
     `&limit=${encodeURIComponent(String(params.limit ?? 8))}` +
-    `&types=place,locality,district`;
+    `&types=place,locality`;
 
   const res = await fetch(url);
 
@@ -118,52 +203,35 @@ export async function searchPlaces(params: {
   }
 
   const json = (await res.json()) as MapboxResponse;
-  const queryLower = query.toLowerCase();
+  const normalizedQuery = normalizeText(query);
 
-  return (json.features ?? [])
-    .filter(
-      (feature): feature is MapboxFeature & { center: [number, number] } =>
-        Array.isArray(feature.center) && feature.center.length === 2,
-    )
+  const results = (json.features ?? [])
+    .filter(isAllowedPlaceFeature)
     .filter((feature) => {
-      const haystack = [
-        feature.text,
-        feature.place_name,
-        getContextText(feature, "place"),
-        getContextText(feature, "locality"),
-        getContextText(feature, "district"),
-        getContextText(feature, "region"),
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+      const name = normalizeText(feature.text || "");
+      const placeName = normalizeText(feature.place_name || "");
 
-      return haystack.includes(queryLower);
+      return (
+        name.includes(normalizedQuery) || placeName.includes(normalizedQuery)
+      );
     })
-    .map((feature) => ({
-      id: feature.id,
-      name:
-        feature.text?.trim() || feature.place_name?.trim() || "Unknown place",
-      placeName:
-        feature.place_name?.trim() ||
-        feature.text?.trim() ||
-        "Unknown place",
-      city:
-        getContextText(feature, "place") ||
-        getContextText(feature, "locality") ||
-        getContextText(feature, "district"),
-      region: getContextText(feature, "region"),
-      country: getContextText(feature, "country"),
-      latitude: feature.center[1],
-      longitude: feature.center[0],
-    }))
-    .sort((a, b) => {
-      const aName = a.name.toLowerCase();
-      const bName = b.name.toLowerCase();
+    .sort((a, b) => scoreFeature(b, query) - scoreFeature(a, query))
+    .map((feature) => {
+      const name = getDisplayName(feature);
+      const region = getRegion(feature);
+      const country = getCountry(feature);
 
-      const aStarts = aName.startsWith(queryLower) ? 1 : 0;
-      const bStarts = bName.startsWith(queryLower) ? 1 : 0;
-
-      return bStarts - aStarts;
+      return {
+        id: feature.id,
+        name,
+        placeName: getFullPlaceLabel(feature) || name || "Unknown place",
+        city: name,
+        region,
+        country,
+        latitude: feature.center[1],
+        longitude: feature.center[0],
+      };
     });
+
+  return dedupePlaces(results);
 }

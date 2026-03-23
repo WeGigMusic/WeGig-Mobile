@@ -563,7 +563,7 @@ const handleShareProfile = React.useCallback(async () => {
             />
 
             <TextField
-              label="City (optional)"
+              label="Town or City (optional)"
               value={homeCity}
               onChangeText={(value) => {
                 setCityTouched(true);
@@ -584,38 +584,37 @@ const handleShareProfile = React.useCallback(async () => {
             {cityError ? <Text style={styles.errorText}>{cityError}</Text> : null}
 
             {cityOpen && !cityLoading && cityResults.length > 0 ? (
-              <View style={styles.suggestCard}>
-                {cityResults.map((place) => {
-                  const label =
-                    place.city?.trim() ||
-                    place.region?.trim() ||
-                    place.name.trim();
+  <View style={styles.suggestCard}>
+    {cityResults.map((place, index) => {
+      const label =
+        place.city?.trim() ||
+        place.name.trim();
 
-                  const meta = [place.region, place.country]
-                    .filter(Boolean)
-                    .join(" • ");
+      const meta = [place.region, place.country]
+        .filter(Boolean)
+        .join(" • ");
 
-                  return (
-                    <Pressable
-                      key={place.id}
-                      onPress={() => chooseCity(place)}
-                      style={({ pressed }) => [
-                        styles.suggestRow,
-                        pressed ? { opacity: 0.9 } : null,
-                      ]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.suggestTitle}>{label}</Text>
-                        {meta ? (
-                          <Text style={styles.suggestMeta}>{meta}</Text>
-                        ) : null}
-                      </View>
-                      <Text style={styles.sourcePill}>Mapbox</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+      return (
+        <Pressable
+          key={place.id}
+          onPress={() => chooseCity(place)}
+          style={({ pressed }) => [
+            styles.suggestRow,
+            index === cityResults.length - 1 ? styles.suggestRowLast : null,
+            pressed ? { opacity: 0.9 } : null,
+          ]}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.suggestTitle}>{label}</Text>
+            {meta ? (
+              <Text style={styles.suggestMeta}>{meta}</Text>
             ) : null}
+          </View>
+        </Pressable>
+      );
+    })}
+  </View>
+) : null}
 
             <Text style={styles.muted}>
               Used to personalise Discover + “Next gig near you”.
@@ -1003,6 +1002,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
+  suggestRowLast: {
+  borderBottomWidth: 0,
+},
   suggestTitle: {
     color: Colours.text.primary,
     fontWeight: "700",
@@ -1016,19 +1018,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 12,
     lineHeight: 16,
-  },
-
-  sourcePill: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 11,
-    lineHeight: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(47,140,255,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.4)",
   },
 
   hiddenShareLayer: {

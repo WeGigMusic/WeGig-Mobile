@@ -197,7 +197,10 @@ export function GigCard({
             <Pressable
               onPress={handlePressArtist}
               hitSlop={6}
-              style={styles.artistPressable}
+              style={({ pressed }) => [
+                styles.artistPressable,
+                pressed ? styles.artistPressablePressed : null,
+              ]}
             >
               <Text style={styles.artist}>{gig.artist}</Text>
             </Pressable>
@@ -389,6 +392,13 @@ const styles = StyleSheet.create({
 
   artistPressable: {
     alignSelf: "flex-start",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.14)",
+    paddingBottom: 1,
+  },
+
+  artistPressablePressed: {
+    opacity: 0.78,
   },
 
   artist: {

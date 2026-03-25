@@ -145,6 +145,9 @@ export function ArtistScreen(props: {
     } catch {}
   }, [spotifyArtist?.spotifyUrl]);
 
+  const showSpotifyFallback = !spotifyLoading && !spotifyArtist;
+  const heroGenres = spotifyArtist?.genres?.slice(0, 4) ?? [];
+
   return (
     <SafeAreaView style={styles.safe}>
       <AppHeader onPressLogo={props.onPressLogo} />
@@ -185,14 +188,17 @@ export function ArtistScreen(props: {
 
             <View style={styles.artistHeroText}>
               <Text style={styles.artistName}>{props.artist}</Text>
+
               <Text style={styles.artistSubline}>
                 {stats.total} gig{stats.total === 1 ? "" : "s"} logged
               </Text>
 
               {spotifyArtist?.popularity != null ? (
-                <Text style={styles.spotifyMeta}>
-                  Spotify popularity: {spotifyArtist.popularity}/100
-                </Text>
+                <View style={styles.metaPill}>
+                  <Text style={styles.metaPillText}>
+                    Spotify popularity {spotifyArtist.popularity}/100
+                  </Text>
+                </View>
               ) : null}
 
               {spotifyArtist?.spotifyUrl ? (
@@ -210,11 +216,33 @@ export function ArtistScreen(props: {
             </View>
           </View>
 
-          {!spotifyLoading && spotifyArtist?.genres?.length ? (
-            <View style={styles.genreRow}>
-              {spotifyArtist.genres.slice(0, 6).map((genre) => (
-                <GenreChip key={genre} label={genre} />
-              ))}
+          {!spotifyLoading && heroGenres.length > 0 ? (
+            <View style={styles.genreSection}>
+              <Text style={styles.miniHeading}>Genres</Text>
+              <View style={styles.genreRow}>
+                {heroGenres.map((genre) => (
+                  <GenreChip key={genre} label={genre} />
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {!spotifyLoading && spotifyArtist ? (
+            <Text style={styles.aboutText}>
+              Spotify data available for this artist. Explore their profile and
+              compare it with your own WeGig history below.
+            </Text>
+          ) : null}
+
+          {showSpotifyFallback ? (
+            <View style={styles.spotifyFallbackBox}>
+              <Text style={styles.spotifyFallbackTitle}>
+                No Spotify profile found yet
+              </Text>
+              <Text style={styles.spotifyFallbackText}>
+                This artist may be local, emerging, or not matched yet. Your
+                WeGig stats and gig history are still available below.
+              </Text>
             </View>
           ) : null}
         </View>
@@ -272,7 +300,10 @@ export function ArtistScreen(props: {
                   ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
                   contentContainerStyle={{ paddingBottom: 4 }}
                   renderItem={({ item }) => (
-                    <GigCard gig={item} onPress={() => props.onEditGig?.(item)} />
+                    <GigCard
+                      gig={item}
+                      onPress={() => props.onEditGig?.(item)}
+                    />
                   )}
                 />
               )}
@@ -286,7 +317,13 @@ export function ArtistScreen(props: {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colours.background.app },
-  body: { flex: 1, padding: 16, gap: 12, paddingBottom: 28 },
+
+  body: {
+    flex: 1,
+    padding: 16,
+    gap: 12,
+    paddingBottom: 28,
+  },
 
   headerCard: {
     backgroundColor: Colours.background.card,
@@ -298,7 +335,7 @@ const styles = StyleSheet.create({
 
   artistHero: {
     backgroundColor: Colours.background.card,
-    borderRadius: 18,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: Colours.ui.border,
     padding: 16,
@@ -316,18 +353,18 @@ const styles = StyleSheet.create({
   },
 
   artistImageWrap: {
-    width: 84,
-    height: 84,
-    borderRadius: 18,
+    width: 96,
+    height: 96,
+    borderRadius: 22,
     overflow: "hidden",
     alignItems: "center",
     justifyContent: "center",
   },
 
   artistImage: {
-    width: 84,
-    height: 84,
-    borderRadius: 18,
+    width: 96,
+    height: 96,
+    borderRadius: 22,
   },
 
   artistImagePlaceholder: {
@@ -339,14 +376,14 @@ const styles = StyleSheet.create({
   artistImageFallback: {
     color: Colours.text.primary,
     fontWeight: "900",
-    fontSize: 28,
+    fontSize: 32,
   },
 
   artistName: {
     color: Colours.text.primary,
     fontWeight: "900",
-    fontSize: 24,
-    lineHeight: 28,
+    fontSize: 26,
+    lineHeight: 30,
   },
 
   artistSubline: {
@@ -357,12 +394,22 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
-  spotifyMeta: {
-    marginTop: 6,
+  metaPill: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+
+  metaPillText: {
     color: Colours.text.secondary,
     fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
   },
 
   spotifyLinkBtn: {
@@ -371,7 +418,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(29,185,84,0.16)",
     borderWidth: 1,
     borderColor: "rgba(29,185,84,0.32)",
-    paddingVertical: 7,
+    paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 12,
   },
@@ -381,6 +428,19 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 12,
     lineHeight: 16,
+  },
+
+  genreSection: {
+    gap: 8,
+  },
+
+  miniHeading: {
+    color: Colours.text.muted,
+    fontWeight: "800",
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
 
   genreRow: {
@@ -405,6 +465,36 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
+  aboutText: {
+    color: Colours.text.muted,
+    fontWeight: "500",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  spotifyFallbackBox: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    borderRadius: 14,
+    padding: 12,
+    gap: 4,
+  },
+
+  spotifyFallbackTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  spotifyFallbackText: {
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 17,
+  },
+
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 18,
@@ -423,11 +513,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  inlineRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  inlineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
 
-  muted: { color: Colours.text.muted, fontWeight: "800" },
-  mutedStrong: { color: Colours.text.secondary, fontWeight: "900" },
-  error: { color: Colours.text.danger, fontWeight: "900" },
+  muted: {
+    color: Colours.text.muted,
+    fontWeight: "800",
+  },
+
+  mutedStrong: {
+    color: Colours.text.secondary,
+    fontWeight: "900",
+  },
+
+  error: {
+    color: Colours.text.danger,
+    fontWeight: "900",
+  },
 
   grid: {
     marginTop: 12,

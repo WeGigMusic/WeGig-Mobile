@@ -60,6 +60,18 @@ const COLORS = {
   accent: "#2F8CFF",
 };
 
+const UI_COPY = {
+  searching: "Looking up gigs…",
+  detectingLocation: "Finding your location…",
+  nearbyLoading: "Loading nearby gigs…",
+  emptySearch: "No results yet. Try another artist or city.",
+  emptyHint: "Try searching an artist or band name.",
+  noNearbyWithCity: (city: string) =>
+    `No gigs found for ${city} yet. Try searching for an artist.`,
+  noNearbyNoCity:
+    "Enable location or add a city above to see nearby events.",
+};
+
 function pickVenue(e: TicketmasterEvent) {
   const v = e._embedded?.venues?.[0];
   return {
@@ -435,7 +447,7 @@ export function DiscoverScreen(props: {
               <View style={styles.locationMetaWrap}>
                 {locationLoading ? (
                   <Text style={styles.locationMetaText}>
-                    Detecting your location…
+                    {UI_COPY.detectingLocation}
                   </Text>
                 ) : activeCity ? (
                   <Text style={styles.locationMetaText}>
@@ -465,7 +477,7 @@ export function DiscoverScreen(props: {
                 {loading ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator />
-                    <Text style={styles.loadingText}>Searching…</Text>
+                    <Text style={styles.loadingText}>{UI_COPY.searching}</Text>
                   </View>
                 ) : null}
               </View>
@@ -473,9 +485,7 @@ export function DiscoverScreen(props: {
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
               {!loading && !error && !hasResults && !isCompact ? (
-                <Text style={styles.emptyHint}>
-                  Try searching an artist or band name.
-                </Text>
+                <Text style={styles.emptyHint}>{UI_COPY.emptyHint}</Text>
               ) : null}
             </View>
           </View>
@@ -500,7 +510,7 @@ export function DiscoverScreen(props: {
             ListEmptyComponent={
               !loading ? (
                 <Text style={styles.emptyResultsText}>
-                  No results yet. Try another artist or city.
+                  {UI_COPY.emptySearch}
                 </Text>
               ) : null
             }
@@ -527,7 +537,7 @@ export function DiscoverScreen(props: {
               {nearYouLoading ? (
                 <View style={styles.inlineInfoRow}>
                   <ActivityIndicator />
-                  <Text style={styles.loadingText}>Loading nearby gigs…</Text>
+                  <Text style={styles.loadingText}>{UI_COPY.nearbyLoading}</Text>
                 </View>
               ) : nearYouEvents.length > 0 ? (
                 <View style={styles.nearYouList}>
@@ -544,8 +554,8 @@ export function DiscoverScreen(props: {
               ) : (
                 <Text style={styles.emptyHint}>
                   {activeCity
-                    ? `No gigs found for ${activeCity} yet. Try searching for an artist.`
-                    : "Enable location or add a city above to see nearby events."}
+                    ? UI_COPY.noNearbyWithCity(activeCity)
+                    : UI_COPY.noNearbyNoCity}
                 </Text>
               )}
             </View>

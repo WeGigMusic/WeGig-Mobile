@@ -29,6 +29,11 @@ type SpotifyArtistResponse = {
   } | null;
 };
 
+const UI_COPY = {
+  loading: "Almost there",
+  empty: "No gigs logged for this artist yet.",
+};
+
 function computeArtistStats(gigs: Gig[]) {
   const total = gigs.length;
 
@@ -243,7 +248,7 @@ export function ArtistScreen(props: {
         <View style={styles.card}>
           <View style={styles.inlineRow}>
             <ActivityIndicator />
-            <Text style={styles.muted}>Loading…</Text>
+            <Text style={styles.muted}>{UI_COPY.loading}</Text>
           </View>
         </View>
       ) : error ? (
@@ -299,7 +304,7 @@ export function ArtistScreen(props: {
         ListEmptyComponent={
           !loading && !error && gigs.length === 0 ? (
             <View style={styles.card}>
-              <Text style={styles.muted}>No gigs logged for this artist yet.</Text>
+              <Text style={styles.muted}>{UI_COPY.empty}</Text>
             </View>
           ) : null
         }

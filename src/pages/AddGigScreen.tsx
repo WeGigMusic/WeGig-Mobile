@@ -18,6 +18,7 @@ import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
 import { AppHeader } from "../components/AppHeader";
 import { DateField } from "../components/DateField";
+import { useToast } from "../components/ToastProvider";
 import { apiPost, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput, Gig, GigsResponse } from "../shared/types/Gig";
@@ -62,6 +63,14 @@ type MapboxPlace = {
   country?: string;
   latitude: number;
   longitude: number;
+};
+
+const UI_COPY = {
+  artistLoading: "Looking up artists…",
+  venueLoading: "Finding the venue…",
+  prefilled: "Filled from Discover ✓",
+  autoCity: "City found ✓",
+  saving: "Locking it in…",
 };
 
 function norm(s: any) {
@@ -110,6 +119,8 @@ export function AddGigScreen(props: {
   onPressLogo?: () => void;
   onBack?: () => void;
 }) {
+  const { showToast } = useToast();
+
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
   const [city, setCity] = React.useState("");
@@ -132,12 +143,12 @@ export function AddGigScreen(props: {
   >([]);
   const [tmResults, setTmResults] = React.useState<TmVenue[]>([]);
 
-  const [selectedVenueLat, setSelectedVenueLat] = React.useState<number | undefined>(
-    undefined,
-  );
-  const [selectedVenueLng, setSelectedVenueLng] = React.useState<number | undefined>(
-    undefined,
-  );
+  const [selectedVenueLat, setSelectedVenueLat] = React.useState<
+    number | undefined
+  >(undefined);
+  const [selectedVenueLng, setSelectedVenueLng] = React.useState<
+    number | undefined
+  >(undefined);
   const [selectedVenuePlaceName, setSelectedVenuePlaceName] = React.useState<
     string | undefined
   >(undefined);
@@ -460,16 +471,16 @@ export function AddGigScreen(props: {
       rating: isFutureGig ? undefined : rating,
     };
 
- payload.notes = notes.trim() || undefined;
-payload.artistMbid = artistMbid;
-payload.externalSource = externalSource;
-payload.externalId = externalId;
-payload.ticketUrl = ticketUrl;
+    payload.notes = notes.trim() || undefined;
+    payload.artistMbid = artistMbid;
+    payload.externalSource = externalSource;
+    payload.externalId = externalId;
+    payload.ticketUrl = ticketUrl;
 
-payload.venueLatitude = selectedVenueLat;
-payload.venueLongitude = selectedVenueLng;
-payload.venuePlaceName = selectedVenuePlaceName;
-payload.venueMapboxId = selectedVenueMapboxId;
+    payload.venueLatitude = selectedVenueLat;
+    payload.venueLongitude = selectedVenueLng;
+    payload.venuePlaceName = selectedVenuePlaceName;
+    payload.venueMapboxId = selectedVenueMapboxId;
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
       Alert.alert(
@@ -500,7 +511,7 @@ payload.venueMapboxId = selectedVenueMapboxId;
         await setCachedGigs([created, ...existing]);
       } catch {}
 
-      Alert.alert("Saved", "Gig added.");
+      showToast({ message: "Saved" });
       props.onCreated?.(created);
 
       setArtist("");
@@ -622,7 +633,7 @@ payload.venueMapboxId = selectedVenueMapboxId;
             </Text>
 
             {justPrefilled ? (
-              <Text style={styles.ok}>Prefilled from Discover ✓</Text>
+              <Text style={styles.ok}>{UI_COPY.prefilled}</Text>
             ) : null}
           </View>
 
@@ -641,7 +652,7 @@ payload.venueMapboxId = selectedVenueMapboxId;
             {mbLoading ? (
               <View style={styles.inlineRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>Searching artists…</Text>
+                <Text style={styles.muted}>{UI_COPY.artistLoading}</Text>
               </View>
             ) : null}
 
@@ -692,7 +703,7 @@ payload.venueMapboxId = selectedVenueMapboxId;
             {venueLoading ? (
               <View style={styles.inlineRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>Searching venues…</Text>
+                <Text style={styles.muted}>{UI_COPY.venueLoading}</Text>
               </View>
             ) : null}
 
@@ -768,7 +779,7 @@ payload.venueMapboxId = selectedVenueMapboxId;
             </Pressable>
 
             {justAutoCity ? (
-              <Text style={styles.muted}>City auto-filled ✓</Text>
+              <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
             ) : null}
 
             <DateField
@@ -798,7 +809,7 @@ payload.venueMapboxId = selectedVenueMapboxId;
             {loading ? (
               <View style={styles.inlineRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>Saving…</Text>
+                <Text style={styles.muted}>{UI_COPY.saving}</Text>
               </View>
             ) : null}
           </View>

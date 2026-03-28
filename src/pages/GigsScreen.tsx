@@ -9,6 +9,7 @@ import {
   Animated,
   Pressable,
   Alert,
+  Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -35,6 +36,50 @@ type BadgeChip = {
   title: string;
   icon: string;
   unlocked: boolean;
+};
+
+type BadgeInfo = {
+  title: string;
+  description: string;
+};
+
+const BADGE_INFO: Record<string, BadgeInfo> = {
+  "First Gig": {
+    title: "First Gig",
+    description: "Awarded when you log your first gig in WeGig.",
+  },
+  "Origin Story": {
+    title: "Origin Story",
+    description: "Marks the start of your gig history in the app.",
+  },
+  "That One Night": {
+    title: "That One Night",
+    description: "Unlocked when you rate at least one gig.",
+  },
+  Regular: {
+    title: "Regular",
+    description: "Awarded after logging 5 gigs.",
+  },
+  "Venue Hopper": {
+    title: "Venue Hopper",
+    description: "Unlocked after visiting 3 different venues.",
+  },
+  "City Explorer": {
+    title: "City Explorer",
+    description: "Unlocked after logging gigs in 3 different cities.",
+  },
+  Superfan: {
+    title: "Superfan",
+    description: "Unlocked when you log the same artist 3 times.",
+  },
+  "Five-Star Night": {
+    title: "Five-Star Night",
+    description: "Unlocked when you give a gig a 5-star rating.",
+  },
+  Critic: {
+    title: "Critic",
+    description: "Unlocked after rating 5 gigs.",
+  },
 };
 
 function computeGigBadges(gigs: Gig[]) {
@@ -85,20 +130,29 @@ function computeGigBadges(gigs: Gig[]) {
   return badges.filter((b) => b.unlocked);
 }
 
-function BadgeShowcaseChip(props: { title: string; icon: string }) {
+function BadgeShowcaseChip(props: {
+  title: string;
+  icon: string;
+  onLongPress?: () => void;
+}) {
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 999,
-        marginRight: 8,
-        borderWidth: 1,
-        backgroundColor: "rgba(47,140,255,0.16)",
-        borderColor: "rgba(47,140,255,0.38)",
-      }}
+    <Pressable
+      onLongPress={props.onLongPress}
+      delayLongPress={320}
+      style={({ pressed }) => [
+        {
+          flexDirection: "row",
+          alignItems: "center",
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderRadius: 999,
+          marginRight: 8,
+          borderWidth: 1,
+          backgroundColor: "rgba(47,140,255,0.16)",
+          borderColor: "rgba(47,140,255,0.38)",
+        },
+        pressed ? { opacity: 0.92 } : null,
+      ]}
     >
       <Text style={{ marginRight: 6, fontSize: 13 }}>{props.icon}</Text>
       <Text
@@ -111,7 +165,78 @@ function BadgeShowcaseChip(props: { title: string; icon: string }) {
       >
         {props.title}
       </Text>
-    </View>
+    </Pressable>
+  );
+}
+
+function BadgeInfoModal(props: {
+  visible: boolean;
+  title: string;
+  description: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      visible={props.visible}
+      transparent
+      animationType="fade"
+      onRequestClose={props.onClose}
+    >
+      <Pressable
+        onPress={props.onClose}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.45)",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={{
+            width: "100%",
+            borderRadius: 18,
+            padding: 18,
+            backgroundColor: Colours.background.card,
+            borderWidth: 1,
+            borderColor: Colours.ui.border,
+          }}
+        >
+          <Text
+            style={{
+              color: Colours.text.primary,
+              fontSize: 18,
+              fontWeight: "700",
+              marginBottom: 8,
+            }}
+          >
+            {props.title}
+          </Text>
+
+          <Text
+            style={{
+              color: Colours.text.secondary,
+              fontSize: 14,
+              lineHeight: 20,
+            }}
+          >
+            {props.description}
+          </Text>
+
+          <Text
+            style={{
+              marginTop: 14,
+              color: Colours.text.muted,
+              fontSize: 12,
+              fontWeight: "600",
+            }}
+          >
+            Tap anywhere to close
+          </Text>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -135,6 +260,9 @@ export function GigsScreen(props: {
 
   const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
+
+  const [selectedBadgeInfo, setSelectedBadgeInfo] =
+    React.useState<BadgeInfo | null>(null);
 
   const loadPinnedGigIds = React.useCallback(async () => {
     try {
@@ -205,6 +333,7 @@ export function GigsScreen(props: {
     setAddingGig(false);
     setEditingGig(null);
     setArtistView(null);
+    setSelectedBadgeInfo(null);
   }, [props.resetSignal]);
 
   React.useEffect(() => {
@@ -426,19 +555,40 @@ export function GigsScreen(props: {
                   </Text>
 
                   {showcaseBadges.length > 0 ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ paddingRight: 8 }}
-                    >
-                      {showcaseBadges.map((badge) => (
-                        <BadgeShowcaseChip
-                          key={badge.title}
-                          title={badge.title}
-                          icon={badge.icon}
-                        />
-                      ))}
-                    </ScrollView>
+                    <>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingRight: 8 }}
+                      >
+                        {showcaseBadges.map((badge) => (
+                          <BadgeShowcaseChip
+                            key={badge.title}
+                            title={badge.title}
+                            icon={badge.icon}
+                            onLongPress={() =>
+                              setSelectedBadgeInfo(
+                                BADGE_INFO[badge.title] ?? {
+                                  title: badge.title,
+                                  description: "Badge unlocked in your gig history.",
+                                },
+                              )
+                            }
+                          />
+                        ))}
+                      </ScrollView>
+
+                      <Text
+                        style={{
+                          color: Colours.text.muted,
+                          fontWeight: "500",
+                          fontSize: 12,
+                          lineHeight: 16,
+                        }}
+                      >
+                        Hold a badge to see what it means.
+                      </Text>
+                    </>
                   ) : (
                     <Text
                       style={{
@@ -507,6 +657,13 @@ export function GigsScreen(props: {
             >
               <Ionicons name="add" size={28} color={Colours.text.primary} />
             </Pressable>
+
+            <BadgeInfoModal
+              visible={!!selectedBadgeInfo}
+              title={selectedBadgeInfo?.title ?? ""}
+              description={selectedBadgeInfo?.description ?? ""}
+              onClose={() => setSelectedBadgeInfo(null)}
+            />
           </>
         )}
       </View>

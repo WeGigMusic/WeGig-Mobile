@@ -16,6 +16,7 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
 import { DateField } from "../components/DateField";
+import { useToast } from "../components/ToastProvider";
 
 import { apiPatch, apiDelete, apiGet } from "../lib/api";
 import { searchPlaces } from "../lib/mapbox";
@@ -47,12 +48,21 @@ type MapboxPlace = {
   longitude: number;
 };
 
+const UI_COPY = {
+  venueLoading: "Finding the venue…",
+  autoCity: "City found ✓",
+  saving: "Locking it in…",
+  deleting: "Removing it…",
+};
+
 export function EditGigScreen(props: {
   gig: Gig;
   onDone: () => void;
   onPressLogo?: () => void;
   onBack?: () => void;
 }) {
+  const { showToast } = useToast();
+
   const [artist, setArtist] = React.useState(props.gig.artist);
   const [venue, setVenue] = React.useState(props.gig.venue);
   const [city, setCity] = React.useState(props.gig.city);
@@ -270,7 +280,7 @@ export function EditGigScreen(props: {
     setLoading(true);
     try {
       await apiPatch(`/gigs/${props.gig.id}`, payload);
-      Alert.alert("Saved", "Gig updated.");
+      showToast({ message: "Saved" });
       props.onDone();
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to save changes");
@@ -290,7 +300,7 @@ export function EditGigScreen(props: {
     setLoading(true);
     try {
       await apiDelete(`/gigs/${props.gig.id}`);
-      Alert.alert("Deleted", "Gig removed.");
+      showToast({ message: "Deleted" });
       props.onDone();
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to delete gig");
@@ -343,7 +353,7 @@ export function EditGigScreen(props: {
             {venueLoading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>Searching venues…</Text>
+                <Text style={styles.muted}>{UI_COPY.venueLoading}</Text>
               </View>
             ) : null}
 
@@ -412,7 +422,7 @@ export function EditGigScreen(props: {
 
             <TextField label="City" value={city} onChangeText={setCity} />
             {justAutoCity ? (
-              <Text style={styles.muted}>City auto-filled ✓</Text>
+              <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
             ) : null}
 
             <DateField
@@ -468,7 +478,7 @@ export function EditGigScreen(props: {
             {loading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>Please wait…</Text>
+                <Text style={styles.muted}>{UI_COPY.saving}</Text>
               </View>
             ) : null}
           </View>

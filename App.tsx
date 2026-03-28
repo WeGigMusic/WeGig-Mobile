@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 
+import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
 import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
 import { apiGet } from "./src/lib/api";
@@ -75,7 +76,7 @@ function TabItem(props: {
   );
 }
 
-export default function App() {
+function AppShell() {
   const [tab, setTab] = React.useState<Tab>("gigs");
   const [profileRoute, setProfileRoute] = React.useState<ProfileRoute>("home");
   const [refreshKey, setRefreshKey] = React.useState(0);
@@ -242,10 +243,10 @@ export default function App() {
           <FeedbackScreen onBack={() => setProfileRoute("home")} />
         ) : (
           <ProfileScreen
-     onPressLogo={goHome}
-  onGoToGigs={() => setTab("gigs")}
-  onOpenAbout={() => setProfileRoute("about")}
-  onOpenFeedback={() => setProfileRoute("feedback")}
+            onPressLogo={goHome}
+            onGoToGigs={() => setTab("gigs")}
+            onOpenAbout={() => setProfileRoute("about")}
+            onOpenFeedback={() => setProfileRoute("feedback")}
           />
         )}
       </View>
@@ -266,6 +267,14 @@ export default function App() {
         </BlurView>
       </View>
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AppShell />
+    </ToastProvider>
   );
 }
 

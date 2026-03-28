@@ -147,170 +147,168 @@ export function ArtistScreen(props: {
 
   const showSpotifyFallback = !spotifyLoading && !spotifyArtist;
   const heroGenres = spotifyArtist?.genres?.slice(0, 4) ?? [];
+  const showList = !loading && !error && gigs.length > 0;
+
+  const renderHeader = () => (
+    <>
+      <View style={styles.headerCard}>
+        <PrimaryButton title="← Back" onPress={props.onBack} />
+      </View>
+
+      <View style={styles.artistHero}>
+        <View style={styles.artistHeroTop}>
+          {spotifyLoading ? (
+            <View
+              style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
+            >
+              <ActivityIndicator />
+            </View>
+          ) : spotifyArtist?.imageUrl ? (
+            <Image
+              source={{ uri: spotifyArtist.imageUrl }}
+              style={styles.artistImage}
+            />
+          ) : (
+            <View
+              style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
+            >
+              <Text style={styles.artistImageFallback}>
+                {props.artist.slice(0, 1).toUpperCase()}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.artistHeroText}>
+            <Text style={styles.artistName}>{props.artist}</Text>
+
+            <Text style={styles.artistSubline}>
+              {stats.total} gig{stats.total === 1 ? "" : "s"} logged
+            </Text>
+
+            {spotifyArtist?.popularity != null ? (
+              <View style={styles.metaPill}>
+                <Text style={styles.metaPillText}>
+                  Spotify popularity {spotifyArtist.popularity}/100
+                </Text>
+              </View>
+            ) : null}
+
+            {spotifyArtist?.spotifyUrl ? (
+              <Pressable
+                onPress={() => void handleOpenSpotify()}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.spotifyLinkBtn,
+                  pressed ? { opacity: 0.86 } : null,
+                ]}
+              >
+                <Text style={styles.spotifyLinkText}>Open in Spotify</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+
+        {!spotifyLoading && heroGenres.length > 0 ? (
+          <View style={styles.genreSection}>
+            <Text style={styles.miniHeading}>Genres</Text>
+            <View style={styles.genreRow}>
+              {heroGenres.map((genre) => (
+                <GenreChip key={genre} label={genre} />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {!spotifyLoading && spotifyArtist ? (
+          <Text style={styles.aboutText}>
+            Spotify data available for this artist. Explore their profile and
+            compare it with your own WeGig history below.
+          </Text>
+        ) : null}
+
+        {showSpotifyFallback ? (
+          <View style={styles.spotifyFallbackBox}>
+            <Text style={styles.spotifyFallbackTitle}>
+              No Spotify profile found yet
+            </Text>
+            <Text style={styles.spotifyFallbackText}>
+              This artist may be local, emerging, or not matched yet. Your
+              WeGig stats and gig history are still available below.
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
+      {loading ? (
+        <View style={styles.card}>
+          <View style={styles.inlineRow}>
+            <ActivityIndicator />
+            <Text style={styles.muted}>Loading…</Text>
+          </View>
+        </View>
+      ) : error ? (
+        <View style={styles.card}>
+          <Text style={styles.error}>{error}</Text>
+          <View style={{ height: 10 }} />
+          <PrimaryButton title="Try again" onPress={load} />
+        </View>
+      ) : (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Your WeGig stats</Text>
+
+            <View style={styles.grid}>
+              <StatTile label="Total gigs" value={String(stats.total)} />
+              <StatTile label="Rated" value={String(stats.ratedCount)} />
+              <StatTile
+                label="Avg rating"
+                value={stats.avgRating == null ? "—" : String(stats.avgRating)}
+              />
+              <StatTile label="Top city" value={stats.topCity ?? "—"} />
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={{ gap: 6 }}>
+              <Text style={styles.muted}>
+                Top venue:{" "}
+                <Text style={styles.mutedStrong}>{stats.topVenue ?? "—"}</Text>
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.gigsHeaderCard}>
+            <Text style={styles.sectionTitle}>Your gigs</Text>
+          </View>
+        </>
+      )}
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
       <AppHeader onPressLogo={props.onPressLogo} />
 
-      <View style={styles.body}>
-        <View style={styles.headerCard}>
-          <PrimaryButton title="← Back" onPress={props.onBack} />
-        </View>
-
-        <View style={styles.artistHero}>
-          <View style={styles.artistHeroTop}>
-            {spotifyLoading ? (
-              <View
-                style={[
-                  styles.artistImageWrap,
-                  styles.artistImagePlaceholder,
-                ]}
-              >
-                <ActivityIndicator />
-              </View>
-            ) : spotifyArtist?.imageUrl ? (
-              <Image
-                source={{ uri: spotifyArtist.imageUrl }}
-                style={styles.artistImage}
-              />
-            ) : (
-              <View
-                style={[
-                  styles.artistImageWrap,
-                  styles.artistImagePlaceholder,
-                ]}
-              >
-                <Text style={styles.artistImageFallback}>
-                  {props.artist.slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.artistHeroText}>
-              <Text style={styles.artistName}>{props.artist}</Text>
-
-              <Text style={styles.artistSubline}>
-                {stats.total} gig{stats.total === 1 ? "" : "s"} logged
-              </Text>
-
-              {spotifyArtist?.popularity != null ? (
-                <View style={styles.metaPill}>
-                  <Text style={styles.metaPillText}>
-                    Spotify popularity {spotifyArtist.popularity}/100
-                  </Text>
-                </View>
-              ) : null}
-
-              {spotifyArtist?.spotifyUrl ? (
-                <Pressable
-                  onPress={() => void handleOpenSpotify()}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.spotifyLinkBtn,
-                    pressed ? { opacity: 0.86 } : null,
-                  ]}
-                >
-                  <Text style={styles.spotifyLinkText}>Open in Spotify</Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-
-          {!spotifyLoading && heroGenres.length > 0 ? (
-            <View style={styles.genreSection}>
-              <Text style={styles.miniHeading}>Genres</Text>
-              <View style={styles.genreRow}>
-                {heroGenres.map((genre) => (
-                  <GenreChip key={genre} label={genre} />
-                ))}
-              </View>
-            </View>
-          ) : null}
-
-          {!spotifyLoading && spotifyArtist ? (
-            <Text style={styles.aboutText}>
-              Spotify data available for this artist. Explore their profile and
-              compare it with your own WeGig history below.
-            </Text>
-          ) : null}
-
-          {showSpotifyFallback ? (
-            <View style={styles.spotifyFallbackBox}>
-              <Text style={styles.spotifyFallbackTitle}>
-                No Spotify profile found yet
-              </Text>
-              <Text style={styles.spotifyFallbackText}>
-                This artist may be local, emerging, or not matched yet. Your
-                WeGig stats and gig history are still available below.
-              </Text>
-            </View>
-          ) : null}
-        </View>
-
-        {loading ? (
-          <View style={styles.card}>
-            <View style={styles.inlineRow}>
-              <ActivityIndicator />
-              <Text style={styles.muted}>Loading…</Text>
-            </View>
-          </View>
-        ) : error ? (
-          <View style={styles.card}>
-            <Text style={styles.error}>{error}</Text>
-            <View style={{ height: 10 }} />
-            <PrimaryButton title="Try again" onPress={load} />
-          </View>
-        ) : (
-          <>
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={showList ? gigs : []}
+        keyExtractor={(g) => g.id}
+        ListHeaderComponent={renderHeader}
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        ListEmptyComponent={
+          !loading && !error && gigs.length === 0 ? (
             <View style={styles.card}>
-              <Text style={styles.sectionTitle}>Your WeGig stats</Text>
-
-              <View style={styles.grid}>
-                <StatTile label="Total gigs" value={String(stats.total)} />
-                <StatTile label="Rated" value={String(stats.ratedCount)} />
-                <StatTile
-                  label="Avg rating"
-                  value={stats.avgRating == null ? "—" : String(stats.avgRating)}
-                />
-                <StatTile label="Top city" value={stats.topCity ?? "—"} />
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={{ gap: 6 }}>
-                <Text style={styles.muted}>
-                  Top venue:{" "}
-                  <Text style={styles.mutedStrong}>{stats.topVenue ?? "—"}</Text>
-                </Text>
-              </View>
+              <Text style={styles.muted}>No gigs logged for this artist yet.</Text>
             </View>
-
-            <View style={[styles.card, styles.listCard]}>
-              <Text style={styles.sectionTitle}>Your gigs</Text>
-
-              {gigs.length === 0 ? (
-                <Text style={[styles.muted, { marginTop: 10 }]}>
-                  No gigs logged for this artist yet.
-                </Text>
-              ) : (
-                <FlatList
-                  style={{ marginTop: 10 }}
-                  data={gigs}
-                  keyExtractor={(g) => g.id}
-                  ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-                  contentContainerStyle={{ paddingBottom: 4 }}
-                  renderItem={({ item }) => (
-                    <GigCard
-                      gig={item}
-                      onPress={() => props.onEditGig?.(item)}
-                    />
-                  )}
-                />
-              )}
-            </View>
-          </>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <GigCard gig={item} onPress={() => props.onEditGig?.(item)} />
         )}
-      </View>
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator
+      />
     </SafeAreaView>
   );
 }
@@ -318,11 +316,13 @@ export function ArtistScreen(props: {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colours.background.app },
 
-  body: {
+  list: {
     flex: 1,
+  },
+
+  listContent: {
     padding: 16,
-    gap: 12,
-    paddingBottom: 28,
+    paddingBottom: 120,
   },
 
   headerCard: {
@@ -331,6 +331,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colours.ui.border,
     padding: 14,
+    marginBottom: 12,
   },
 
   artistHero: {
@@ -340,6 +341,7 @@ const styles = StyleSheet.create({
     borderColor: Colours.ui.border,
     padding: 16,
     gap: 14,
+    marginBottom: 12,
   },
 
   artistHeroTop: {
@@ -501,10 +503,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colours.ui.border,
     padding: 14,
+    marginBottom: 12,
   },
 
-  listCard: {
-    flex: 1,
+  gigsHeaderCard: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 14,
+    marginBottom: 10,
   },
 
   sectionTitle: {

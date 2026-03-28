@@ -1,12 +1,39 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { Colours } from "../theme/colours";
 
-export function LoadingScreen(props: { message?: string }) {
+type LoadingScreenProps = {
+  message?: string;
+};
+
+const DEFAULT_LOADING_MESSAGES = [
+  "Loading…",
+  "Almost there",
+  "Setting the stage",
+];
+
+const shouldUseAltMessage = () => Math.random() < 0.4; // 40% of the time
+
+export function LoadingScreen({ message }: LoadingScreenProps) {
+  const resolvedMessage = useMemo(() => {
+    if (message) return message;
+
+    // Most of the time → plain "Loading…"
+    if (!shouldUseAltMessage()) return "Loading…";
+
+    // Occasionally → subtle variation
+    const altMessages = DEFAULT_LOADING_MESSAGES.slice(1);
+    const index = Math.floor(Math.random() * altMessages.length);
+    return altMessages[index];
+  }, [message]);
+
   return (
     <View style={styles.wrap}>
-      <ActivityIndicator size="small" color={Colours.brand?.primary ?? "#fff"} />
-      <Text style={styles.text}>{props.message ?? "Loading…"}</Text>
+      <ActivityIndicator
+        size="small"
+        color={Colours.brand?.primary ?? "#fff"}
+      />
+      <Text style={styles.text}>{resolvedMessage}</Text>
     </View>
   );
 }

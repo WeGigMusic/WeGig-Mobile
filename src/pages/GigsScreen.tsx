@@ -181,26 +181,34 @@ function BadgeInfoModal(props: {
       transparent
       animationType="fade"
       onRequestClose={props.onClose}
+      statusBarTranslucent
     >
       <Pressable
         onPress={props.onClose}
         style={{
           flex: 1,
-          backgroundColor: "rgba(0,0,0,0.45)",
+          backgroundColor: "rgba(0,0,0,0.78)",
           alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
+          justifyContent: "flex-start",
+          paddingHorizontal: 16,
+          paddingTop: 120,
         }}
       >
         <Pressable
-          onPress={() => {}}
+          onPress={(e) => e.stopPropagation()}
           style={{
             width: "100%",
+            maxWidth: 360,
             borderRadius: 18,
             padding: 18,
-            backgroundColor: Colours.background.card,
+            backgroundColor: "#17191C",
             borderWidth: 1,
-            borderColor: Colours.ui.border,
+            borderColor: "rgba(255,255,255,0.14)",
+            shadowColor: "#000",
+            shadowOpacity: 0.35,
+            shadowRadius: 18,
+            shadowOffset: { width: 0, height: 8 },
+            elevation: 12,
           }}
         >
           <Text
@@ -232,7 +240,7 @@ function BadgeInfoModal(props: {
               fontWeight: "600",
             }}
           >
-            Tap anywhere to close
+            Tap outside to close
           </Text>
         </Pressable>
       </Pressable>
@@ -404,7 +412,13 @@ export function GigsScreen(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.prefill, props.onGigCreated, props.onPrefillUsed, load, loadPinnedGigIds]);
+  }, [
+    props.prefill,
+    props.onGigCreated,
+    props.onPrefillUsed,
+    load,
+    loadPinnedGigIds,
+  ]);
 
   if (addingGig) {
     return (
@@ -570,7 +584,8 @@ export function GigsScreen(props: {
                               setSelectedBadgeInfo(
                                 BADGE_INFO[badge.title] ?? {
                                   title: badge.title,
-                                  description: "Badge unlocked in your gig history.",
+                                  description:
+                                    "Badge unlocked in your gig history.",
                                 },
                               )
                             }

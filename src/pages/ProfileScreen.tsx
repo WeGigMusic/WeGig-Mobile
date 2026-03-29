@@ -12,6 +12,7 @@ import {
   Image,
   ActivityIndicator,
   Share,
+  Linking,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -35,6 +36,10 @@ const DISPLAY_NAME_KEY = "wegig.displayName";
 const HAPTICS_KEY = "wegig.hapticsEnabled";
 const AVATAR_PRESET_KEY = "wegig.avatarPreset";
 const AVATAR_URI_KEY = "wegig.avatarUri";
+
+const WEGIG_INSTAGRAM_URL = "https://www.instagram.com/wegigmusic/";
+const WEGIG_FACEBOOK_URL =
+  "https://www.facebook.com/profile.php?id=61584065319390&sk=about";
 
 type ProfileScreenProps = {
   onPressLogo?: () => void;
@@ -381,6 +386,21 @@ export function ProfileScreen({
     } catch {}
   }, []);
 
+  const openExternalLink = React.useCallback(async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+
+      if (!supported) {
+        Alert.alert("Unavailable", "Couldn't open that link right now.");
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Unavailable", "Couldn't open that link right now.");
+    }
+  }, []);
+
   const handleChangePassword = React.useCallback(() => {
     Alert.alert(
       "Change password",
@@ -409,61 +429,61 @@ export function ProfileScreen({
     Alert.alert("Feedback", "Feedback form coming soon.");
   }, [onOpenFeedback]);
 
-const handleShareProfile = React.useCallback(async () => {
-  if (!shareCardRef.current || sharingProfile) return;
+  const handleShareProfile = React.useCallback(async () => {
+    if (!shareCardRef.current || sharingProfile) return;
 
-  setSharingProfile(true);
-  try {
-    const available = await Sharing.isAvailableAsync();
-    if (!available) {
-      Alert.alert("Unavailable", "Sharing is not available on this device.");
-      return;
-    }
-
-    const rawName = displayName.trim() || "profile";
-    const safeName = toFileSafePart(rawName) || "profile";
-    const ukDate = formatUkDateForFile();
-    const fileName = `wegig-profile-${safeName}-${ukDate}.png`;
-    const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
-
-    const tempUri = await captureRef(shareCardRef, {
-      format: "png",
-      quality: 1,
-      result: "tmpfile",
-    });
-
+    setSharingProfile(true);
     try {
-      await FileSystem.deleteAsync(targetUri, { idempotent: true });
-    } catch {}
+      const available = await Sharing.isAvailableAsync();
+      if (!available) {
+        Alert.alert("Unavailable", "Sharing is not available on this device.");
+        return;
+      }
 
-    await FileSystem.copyAsync({
-      from: tempUri,
-      to: targetUri,
-    });
+      const rawName = displayName.trim() || "profile";
+      const safeName = toFileSafePart(rawName) || "profile";
+      const ukDate = formatUkDateForFile();
+      const fileName = `wegig-profile-${safeName}-${ukDate}.png`;
+      const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
 
-    const shareMessage =
-      "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
+      const tempUri = await captureRef(shareCardRef, {
+        format: "png",
+        quality: 1,
+        result: "tmpfile",
+      });
 
-    await Share.share(
-      {
-        title: "Share your WeGig profile",
-        message:
-          Platform.OS === "android"
-            ? `${shareMessage}\n${targetUri}`
-            : shareMessage,
-        url: targetUri,
-      },
-      {
-        dialogTitle: "Share your WeGig profile",
-        subject: "My WeGig profile",
-      },
-    );
-  } catch (e: any) {
-    Alert.alert("Share failed", e?.message ?? "Could not share profile.");
-  } finally {
-    setSharingProfile(false);
-  }
-}, [displayName, sharingProfile]);
+      try {
+        await FileSystem.deleteAsync(targetUri, { idempotent: true });
+      } catch {}
+
+      await FileSystem.copyAsync({
+        from: tempUri,
+        to: targetUri,
+      });
+
+      const shareMessage =
+        "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
+
+      await Share.share(
+        {
+          title: "Share your WeGig profile",
+          message:
+            Platform.OS === "android"
+              ? `${shareMessage}\n${targetUri}`
+              : shareMessage,
+          url: targetUri,
+        },
+        {
+          dialogTitle: "Share your WeGig profile",
+          subject: "My WeGig profile",
+        },
+      );
+    } catch (e: any) {
+      Alert.alert("Share failed", e?.message ?? "Could not share profile.");
+    } finally {
+      setSharingProfile(false);
+    }
+  }, [displayName, sharingProfile]);
 
   const handle = "@wegig";
   const location = homeCity.trim() || stats?.topCity || "—";
@@ -496,50 +516,50 @@ const handleShareProfile = React.useCallback(async () => {
 
           <View style={styles.profileHeroText}>
             <View style={styles.heroTopRow}>
-              <View style={styles.nameAndStatus}>
-                <View style={styles.nameRow}>
+              <View style={styles.nameGroup}>
+                <View style={styles.nameWithShareRow}>
                   <Text style={styles.name}>{displayName}</Text>
 
-                  <View
-                    style={[
-                      styles.statusPill,
-                      {
-                        backgroundColor: `${stats?.statusColor ?? "#6B7280"}22`,
-                        borderColor: `${stats?.statusColor ?? "#6B7280"}55`,
-                      },
+                  <Pressable
+                    onPress={() => void handleShareProfile()}
+                    style={({ pressed }) => [
+                      styles.shareButton,
+                      pressed ? { opacity: 0.78 } : null,
+                      sharingProfile ? { opacity: 0.5 } : null,
                     ]}
+                    hitSlop={10}
                   >
-                    <Text
-                      style={[
-                        styles.statusPillText,
-                        { color: stats?.statusColor ?? "#6B7280" },
-                      ]}
-                    >
-                      {(stats?.statusIcon ?? "✨") +
-                        " " +
-                        (stats?.statusLabel ?? "New Fan")}
-                    </Text>
-                  </View>
+                    <Ionicons
+                      name="share-outline"
+                      size={14}
+                      color={Colours.text.muted}
+                    />
+                  </Pressable>
                 </View>
 
                 <Text style={styles.metaLine}>{metaLine}</Text>
               </View>
 
-              <Pressable
-                onPress={() => void handleShareProfile()}
-                style={({ pressed }) => [
-                  styles.shareButton,
-                  pressed ? { opacity: 0.78 } : null,
-                  sharingProfile ? { opacity: 0.5 } : null,
+              <View
+                style={[
+                  styles.statusPill,
+                  {
+                    backgroundColor: `${stats?.statusColor ?? "#6B7280"}22`,
+                    borderColor: `${stats?.statusColor ?? "#6B7280"}55`,
+                  },
                 ]}
-                hitSlop={10}
               >
-                <Ionicons
-                  name="share-outline"
-                  size={14}
-                  color={Colours.text.muted}
-                />
-              </Pressable>
+                <Text
+                  style={[
+                    styles.statusPillText,
+                    { color: stats?.statusColor ?? "#6B7280" },
+                  ]}
+                >
+                  {(stats?.statusIcon ?? "✨") +
+                    " " +
+                    (stats?.statusLabel ?? "New Fan")}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -584,37 +604,37 @@ const handleShareProfile = React.useCallback(async () => {
             {cityError ? <Text style={styles.errorText}>{cityError}</Text> : null}
 
             {cityOpen && !cityLoading && cityResults.length > 0 ? (
-  <View style={styles.suggestCard}>
-    {cityResults.map((place, index) => {
-      const label =
-        place.city?.trim() ||
-        place.name.trim();
+              <View style={styles.suggestCard}>
+                {cityResults.map((place, index) => {
+                  const label = place.city?.trim() || place.name.trim();
 
-      const meta = [place.region, place.country]
-        .filter(Boolean)
-        .join(" • ");
+                  const meta = [place.region, place.country]
+                    .filter(Boolean)
+                    .join(" • ");
 
-      return (
-        <Pressable
-          key={place.id}
-          onPress={() => chooseCity(place)}
-          style={({ pressed }) => [
-            styles.suggestRow,
-            index === cityResults.length - 1 ? styles.suggestRowLast : null,
-            pressed ? { opacity: 0.9 } : null,
-          ]}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={styles.suggestTitle}>{label}</Text>
-            {meta ? (
-              <Text style={styles.suggestMeta}>{meta}</Text>
+                  return (
+                    <Pressable
+                      key={place.id}
+                      onPress={() => chooseCity(place)}
+                      style={({ pressed }) => [
+                        styles.suggestRow,
+                        index === cityResults.length - 1
+                          ? styles.suggestRowLast
+                          : null,
+                        pressed ? { opacity: 0.9 } : null,
+                      ]}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.suggestTitle}>{label}</Text>
+                        {meta ? (
+                          <Text style={styles.suggestMeta}>{meta}</Text>
+                        ) : null}
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
             ) : null}
-          </View>
-        </Pressable>
-      );
-    })}
-  </View>
-) : null}
 
             <Text style={styles.muted}>
               Used to personalise Discover + “Next gig near you”.
@@ -666,6 +686,21 @@ const handleShareProfile = React.useCallback(async () => {
             title="Log out"
             subtitle="Coming soon"
             onPress={handleLogout}
+            isLast
+          />
+        </View>
+
+        <SectionTitle title="Follow WeGig" />
+        <View style={styles.card}>
+          <ActionRow
+            title="Instagram"
+            subtitle="@wegigmusic"
+            onPress={() => void openExternalLink(WEGIG_INSTAGRAM_URL)}
+          />
+          <ActionRow
+            title="Facebook"
+            subtitle="WeGig on Facebook"
+            onPress={() => void openExternalLink(WEGIG_FACEBOOK_URL)}
             isLast
           />
         </View>
@@ -813,17 +848,19 @@ const styles = StyleSheet.create({
   heroTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: 12,
   },
 
-  nameAndStatus: {
+  nameGroup: {
     flex: 1,
+    minWidth: 0,
   },
 
-  nameRow: {
+  nameWithShareRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 8,
   },
 
   avatar: {
@@ -856,7 +893,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 26,
     flexShrink: 1,
-    paddingRight: 10,
   },
 
   statusPill: {
@@ -866,6 +902,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     marginLeft: 8,
+    flexShrink: 0,
   },
 
   statusPillText: {
@@ -884,15 +921,16 @@ const styles = StyleSheet.create({
   },
 
   shareButton: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
-    marginTop: 3,
+    flexShrink: 0,
+    marginTop: 1,
   },
 
   card: {
@@ -1003,8 +1041,9 @@ const styles = StyleSheet.create({
   },
 
   suggestRowLast: {
-  borderBottomWidth: 0,
-},
+    borderBottomWidth: 0,
+  },
+
   suggestTitle: {
     color: Colours.text.primary,
     fontWeight: "700",

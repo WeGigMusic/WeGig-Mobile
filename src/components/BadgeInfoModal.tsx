@@ -27,12 +27,13 @@ export function BadgeInfoModal({
       transparent
       animationType="fade"
       onRequestClose={onClose}
+      statusBarTranslucent
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.card} onPress={() => {}}>
+        <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.description}>{description}</Text>
-          <Text style={styles.hint}>Tap anywhere to close</Text>
+          <Text style={styles.hint}>Tap outside to close</Text>
         </Pressable>
       </Pressable>
     </Modal>
@@ -42,18 +43,25 @@ export function BadgeInfoModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
+    backgroundColor: "rgba(0,0,0,0.28)",
+    paddingHorizontal: 16,
+    paddingTop: 150,
     alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
   },
   card: {
     width: "100%",
-    borderRadius: 18,
-    padding: 18,
-    backgroundColor: Colours.background.card,
+    maxWidth: 380,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    backgroundColor: "#17191C",
     borderWidth: 1,
-    borderColor: Colours.ui.border,
+    borderColor: "rgba(255,255,255,0.14)",
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
   },
   title: {
     color: Colours.text.primary,
@@ -63,8 +71,8 @@ const styles = StyleSheet.create({
   },
   description: {
     color: Colours.text.secondary,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
   },
   hint: {
     marginTop: 14,

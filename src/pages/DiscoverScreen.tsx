@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Animated,
 } from "react-native";
 import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -25,6 +26,10 @@ import { Colours } from "../theme/colours";
 import type { CreateGigInput } from "../shared/types/Gig";
 
 const HOME_CITY_KEY = "wegig.homeCity";
+
+const AnimatedFlatList =
+  Animated.createAnimatedComponent(FlatList<TicketmasterEvent>);
+const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
 type TicketmasterEvent = {
   id: string;
@@ -213,6 +218,8 @@ export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
   onPressLogo?: () => void;
 }) {
+  const scrollY = React.useRef(new Animated.Value(0)).current;
+
   const [city, setCity] = React.useState("");
   const [query, setQuery] = React.useState("");
 
@@ -401,7 +408,7 @@ export function DiscoverScreen(props: {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={8}
       >
-        <AppHeader onPressLogo={props.onPressLogo} />
+        <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
 
         <View style={styles.heroWrap}>
           <View
@@ -492,7 +499,7 @@ export function DiscoverScreen(props: {
         </View>
 
         {showingSearchResults ? (
-          <FlatList
+          <AnimatedFlatList
             style={styles.list}
             data={events}
             keyExtractor={(item) => item.id}
@@ -514,14 +521,24 @@ export function DiscoverScreen(props: {
                 </Text>
               ) : null
             }
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: false },
+            )}
+            scrollEventThrottle={16}
           />
         ) : (
-          <ScrollView
+          <AnimatedScrollView
             style={styles.list}
             contentContainerStyle={styles.discoverContent}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             showsVerticalScrollIndicator={false}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: false },
+            )}
+            scrollEventThrottle={16}
           >
             <View style={styles.sectionBlock}>
               <SectionTitle
@@ -559,7 +576,7 @@ export function DiscoverScreen(props: {
                 </Text>
               )}
             </View>
-          </ScrollView>
+          </AnimatedScrollView>
         )}
       </KeyboardAvoidingView>
     </SafeAreaView>

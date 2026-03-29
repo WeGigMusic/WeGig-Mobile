@@ -6,11 +6,14 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
+  Animated,
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
+
+const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
 type BadgeDef = {
   title: string;
@@ -262,6 +265,8 @@ function AchievementPill(props: BadgeDef) {
 }
 
 export function StatsScreen(props: { onPressLogo?: () => void }) {
+  const scrollY = React.useRef(new Animated.Value(0)).current;
+
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [gigs, setGigs] = React.useState<Gig[]>([]);
@@ -288,11 +293,16 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <AppHeader onPressLogo={props.onPressLogo} />
+      <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
 
-      <ScrollView
+      <AnimatedScrollView
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false },
+        )}
+        scrollEventThrottle={16}
       >
         {loading ? (
           <View style={styles.inlineRow}>
@@ -454,7 +464,7 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
         )}
 
         <View style={{ height: 110 }} />
-      </ScrollView>
+      </AnimatedScrollView>
     </SafeAreaView>
   );
 }

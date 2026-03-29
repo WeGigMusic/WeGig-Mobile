@@ -274,6 +274,7 @@ export function AddGigScreen(props: {
   const runVenueSearch = React.useCallback(
     async (q: string, cityHint: string) => {
       const query = q.trim();
+
       if (query.length < 2) {
         setMapboxVenueResults([]);
         setTmResults([]);
@@ -286,21 +287,21 @@ export function AddGigScreen(props: {
       setVenueError("");
 
       try {
-        const mapboxPlaces = await searchPlaces({
-          query,
-          cityHint: cityHint.trim() || undefined,
-          limit: 8,
-        });
+        try {
+          const mapboxPlaces = await searchPlaces({
+            query,
+            cityHint: cityHint.trim() || undefined,
+            limit: 8,
+          });
 
-        setMapboxVenueResults(mapboxPlaces);
-        setTmResults([]);
-        setVenueOpen(true);
-        return;
-      } catch {
-        // fall through to Ticketmaster fallback
-      }
+          setMapboxVenueResults(mapboxPlaces);
+          setTmResults([]);
+          setVenueOpen(true);
+          return;
+        } catch {
+          // fall through to Ticketmaster fallback
+        }
 
-      try {
         const qs = new URLSearchParams();
         qs.set("q", query);
         if (cityHint.trim()) qs.set("city", cityHint.trim());
@@ -339,6 +340,7 @@ export function AddGigScreen(props: {
       setTmResults([]);
       setVenueOpen(false);
       setVenueError("");
+      setVenueLoading(false);
       return;
     }
 
@@ -368,6 +370,7 @@ export function AddGigScreen(props: {
     setMapboxVenueResults([]);
     setTmResults([]);
     setVenueError("");
+    setVenueLoading(false);
   };
 
   const chooseTicketmasterVenue = (v: TmVenue) => {
@@ -395,6 +398,7 @@ export function AddGigScreen(props: {
     setMapboxVenueResults([]);
     setTmResults([]);
     setVenueError("");
+    setVenueLoading(false);
   };
 
   async function getExistingGigsBestEffort(): Promise<Gig[]> {
@@ -539,6 +543,7 @@ export function AddGigScreen(props: {
       setTmResults([]);
       setVenueOpen(false);
       setVenueError("");
+      setVenueLoading(false);
 
       setJustAutoCity(false);
     } catch (e: any) {
@@ -583,6 +588,7 @@ export function AddGigScreen(props: {
           setTmResults([]);
           setVenueOpen(false);
           setVenueError("");
+          setVenueLoading(false);
           setJustAutoCity(false);
           return;
         } catch (qErr: any) {
@@ -695,6 +701,7 @@ export function AddGigScreen(props: {
               onChangeText={(t) => {
                 setVenue(t);
                 setVenueOpen(true);
+                setVenueError("");
               }}
               placeholder="Start typing venue…"
               autoCapitalize="words"

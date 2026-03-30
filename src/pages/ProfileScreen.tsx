@@ -36,6 +36,8 @@ const DISPLAY_NAME_KEY = "wegig.displayName";
 const HAPTICS_KEY = "wegig.hapticsEnabled";
 const AVATAR_PRESET_KEY = "wegig.avatarPreset";
 const AVATAR_URI_KEY = "wegig.avatarUri";
+const FIRST_GIG_ID_KEY = "wegig.firstGigId";
+const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 
 const WEGIG_INSTAGRAM_URL = "https://www.instagram.com/wegigmusic/";
 const WEGIG_FACEBOOK_URL =
@@ -147,12 +149,68 @@ function formatUkDateForFile(date = new Date()) {
   return `${day}-${month}-${year}`;
 }
 
+function formatDisplayDate(date = new Date()) {
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function toFileSafePart(value: string) {
   return String(value)
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function csvCell(value: unknown) {
+  const s = String(value ?? "");
+  if (s.includes('"') || s.includes(",") || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
+function buildGigCsv(params: {
+  gigs: Gig[];
+  firstGigId?: string;
+  favouriteGigId?: string;
+}) {
+  const { gigs, firstGigId = "", favouriteGigId = "" } = params;
+
+  const headers = [
+    "Date",
+    "Artist",
+    "Venue",
+    "City",
+    "Rating",
+    "Notes",
+    "First Gig",
+    "Favourite Gig",
+    "Source",
+    "External ID",
+    "Ticket URL",
+  ];
+
+  const rows = gigs.map((gig) => [
+    gig.date ?? "",
+    gig.artist ?? "",
+    gig.venue ?? "",
+    gig.city ?? "",
+    typeof gig.rating === "number" ? String(gig.rating) : "",
+    gig.notes ?? "",
+    gig.id === firstGigId ? "Yes" : "",
+    gig.id === favouriteGigId ? "Yes" : "",
+    gig.externalSource ?? "Manual",
+    gig.externalId ?? "",
+    gig.ticketUrl ?? "",
+  ]);
+
+  return [headers, ...rows]
+    .map((row) => row.map(csvCell).join(","))
+    .join("\n");
 }
 
 export function ProfileScreen({
@@ -174,6 +232,7 @@ export function ProfileScreen({
 
   const [savingPrefs, setSavingPrefs] = React.useState(false);
   const [sharingProfile, setSharingProfile] = React.useState(false);
+  const [exportingGigs, setExportingGigs] = React.useState(false);
 
   const [avatarPickerVisible, setAvatarPickerVisible] = React.useState(false);
   const [avatarPreset, setAvatarPreset] = React.useState<string>("");
@@ -184,6 +243,9 @@ export function ProfileScreen({
   const [cityOpen, setCityOpen] = React.useState(false);
   const [cityError, setCityError] = React.useState("");
   const [cityTouched, setCityTouched] = React.useState(false);
+
+  const [firstGigId, setFirstGigId] = React.useState("");
+  const [favouriteGigId, setFavouriteGigId] = React.useState("");
 
   const loadPrefs = React.useCallback(async () => {
     try {
@@ -204,6 +266,21 @@ export function ProfileScreen({
         setHapticsEnabled(hap === "1");
       }
     } catch {}
+  }, []);
+
+  const loadPinnedGigIds = React.useCallback(async () => {
+    try {
+      const [firstId, favouriteId] = await Promise.all([
+        AsyncStorage.getItem(FIRST_GIG_ID_KEY),
+        AsyncStorage.getItem(FAVOURITE_GIG_ID_KEY),
+      ]);
+
+      setFirstGigId(firstId ?? "");
+      setFavouriteGigId(favouriteId ?? "");
+    } catch {
+      setFirstGigId("");
+      setFavouriteGigId("");
+    }
   }, []);
 
   const savePrefs = React.useCallback(async () => {
@@ -265,7 +342,8 @@ export function ProfileScreen({
   React.useEffect(() => {
     void loadPrefs();
     void load();
-  }, [load, loadPrefs]);
+    void loadPinnedGigIds();
+  }, [load, loadPinnedGigIds, loadPrefs]);
 
   const runCitySearch = React.useCallback(async (q: string) => {
     const query = q.trim();
@@ -416,9 +494,62 @@ export function ProfileScreen({
     Alert.alert("Sign in", "Sign in to sync will be added next.");
   }, []);
 
-  const handleExportGigs = React.useCallback(() => {
-    Alert.alert("Export gigs", "Gig export is planned for a future update.");
-  }, []);
+  const handleExportGigs = React.useCallback(async () => {
+    if (exportingGigs) return;
+
+    setExportingGigs(true);
+    try {
+      const res = await apiGet<GigsResponse>("/gigs");
+      const gigs = res.gigs ?? [];
+
+      if (gigs.length === 0) {
+        Alert.alert(
+          "No gigs to export",
+          "Log a gig first, then export your list.",
+        );
+        return;
+      }
+
+      const csv = buildGigCsv({
+        gigs,
+        firstGigId,
+        favouriteGigId,
+      });
+
+      const exportDate = formatDisplayDate(new Date());
+      const safeDate = exportDate.replace(/\s+/g, "-");
+      const fileName = `wegig-attended-gigs-${safeDate}.csv`;
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(fileUri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "text/csv",
+          dialogTitle: "Export attended gigs",
+          UTI: "public.comma-separated-values-text",
+        });
+        return;
+      }
+
+      await Share.share({
+        title: "Export attended gigs",
+        message:
+          Platform.OS === "android"
+            ? `My WeGig attended gigs export\n${fileUri}`
+            : "My WeGig attended gigs export",
+        url: fileUri,
+      });
+    } catch (e: any) {
+      Alert.alert("Export failed", e?.message ?? "Could not export gigs.");
+    } finally {
+      setExportingGigs(false);
+    }
+  }, [exportingGigs, favouriteGigId, firstGigId]);
 
   const handleFeedback = React.useCallback(() => {
     if (onOpenFeedback) {
@@ -670,26 +801,6 @@ export function ProfileScreen({
           </View>
         </View>
 
-        <SectionTitle title="Account" />
-        <View style={styles.card}>
-          <ActionRow
-            title="Sign in to sync"
-            subtitle="Apple, Google, Facebook or email"
-            onPress={handleSignIn}
-          />
-          <ActionRow
-            title="Change password"
-            subtitle="Email login only (coming soon)"
-            onPress={handleChangePassword}
-          />
-          <ActionRow
-            title="Log out"
-            subtitle="Coming soon"
-            onPress={handleLogout}
-            isLast
-          />
-        </View>
-
         <SectionTitle title="Follow WeGig" />
         <View style={styles.card}>
           <ActionRow
@@ -718,9 +829,33 @@ export function ProfileScreen({
             onPress={handleFeedback}
           />
           <ActionRow
-            title="Export gigs"
-            subtitle="CSV / share (next)"
-            onPress={handleExportGigs}
+            title={
+              exportingGigs
+                ? "Exporting attended gigs…"
+                : "Export attended gigs"
+            }
+            subtitle="Download your gig history as CSV"
+            onPress={() => void handleExportGigs()}
+            isLast
+          />
+        </View>
+
+        <SectionTitle title="Account" />
+        <View style={styles.card}>
+          <ActionRow
+            title="Sign in to sync"
+            subtitle="Apple, Google, Facebook or email"
+            onPress={handleSignIn}
+          />
+          <ActionRow
+            title="Change password"
+            subtitle="Email login only (coming soon)"
+            onPress={handleChangePassword}
+          />
+          <ActionRow
+            title="Log out"
+            subtitle="Coming soon"
+            onPress={handleLogout}
             isLast
           />
         </View>

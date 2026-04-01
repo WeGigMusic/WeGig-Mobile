@@ -251,11 +251,13 @@ function BadgeInfoModal(props: {
 export function GigsScreen(props: {
   onPressLogo?: () => void;
   resetSignal?: number;
+  scrollToTopSignal?: number;
   prefill?: Partial<CreateGigInput> | null;
   onPrefillUsed?: () => void;
   onGigCreated?: () => void;
 }) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
+  const listRef = React.useRef<FlatList<Gig>>(null);
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -343,6 +345,15 @@ export function GigsScreen(props: {
     setArtistView(null);
     setSelectedBadgeInfo(null);
   }, [props.resetSignal]);
+
+  React.useEffect(() => {
+    if (props.scrollToTopSignal == null) return;
+
+    listRef.current?.scrollToOffset({
+      offset: 0,
+      animated: true,
+    });
+  }, [props.scrollToTopSignal]);
 
   React.useEffect(() => {
     const prefill = props.prefill;
@@ -550,6 +561,7 @@ export function GigsScreen(props: {
         ) : (
           <>
             <AnimatedFlatList
+              ref={listRef}
               data={gigs}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"

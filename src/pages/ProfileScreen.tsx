@@ -48,6 +48,7 @@ type ProfileScreenProps = {
   onGoToGigs?: () => void;
   onOpenAbout?: () => void;
   onOpenFeedback?: () => void;
+  scrollToTopSignal?: number;
 };
 
 type MapboxPlace = {
@@ -218,8 +219,10 @@ export function ProfileScreen({
   onGoToGigs,
   onOpenAbout,
   onOpenFeedback,
+  scrollToTopSignal,
 }: ProfileScreenProps) {
   const shareCardRef = React.useRef<ViewShot | null>(null);
+  const scrollRef = React.useRef<ScrollView>(null);
 
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<ReturnType<
@@ -344,6 +347,15 @@ export function ProfileScreen({
     void load();
     void loadPinnedGigIds();
   }, [load, loadPinnedGigIds, loadPrefs]);
+
+  React.useEffect(() => {
+    if (scrollToTopSignal == null) return;
+
+    scrollRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  }, [scrollToTopSignal]);
 
   const runCitySearch = React.useCallback(async (q: string) => {
     const query = q.trim();
@@ -625,7 +637,7 @@ export function ProfileScreen({
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
         <View style={styles.profileHero}>
           <Pressable
             onPress={() => setAvatarPickerVisible(true)}

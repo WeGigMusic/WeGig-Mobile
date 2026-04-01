@@ -807,6 +807,15 @@ export function AddGigScreen(props: {
               </View>
             )}
 
+            <TextField
+              label="Notes (optional)"
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Who you went with, favourite moment, support act…"
+              autoCapitalize="sentences"
+              multiline
+            />
+
             <PrimaryButton
               title={loading ? "Saving…" : "Save"}
               onPress={submit}

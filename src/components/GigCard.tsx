@@ -7,6 +7,7 @@ import {
   Linking,
   Alert,
   Animated,
+  Modal,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -63,6 +64,10 @@ export function GigCard({
 }) {
   const favouriteScaleAnim = React.useRef(new Animated.Value(1)).current;
   const firstGigScaleAnim = React.useRef(new Animated.Value(1)).current;
+  const [notesOpen, setNotesOpen] = React.useState(false);
+
+  const noteText = String(gig.notes ?? "").trim();
+  const hasNotes = noteText.length > 0;
 
   const handlePress = async () => {
     try {
@@ -130,6 +135,18 @@ export function GigCard({
     onToggleFirstGig?.();
   };
 
+  const handleOpenNotes = async (e?: any) => {
+    try {
+      e?.stopPropagation?.();
+    } catch {}
+
+    try {
+      await Haptics.selectionAsync();
+    } catch {}
+
+    setNotesOpen(true);
+  };
+
   const social = getGigSocialSignal(gig.id);
   const isFutureGig = isFutureGigDate(gig.date);
   const socialText = isFutureGig ? "Also going" : "Also went";
@@ -187,183 +204,231 @@ export function GigCard({
   const hasRating = typeof gig.rating === "number";
 
   return (
-    <Pressable
-      onPress={handlePress}
-      style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
-    >
-      <View style={styles.topRow}>
-        <View style={styles.titleWrap}>
-          {onPressArtist ? (
-            <Pressable
-              onPress={handlePressArtist}
-              hitSlop={6}
-              style={({ pressed }) => [
-                styles.artistPressable,
-                pressed ? styles.artistPressablePressed : null,
-              ]}
-            >
+    <>
+      <Pressable
+        onPress={handlePress}
+        style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
+      >
+        <View style={styles.topRow}>
+          <View style={styles.titleWrap}>
+            {onPressArtist ? (
+              <Pressable
+                onPress={handlePressArtist}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  styles.artistPressable,
+                  pressed ? styles.artistPressablePressed : null,
+                ]}
+              >
+                <Text style={styles.artist}>{gig.artist}</Text>
+              </Pressable>
+            ) : (
               <Text style={styles.artist}>{gig.artist}</Text>
-            </Pressable>
-          ) : (
-            <Text style={styles.artist}>{gig.artist}</Text>
-          )}
+            )}
+          </View>
+
+          <Pressable
+            onPress={handlePress}
+            hitSlop={8}
+            style={({ pressed }) => [
+              styles.editIconBtn,
+              pressed ? { opacity: 0.8 } : null,
+            ]}
+          >
+            <Ionicons
+              name="create-outline"
+              size={15}
+              color={Colours.text.muted}
+            />
+          </Pressable>
         </View>
 
-        <Pressable
-          onPress={handlePress}
-          hitSlop={8}
-          style={({ pressed }) => [
-            styles.editIconBtn,
-            pressed ? { opacity: 0.8 } : null,
-          ]}
-        >
-          <Ionicons
-            name="create-outline"
-            size={15}
-            color={Colours.text.muted}
-          />
-        </Pressable>
-      </View>
+        <Text style={styles.meta}>
+          {gig.venue} • {gig.city}
+        </Text>
 
-      <Text style={styles.meta}>
-        {gig.venue} • {gig.city}
-      </Text>
-
-      <View style={styles.dateRatingRow}>
-        <Text style={styles.date}>{formatGigDateUk(gig.date)}</Text>
-        {hasRating ? (
-          <Text style={styles.ratingInline}>★ {gig.rating}/5</Text>
-        ) : null}
-      </View>
-
-      {showSelectionActions ? (
-        <View style={styles.topActions}>
-          {showFirstSelector ? (
-            <Pressable
-              onPress={handleToggleFirstGig}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.actionChip,
-                pressed ? styles.actionChipPressed : null,
-              ]}
-            >
-              <Animated.View
-                style={[
-                  styles.actionIconWrap,
-                  { transform: [{ scale: firstGigScaleAnim }] },
-                ]}
-              >
-                <Ionicons
-                  name="ticket-outline"
-                  size={16}
-                  color={Colours.text.muted}
-                />
-              </Animated.View>
-              <Text style={styles.actionChipText}>First</Text>
-            </Pressable>
-          ) : null}
-
-          {showFavouriteSelector ? (
-            <Pressable
-              onPress={handleToggleFavourite}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.actionChip,
-                pressed ? styles.actionChipPressed : null,
-              ]}
-            >
-              <Animated.View
-                style={[
-                  styles.actionIconWrap,
-                  { transform: [{ scale: favouriteScaleAnim }] },
-                ]}
-              >
-                <Ionicons
-                  name="star-outline"
-                  size={16}
-                  color={Colours.text.muted}
-                />
-              </Animated.View>
-              <Text style={styles.actionChipText}>Fave</Text>
-            </Pressable>
+        <View style={styles.dateRatingRow}>
+          <Text style={styles.date}>{formatGigDateUk(gig.date)}</Text>
+          {hasRating ? (
+            <Text style={styles.ratingInline}>★ {gig.rating}/5</Text>
           ) : null}
         </View>
-      ) : null}
 
-      {gig.notes ? <Text style={styles.notes}>{gig.notes}</Text> : null}
-
-      <View style={styles.socialInline}>
-        <AvatarStack avatars={social.avatars} extraCount={social.count} />
-        <Text style={styles.socialInlineText}>{socialText}</Text>
-      </View>
-
-      <View style={styles.footerRow}>
-        <View style={styles.footerLeft}>
-          {hasTickets ? (
-            <Pressable
-              onPress={openTickets}
-              style={({ pressed }) => [
-                styles.smallBtn,
-                pressed ? styles.smallBtnPressed : null,
-              ]}
-              hitSlop={8}
-            >
-              <Text style={styles.smallBtnText}>Tickets</Text>
-            </Pressable>
-          ) : (
-            <View />
-          )}
-        </View>
-
-        {showPinnedMarkers ? (
-          <View style={styles.markerRow}>
-            {isFirstGig ? (
+        {showSelectionActions ? (
+          <View style={styles.topActions}>
+            {showFirstSelector ? (
               <Pressable
                 onPress={handleToggleFirstGig}
                 hitSlop={8}
                 style={({ pressed }) => [
-                  styles.markerBtn,
-                  styles.firstMarkerBtn,
-                  pressed ? { opacity: 0.82 } : null,
+                  styles.actionChip,
+                  pressed ? styles.actionChipPressed : null,
                 ]}
               >
                 <Animated.View
-                  style={{ transform: [{ scale: firstGigScaleAnim }] }}
+                  style={[
+                    styles.actionIconWrap,
+                    { transform: [{ scale: firstGigScaleAnim }] },
+                  ]}
                 >
                   <Ionicons
-                    name="ticket"
-                    size={12}
-                    color="#7EB6FF"
+                    name="ticket-outline"
+                    size={16}
+                    color={Colours.text.muted}
                   />
                 </Animated.View>
+                <Text style={styles.actionChipText}>First</Text>
               </Pressable>
             ) : null}
 
-            {isFavouriteGig ? (
+            {showFavouriteSelector ? (
               <Pressable
                 onPress={handleToggleFavourite}
                 hitSlop={8}
                 style={({ pressed }) => [
-                  styles.markerBtn,
-                  styles.favouriteMarkerBtn,
-                  pressed ? { opacity: 0.82 } : null,
+                  styles.actionChip,
+                  pressed ? styles.actionChipPressed : null,
                 ]}
               >
                 <Animated.View
-                  style={{ transform: [{ scale: favouriteScaleAnim }] }}
+                  style={[
+                    styles.actionIconWrap,
+                    { transform: [{ scale: favouriteScaleAnim }] },
+                  ]}
                 >
                   <Ionicons
-                    name="star"
-                    size={11}
-                    color="#FFD166"
+                    name="star-outline"
+                    size={16}
+                    color={Colours.text.muted}
                   />
                 </Animated.View>
+                <Text style={styles.actionChipText}>Fave</Text>
               </Pressable>
             ) : null}
           </View>
         ) : null}
-      </View>
-    </Pressable>
+
+        <View style={styles.socialInline}>
+          <AvatarStack avatars={social.avatars} extraCount={social.count} />
+          <Text style={styles.socialInlineText}>{socialText}</Text>
+        </View>
+
+        <View style={styles.footerRow}>
+          <View style={styles.footerLeft}>
+            <View style={styles.footerActionsRow}>
+              {hasTickets ? (
+                <Pressable
+                  onPress={openTickets}
+                  style={({ pressed }) => [
+                    styles.smallBtn,
+                    pressed ? styles.smallBtnPressed : null,
+                  ]}
+                  hitSlop={8}
+                >
+                  <Text style={styles.smallBtnText}>Tickets</Text>
+                </Pressable>
+              ) : null}
+
+              {hasNotes ? (
+                <Pressable
+                  onPress={handleOpenNotes}
+                  style={({ pressed }) => [
+                    styles.notesChip,
+                    pressed ? styles.smallBtnPressed : null,
+                  ]}
+                  hitSlop={8}
+                >
+                  <Ionicons
+                    name="chatbubble-ellipses-outline"
+                    size={13}
+                    color={Colours.text.primary}
+                  />
+                  <Text style={styles.smallBtnText}>Notes</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          {showPinnedMarkers ? (
+            <View style={styles.markerRow}>
+              {isFirstGig ? (
+                <Pressable
+                  onPress={handleToggleFirstGig}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.markerBtn,
+                    styles.firstMarkerBtn,
+                    pressed ? { opacity: 0.82 } : null,
+                  ]}
+                >
+                  <Animated.View
+                    style={{ transform: [{ scale: firstGigScaleAnim }] }}
+                  >
+                    <Ionicons
+                      name="ticket"
+                      size={12}
+                      color="#7EB6FF"
+                    />
+                  </Animated.View>
+                </Pressable>
+              ) : null}
+
+              {isFavouriteGig ? (
+                <Pressable
+                  onPress={handleToggleFavourite}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.markerBtn,
+                    styles.favouriteMarkerBtn,
+                    pressed ? { opacity: 0.82 } : null,
+                  ]}
+                >
+                  <Animated.View
+                    style={{ transform: [{ scale: favouriteScaleAnim }] }}
+                  >
+                    <Ionicons
+                      name="star"
+                      size={11}
+                      color="#FFD166"
+                    />
+                  </Animated.View>
+                </Pressable>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </Pressable>
+
+      <Modal
+        visible={notesOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setNotesOpen(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setNotesOpen(false)}
+        >
+          <Pressable
+            style={styles.notesModalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.notesModalTitle}>Notes</Text>
+            <Text style={styles.notesModalBody}>{noteText}</Text>
+
+            <Pressable
+              onPress={() => setNotesOpen(false)}
+              style={({ pressed }) => [
+                styles.notesCloseBtn,
+                pressed ? styles.smallBtnPressed : null,
+              ]}
+            >
+              <Text style={styles.smallBtnText}>Close</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -483,14 +548,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
 
-  notes: {
-    marginTop: 8,
-    color: Colours.text.secondary,
-    fontSize: 14,
-    lineHeight: 19,
-    fontWeight: "400",
-  },
-
   socialInline: {
     marginTop: 10,
     flexDirection: "row",
@@ -517,6 +574,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "flex-start",
     justifyContent: "center",
+  },
+
+  footerActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
   },
 
   markerRow: {
@@ -554,6 +618,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
 
+  notesChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+
   smallBtnPressed: {
     opacity: 0.9,
   },
@@ -564,5 +640,49 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 0.1,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+
+  notesModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 16,
+  },
+
+  notesModalTitle: {
+    color: Colours.text.primary,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "700",
+  },
+
+  notesModalBody: {
+    marginTop: 10,
+    color: Colours.text.secondary,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400",
+  },
+
+  notesCloseBtn: {
+    alignSelf: "flex-start",
+    marginTop: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
   },
 });

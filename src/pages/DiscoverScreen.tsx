@@ -227,8 +227,10 @@ function EventCard(props: {
 export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
   onPressLogo?: () => void;
+  scrollToTopSignal?: number;
 }) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
+  const scrollRef = React.useRef<ScrollView>(null);
 
   const [cityInput, setCityInput] = React.useState("");
   const [query, setQuery] = React.useState("");
@@ -346,6 +348,15 @@ export function DiscoverScreen(props: {
     void loadLoggedGigs();
     void resolveDeviceCity();
   }, [loadLoggedGigs, resolveDeviceCity]);
+
+  React.useEffect(() => {
+    if (props.scrollToTopSignal == null) return;
+
+    scrollRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  }, [props.scrollToTopSignal]);
 
   React.useEffect(() => {
     const value = cityInput.trim();
@@ -499,6 +510,7 @@ export function DiscoverScreen(props: {
         <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
 
         <AnimatedScrollView
+          ref={scrollRef}
           style={styles.list}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"

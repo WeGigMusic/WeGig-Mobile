@@ -81,6 +81,15 @@ function AppShell() {
   const [profileRoute, setProfileRoute] = React.useState<ProfileRoute>("home");
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [gigsResetSignal, setGigsResetSignal] = React.useState(0);
+
+  const [gigsScrollToTopSignal, setGigsScrollToTopSignal] = React.useState(0);
+  const [discoverScrollToTopSignal, setDiscoverScrollToTopSignal] =
+    React.useState(0);
+  const [statsScrollToTopSignal, setStatsScrollToTopSignal] =
+    React.useState(0);
+  const [profileScrollToTopSignal, setProfileScrollToTopSignal] =
+    React.useState(0);
+
   const [prefill, setPrefill] = React.useState<Partial<CreateGigInput> | null>(
     null,
   );
@@ -98,6 +107,7 @@ function AppShell() {
   const goHome = React.useCallback(() => {
     setTab("gigs");
     setGigsResetSignal((n) => n + 1);
+    setGigsScrollToTopSignal((n) => n + 1);
   }, []);
 
   const refreshQueuedCount = React.useCallback(async () => {
@@ -187,10 +197,20 @@ function AppShell() {
         if (next === "gigs") {
           setPrefill(null);
           setGigsResetSignal((n) => n + 1);
+          setGigsScrollToTopSignal((n) => n + 1);
+        }
+
+        if (next === "discover") {
+          setDiscoverScrollToTopSignal((n) => n + 1);
+        }
+
+        if (next === "stats") {
+          setStatsScrollToTopSignal((n) => n + 1);
         }
 
         if (next === "profile") {
           setProfileRoute("home");
+          setProfileScrollToTopSignal((n) => n + 1);
         }
 
         return;
@@ -217,6 +237,7 @@ function AppShell() {
             key={`gigs-${refreshKey}`}
             onPressLogo={goHome}
             resetSignal={gigsResetSignal}
+            scrollToTopSignal={gigsScrollToTopSignal}
             prefill={prefill}
             onPrefillUsed={() => setPrefill(null)}
             onGigCreated={() => {
@@ -228,13 +249,18 @@ function AppShell() {
         ) : tab === "discover" ? (
           <DiscoverScreen
             onPressLogo={goHome}
+            scrollToTopSignal={discoverScrollToTopSignal}
             onAddToGigs={(draft) => {
               setPrefill(draft);
               setTab("gigs");
             }}
           />
         ) : tab === "stats" ? (
-          <StatsScreen key={`stats-${refreshKey}`} onPressLogo={goHome} />
+          <StatsScreen
+            key={`stats-${refreshKey}`}
+            onPressLogo={goHome}
+            scrollToTopSignal={statsScrollToTopSignal}
+          />
         ) : profileRoute === "about" ? (
           <AboutPrivacyScreen onBack={() => setProfileRoute("home")} />
         ) : profileRoute === "help" ? (
@@ -247,6 +273,7 @@ function AppShell() {
             onGoToGigs={() => setTab("gigs")}
             onOpenAbout={() => setProfileRoute("about")}
             onOpenFeedback={() => setProfileRoute("feedback")}
+            scrollToTopSignal={profileScrollToTopSignal}
           />
         )}
       </View>

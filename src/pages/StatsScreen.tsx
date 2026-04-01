@@ -264,8 +264,12 @@ function AchievementPill(props: BadgeDef) {
   );
 }
 
-export function StatsScreen(props: { onPressLogo?: () => void }) {
+export function StatsScreen(props: {
+  onPressLogo?: () => void;
+  scrollToTopSignal?: number;
+}) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
+  const scrollRef = React.useRef<ScrollView>(null);
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -289,6 +293,15 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
     void load();
   }, [load]);
 
+  React.useEffect(() => {
+    if (props.scrollToTopSignal == null) return;
+
+    scrollRef.current?.scrollTo({
+      y: 0,
+      animated: true,
+    });
+  }, [props.scrollToTopSignal]);
+
   const stats = React.useMemo(() => buildStats(gigs), [gigs]);
 
   return (
@@ -296,6 +309,7 @@ export function StatsScreen(props: { onPressLogo?: () => void }) {
       <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
 
       <AnimatedScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
         onScroll={Animated.event(

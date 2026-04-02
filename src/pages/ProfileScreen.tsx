@@ -42,12 +42,14 @@ const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 const WEGIG_INSTAGRAM_URL = "https://www.instagram.com/wegigmusic/";
 const WEGIG_FACEBOOK_URL =
   "https://www.facebook.com/profile.php?id=61584065319390&sk=about";
+const WEGIG_STORY_URL = "https://www.wegig.live/story/";
+const WEGIG_PRIVACY_URL = "https://www.wegig.live/privacy/";
+const WEGIG_FEEDBACK_URL = "https://www.wegig.live/feedback/";
+const APP_VERSION = "v0.1.0";
 
 type ProfileScreenProps = {
   onPressLogo?: () => void;
   onGoToGigs?: () => void;
-  onOpenAbout?: () => void;
-  onOpenFeedback?: () => void;
   scrollToTopSignal?: number;
 };
 
@@ -217,8 +219,6 @@ function buildGigCsv(params: {
 export function ProfileScreen({
   onPressLogo,
   onGoToGigs,
-  onOpenAbout,
-  onOpenFeedback,
   scrollToTopSignal,
 }: ProfileScreenProps) {
   const shareCardRef = React.useRef<ViewShot | null>(null);
@@ -563,14 +563,17 @@ export function ProfileScreen({
     }
   }, [exportingGigs, favouriteGigId, firstGigId]);
 
-  const handleFeedback = React.useCallback(() => {
-    if (onOpenFeedback) {
-      onOpenFeedback();
-      return;
-    }
+  const handleOpenStory = React.useCallback(() => {
+    void openExternalLink(WEGIG_STORY_URL);
+  }, [openExternalLink]);
 
-    Alert.alert("Feedback", "Feedback form coming soon.");
-  }, [onOpenFeedback]);
+  const handleOpenPrivacy = React.useCallback(() => {
+    void openExternalLink(WEGIG_PRIVACY_URL);
+  }, [openExternalLink]);
+
+  const handleFeedback = React.useCallback(() => {
+    void openExternalLink(WEGIG_FEEDBACK_URL);
+  }, [openExternalLink]);
 
   const handleShareProfile = React.useCallback(async () => {
     if (!shareCardRef.current || sharingProfile) return;
@@ -831,9 +834,14 @@ export function ProfileScreen({
         <SectionTitle title="Support" />
         <View style={styles.card}>
           <ActionRow
-            title="About WeGig"
-            subtitle="Story, version, privacy"
-            onPress={onOpenAbout}
+            title="Our story"
+            subtitle="Why WeGig exists"
+            onPress={handleOpenStory}
+          />
+          <ActionRow
+            title="Privacy policy"
+            subtitle="How WeGig handles your data"
+            onPress={handleOpenPrivacy}
           />
           <ActionRow
             title="Send feedback"
@@ -872,6 +880,7 @@ export function ProfileScreen({
           />
         </View>
 
+        <Text style={styles.versionText}>WeGig {APP_VERSION}</Text>
         <View style={{ height: 8 }} />
       </ScrollView>
 
@@ -1160,6 +1169,16 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 13,
     lineHeight: 18,
+  },
+
+  versionText: {
+    textAlign: "center",
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+    opacity: 0.7,
+    marginTop: 4,
   },
 
   errorText: {

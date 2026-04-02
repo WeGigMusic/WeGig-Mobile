@@ -55,17 +55,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   console.log("API request:", url);
 
+  const isFormData =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
+
   let res: Response;
 
   try {
     res = await withTimeout(
       fetch(url, {
         ...init,
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(init?.headers || {}),
-        },
+        headers: isFormData
+          ? {
+              Accept: "application/json",
+              ...(init?.headers || {}),
+            }
+          : {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+              ...(init?.headers || {}),
+            },
       }),
       DEFAULT_TIMEOUT_MS,
     );
@@ -107,9 +115,12 @@ export function apiGet<T>(path: string) {
 }
 
 export function apiPost<T>(path: string, body: unknown) {
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
+
   return request<T>(path, {
     method: "POST",
-    body: JSON.stringify(body),
+    body: isFormData ? (body as FormData) : JSON.stringify(body),
   });
 }
 

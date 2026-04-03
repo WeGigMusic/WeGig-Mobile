@@ -840,7 +840,7 @@ export function ProfileScreen({
           />
           <ActionRow
             title="Privacy policy"
-            subtitle="How WeGig handles your data"
+            subtitle="How your data is handled"
             onPress={handleOpenPrivacy}
           />
           <ActionRow

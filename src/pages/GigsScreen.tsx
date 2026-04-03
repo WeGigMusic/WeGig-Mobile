@@ -21,6 +21,7 @@ import type { Gig, GigsResponse, CreateGigInput } from "../shared/types/Gig";
 import { AddGigScreen } from "./AddGigScreen";
 import { EditGigScreen } from "./EditGigScreen";
 import { ArtistScreen } from "./ArtistScreen";
+import { ConfirmGigScreen } from "./ConfirmGigScreen";
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { GigCard } from "../components/GigCard";
@@ -264,9 +265,13 @@ export function GigsScreen(props: {
   const [data, setData] = React.useState<GigsResponse | null>(null);
 
   const [addingGig, setAddingGig] = React.useState(false);
-  const [autoCreatingGig, setAutoCreatingGig] = React.useState(false);
+  const [confirmingGig, setConfirmingGig] = React.useState(false);
+  const [confirmingSubmit, setConfirmingSubmit] = React.useState(false);
   const [editingGig, setEditingGig] = React.useState<Gig | null>(null);
   const [artistView, setArtistView] = React.useState<string | null>(null);
+
+  const [discoverPrefill, setDiscoverPrefill] =
+    React.useState<Partial<CreateGigInput> | null>(null);
 
   const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
@@ -341,9 +346,12 @@ export function GigsScreen(props: {
 
   React.useEffect(() => {
     setAddingGig(false);
+    setConfirmingGig(false);
+    setConfirmingSubmit(false);
     setEditingGig(null);
     setArtistView(null);
     setSelectedBadgeInfo(null);
+    setDiscoverPrefill(null);
   }, [props.resetSignal]);
 
   React.useEffect(() => {
@@ -359,90 +367,116 @@ export function GigsScreen(props: {
     const prefill = props.prefill;
     if (!prefill) return;
 
-    const artist = prefill.artist?.trim();
-    const venue = prefill.venue?.trim();
-    const city = prefill.city?.trim();
-    const date = prefill.date?.trim();
+    const artist =
+      typeof prefill.artist === "string" ? prefill.artist.trim() : "";
+    const venue =
+      typeof prefill.venue === "string" ? prefill.venue.trim() : "";
+    const city = typeof prefill.city === "string" ? prefill.city.trim() : "";
+    const date = typeof prefill.date === "string" ? prefill.date.trim() : "";
 
-    const canAutoCreate = Boolean(artist && venue && city && date);
+    const normalizedPrefill: Partial<CreateGigInput> = {
+      ...prefill,
+      artist,
+      venue,
+      city,
+      date,
+      notes:
+        typeof prefill.notes === "string"
+          ? prefill.notes.trim()
+          : prefill.notes,
+    };
 
-    if (!canAutoCreate) {
+    const hasRequired = Boolean(artist && venue && city && date);
+
+    setDiscoverPrefill(normalizedPrefill);
+
+    if (hasRequired) {
+      setConfirmingGig(true);
+      setAddingGig(false);
+    } else {
       setAddingGig(true);
-      return;
+      setConfirmingGig(false);
     }
+  }, [props.prefill]);
 
-    let cancelled = false;
+  const clearDiscoverPrefill = React.useCallback(() => {
+    setDiscoverPrefill(null);
+    props.onPrefillUsed?.();
+  }, [props.onPrefillUsed]);
 
-    const createFromPrefill = async () => {
-      setAutoCreatingGig(true);
-      setError("");
+  const createGigFromDiscover = React.useCallback(async () => {
+    if (!discoverPrefill) return;
 
-      try {
-        const payload: CreateGigInput = {
-          ...prefill,
-          artist,
-          venue,
-          city,
-          date,
-          notes:
-            typeof prefill.notes === "string"
-              ? prefill.notes.trim()
-              : prefill.notes,
-        } as CreateGigInput;
+    setConfirmingSubmit(true);
+    setError("");
 
-        await apiPost<Gig>("/gigs", payload);
+    try {
+      await apiPost<Gig>("/gigs", discoverPrefill);
 
-        if (cancelled) return;
-
-        props.onPrefillUsed?.();
+      clearDiscoverPrefill();
+      setConfirmingGig(false);
+      await load();
+      await loadPinnedGigIds();
+      props.onGigCreated?.();
+    } catch (e: any) {
+      if (e instanceof ApiError && e.status === 409) {
+        clearDiscoverPrefill();
+        setConfirmingGig(false);
         await load();
         await loadPinnedGigIds();
-        props.onGigCreated?.();
-      } catch (e: any) {
-        if (cancelled) return;
-
-        if (e instanceof ApiError && e.status === 409) {
-          props.onPrefillUsed?.();
-          await load();
-          await loadPinnedGigIds();
-          Alert.alert("Already logged", "This gig is already in your list.");
-          return;
-        }
-
-        setError(e?.message ?? "Failed to add gig from Discover");
-        props.onPrefillUsed?.();
-      } finally {
-        if (!cancelled) {
-          setAutoCreatingGig(false);
-        }
+        Alert.alert("Already logged", "This gig is already in your list.");
+        return;
       }
-    };
 
-    void createFromPrefill();
-
-    return () => {
-      cancelled = true;
-    };
+      setError(e?.message ?? "Failed to add gig from Discover");
+      Alert.alert("Error", e?.message ?? "Failed to add gig from Discover");
+    } finally {
+      setConfirmingSubmit(false);
+    }
   }, [
-    props.prefill,
-    props.onGigCreated,
-    props.onPrefillUsed,
+    clearDiscoverPrefill,
+    discoverPrefill,
     load,
     loadPinnedGigIds,
+    props.onGigCreated,
   ]);
+
+  if (confirmingGig && discoverPrefill) {
+    return (
+      <ConfirmGigScreen
+        prefill={discoverPrefill}
+        onPressLogo={props.onPressLogo}
+        loading={confirmingSubmit}
+        onBack={() => {
+          setConfirmingGig(false);
+          clearDiscoverPrefill();
+        }}
+        onConfirm={() => {
+          void createGigFromDiscover();
+        }}
+        onEdit={() => {
+          setConfirmingGig(false);
+          setAddingGig(true);
+        }}
+      />
+    );
+  }
 
   if (addingGig) {
     return (
       <AddGigScreen
         onPressLogo={props.onPressLogo}
-        prefill={props.prefill}
-        onPrefillUsed={props.onPrefillUsed}
+        prefill={discoverPrefill ?? props.prefill}
+        onPrefillUsed={() => {
+          clearDiscoverPrefill();
+        }}
         onBack={() => {
           setAddingGig(false);
-          props.onPrefillUsed?.();
+          clearDiscoverPrefill();
         }}
         onCreated={() => {
           setAddingGig(false);
+          clearDiscoverPrefill();
           void load();
           void loadPinnedGigIds();
           props.onGigCreated?.();
@@ -474,35 +508,6 @@ export function GigsScreen(props: {
         onBack={() => setArtistView(null)}
         onEditGig={(g) => setEditingGig(g)}
       />
-    );
-  }
-
-  if (autoCreatingGig) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
-        <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
-        <View
-          style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingHorizontal: 24,
-            gap: 12,
-          }}
-        >
-          <ActivityIndicator />
-          <Text
-            style={{
-              color: Colours.text.primary,
-              fontWeight: "700",
-              fontSize: 15,
-              textAlign: "center",
-            }}
-          >
-            Adding gig to your list…
-          </Text>
-        </View>
-      </SafeAreaView>
     );
   }
 

@@ -9,6 +9,8 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
+  Modal,
+  Linking,
 } from "react-native";
 
 import { AppHeader } from "../components/AppHeader";
@@ -48,12 +50,40 @@ type MapboxPlace = {
   longitude: number;
 };
 
+type GigSetlistItem = {
+  id: string;
+  eventDate: string;
+  venueName: string;
+  cityName: string;
+  countryCode: string | null;
+  url: string | null;
+  songCount: number;
+  sets: Array<{
+    name: string;
+    encore: number;
+    songs: string[];
+  }>;
+};
+
+type GigSetlistMatchResponse = {
+  matched: boolean;
+  confidence: number;
+  setlist: GigSetlistItem | null;
+};
+
 const UI_COPY = {
   venueLoading: "Finding the venue…",
   autoCity: "City found ✓",
   saving: "Locking it in…",
   deleting: "Removing it…",
+  setlistLoading: "Looking for a matching setlist…",
+  setlistReady: "Matched setlist found ✓",
+  setlistMissing: "No strong setlist match found yet.",
 };
+
+function formatConfidence(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
 
 export function EditGigScreen(props: {
   gig: Gig;
@@ -99,6 +129,12 @@ export function EditGigScreen(props: {
     string | undefined
   >(props.gig.venueMapboxId);
 
+  const [setlistLoading, setSetlistLoading] = React.useState(false);
+  const [setlistError, setSetlistError] = React.useState("");
+  const [setlistMatch, setSetlistMatch] =
+    React.useState<GigSetlistMatchResponse | null>(null);
+  const [setlistModalOpen, setSetlistModalOpen] = React.useState(false);
+
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
     if (!d) return false;
@@ -118,6 +154,10 @@ export function EditGigScreen(props: {
 
   const dateInvalid =
     date.trim().length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(date.trim());
+
+  const canLookupSetlist = Boolean(
+    artist.trim() && venue.trim() && city.trim() && date.trim() && !dateInvalid,
+  );
 
   const runVenueSearch = React.useCallback(
     async (q: string, cityHint: string) => {
@@ -246,6 +286,50 @@ export function EditGigScreen(props: {
     setVenueError("");
   };
 
+  const loadSetlistMatch = React.useCallback(async () => {
+    if (!canLookupSetlist) {
+      setSetlistMatch(null);
+      setSetlistError("");
+      return;
+    }
+
+    setSetlistLoading(true);
+    setSetlistError("");
+
+    try {
+      const qs = new URLSearchParams();
+      qs.set("artist", artist.trim());
+      qs.set("date", date.trim());
+      qs.set("city", city.trim());
+      qs.set("venue", venue.trim());
+
+      const res = await apiGet<GigSetlistMatchResponse>(
+        `/setlist/gig-match?${qs.toString()}`,
+      );
+
+      setSetlistMatch(res);
+    } catch (e: any) {
+      setSetlistError(e?.message ?? "Failed to load setlist");
+      setSetlistMatch(null);
+    } finally {
+      setSetlistLoading(false);
+    }
+  }, [artist, city, date, venue, canLookupSetlist]);
+
+  React.useEffect(() => {
+    if (!canLookupSetlist) {
+      setSetlistMatch(null);
+      setSetlistError("");
+      return;
+    }
+
+    const t = setTimeout(() => {
+      void loadSetlistMatch();
+    }, 400);
+
+    return () => clearTimeout(t);
+  }, [loadSetlistMatch, canLookupSetlist]);
+
   const save = async () => {
     const payload: Partial<CreateGigInput> = {
       artist: artist.trim(),
@@ -306,6 +390,17 @@ export function EditGigScreen(props: {
       Alert.alert("Error", e?.message ?? "Failed to delete gig");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openSetlistUrl = async () => {
+    const url = setlistMatch?.setlist?.url?.trim();
+    if (!url) return;
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Couldn’t open link", "Setlist link could not be opened.");
     }
   };
 
@@ -449,6 +544,83 @@ export function EditGigScreen(props: {
               </View>
             )}
 
+            <View style={styles.setlistCard}>
+              <View style={styles.setlistHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.setlistTitle}>Matched setlist</Text>
+                  <Text style={styles.setlistSubtitle}>
+                    We try to match by artist, date, city, and venue.
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => void loadSetlistMatch()}
+                  disabled={setlistLoading || !canLookupSetlist}
+                  style={({ pressed }) => [
+                    styles.refreshSetlistBtn,
+                    pressed ? { opacity: 0.88 } : null,
+                    setlistLoading || !canLookupSetlist ? { opacity: 0.5 } : null,
+                  ]}
+                >
+                  <Text style={styles.refreshSetlistBtnText}>Refresh</Text>
+                </Pressable>
+              </View>
+
+              {setlistLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator />
+                  <Text style={styles.muted}>{UI_COPY.setlistLoading}</Text>
+                </View>
+              ) : setlistError ? (
+                <Text style={{ color: Colours.text.danger, fontWeight: "800" }}>
+                  {setlistError}
+                </Text>
+              ) : setlistMatch?.matched && setlistMatch.setlist ? (
+                <View style={{ gap: 10 }}>
+                  <Text style={styles.setlistSuccess}>
+                    {UI_COPY.setlistReady} • Confidence{" "}
+                    {formatConfidence(setlistMatch.confidence)}
+                  </Text>
+
+                  <View style={styles.setlistMetaBox}>
+                    <Text style={styles.setlistMetaTitle}>
+                      {setlistMatch.setlist.venueName}
+                    </Text>
+                    <Text style={styles.setlistMetaText}>
+                      {setlistMatch.setlist.cityName} •{" "}
+                      {setlistMatch.setlist.eventDate}
+                    </Text>
+                    <Text style={styles.setlistMetaText}>
+                      {setlistMatch.setlist.songCount} songs
+                    </Text>
+                  </View>
+
+                  <View style={{ gap: 8 }}>
+                    <PrimaryButton
+                      title="View setlist"
+                      onPress={() => setSetlistModalOpen(true)}
+                    />
+
+                    {setlistMatch.setlist.url ? (
+                      <Pressable
+                        onPress={() => void openSetlistUrl()}
+                        style={({ pressed }) => [
+                          styles.openLinkBtn,
+                          pressed ? { opacity: 0.88 } : null,
+                        ]}
+                      >
+                        <Text style={styles.openLinkBtnText}>
+                          Open on Setlist.fm
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : (
+                <Text style={styles.muted}>{UI_COPY.setlistMissing}</Text>
+              )}
+            </View>
+
             <TextField
               label="Notes"
               value={notes}
@@ -478,12 +650,101 @@ export function EditGigScreen(props: {
             {loading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>{UI_COPY.saving}</Text>
+                <Text style={styles.muted}>
+                  {UI_COPY.deleting}
+                </Text>
               </View>
             ) : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={setSetlistModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSetlistModalOpen(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setSetlistModalOpen(false)}
+        >
+          <Pressable
+            style={styles.modalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.modalTitle}>Setlist</Text>
+
+            {setlistMatch?.setlist ? (
+              <>
+                <Text style={styles.modalSubtitle}>
+                  {setlistMatch.setlist.venueName} • {setlistMatch.setlist.cityName}
+                </Text>
+                <Text style={styles.modalSubmeta}>
+                  {setlistMatch.setlist.eventDate}
+                </Text>
+
+                <ScrollView
+                  style={{ maxHeight: 360, marginTop: 14 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {setlistMatch.setlist.sets.map((set, setIndex) => (
+                    <View key={`${set.name}-${setIndex}`} style={styles.setBlock}>
+                      <Text style={styles.setBlockTitle}>
+                        {set.name || (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
+                      </Text>
+
+                      <View style={{ height: 8 }} />
+
+                      {set.songs.length > 0 ? (
+                        set.songs.map((song, songIndex) => (
+                          <Text
+                            key={`${song}-${songIndex}`}
+                            style={styles.songRow}
+                          >
+                            {songIndex + 1}. {song}
+                          </Text>
+                        ))
+                      ) : (
+                        <Text style={styles.muted}>No songs listed.</Text>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <View style={{ gap: 8, marginTop: 14 }}>
+                  {setlistMatch.setlist.url ? (
+                    <Pressable
+                      onPress={() => void openSetlistUrl()}
+                      style={({ pressed }) => [
+                        styles.openLinkBtn,
+                        pressed ? { opacity: 0.88 } : null,
+                      ]}
+                    >
+                      <Text style={styles.openLinkBtnText}>Open on Setlist.fm</Text>
+                    </Pressable>
+                  ) : null}
+
+                  <PrimaryButton
+                    title="Close"
+                    onPress={() => setSetlistModalOpen(false)}
+                  />
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.muted}>No matched setlist available.</Text>
+                <View style={{ marginTop: 14 }}>
+                  <PrimaryButton
+                    title="Close"
+                    onPress={() => setSetlistModalOpen(false)}
+                  />
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -572,5 +833,133 @@ const styles = {
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderColor: Colours.ui.border,
+  },
+  setlistCard: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 12,
+    gap: 10,
+  },
+  setlistHeaderRow: {
+    flexDirection: "row" as const,
+    gap: 12,
+    alignItems: "flex-start" as const,
+    justifyContent: "space-between" as const,
+  },
+  setlistTitle: {
+    color: Colours.text.primary,
+    fontWeight: "900" as const,
+    fontSize: 16,
+  },
+  setlistSubtitle: {
+    marginTop: 4,
+    color: Colours.text.muted,
+    fontWeight: "700" as const,
+    lineHeight: 18,
+    fontSize: 12,
+  },
+  refreshSetlistBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  refreshSetlistBtnText: {
+    color: Colours.text.primary,
+    fontWeight: "800" as const,
+    fontSize: 12,
+  },
+  setlistSuccess: {
+    color: "#2EE59D",
+    fontWeight: "800" as const,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  setlistMetaBox: {
+    backgroundColor: "rgba(0,0,0,0.16)",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    padding: 12,
+    gap: 4,
+  },
+  setlistMetaTitle: {
+    color: Colours.text.primary,
+    fontWeight: "900" as const,
+    fontSize: 14,
+  },
+  setlistMetaText: {
+    color: Colours.text.muted,
+    fontWeight: "700" as const,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  openLinkBtn: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    paddingHorizontal: 12,
+  },
+  openLinkBtnText: {
+    color: Colours.text.primary,
+    fontWeight: "800" as const,
+    fontSize: 13,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.75)",
+    justifyContent: "center" as const,
+    paddingHorizontal: 20,
+  },
+  modalCard: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 16,
+    maxHeight: "82%" as const,
+  },
+  modalTitle: {
+    color: Colours.text.primary,
+    fontWeight: "900" as const,
+    fontSize: 20,
+  },
+  modalSubtitle: {
+    marginTop: 8,
+    color: Colours.text.primary,
+    fontWeight: "800" as const,
+    fontSize: 14,
+  },
+  modalSubmeta: {
+    marginTop: 4,
+    color: Colours.text.muted,
+    fontWeight: "700" as const,
+    fontSize: 12,
+  },
+  setBlock: {
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+  setBlockTitle: {
+    color: Colours.text.primary,
+    fontWeight: "900" as const,
+    fontSize: 14,
+  },
+  songRow: {
+    color: Colours.text.secondary,
+    fontWeight: "700" as const,
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 4,
   },
 };

@@ -10,6 +10,7 @@ import {
   Pressable,
   Linking,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
@@ -44,6 +45,26 @@ type SpotifyArtistPageResponse = {
     spotifyUrl: string | null;
     albumType: string | null;
   }>;
+};
+
+type SetlistItem = {
+  id: string;
+  eventDate: string;
+  venueName: string;
+  cityName: string;
+  countryCode: string | null;
+  url: string | null;
+  songCount: number;
+  sets: Array<{
+    name: string;
+    encore: number;
+    songs: string[];
+  }>;
+};
+
+type SimilarArtist = {
+  name: string;
+  url: string | null;
 };
 
 const UI_COPY = {
@@ -210,6 +231,40 @@ function ReleaseCard(props: {
   );
 }
 
+function SetlistRow(props: {
+  item: SetlistItem;
+  onPress: (url: string | null) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => props.onPress(props.item.url)}
+      style={({ pressed }) => [
+        styles.releaseCard,
+        pressed ? styles.pressed : null,
+      ]}
+    >
+      <View style={styles.setlistBadge}>
+        <Ionicons
+          name="musical-notes-outline"
+          size={18}
+          color={Colours.text.primary}
+        />
+      </View>
+
+      <View style={styles.releaseBody}>
+        <Text style={styles.spotifyRowTitle} numberOfLines={1}>
+          {props.item.venueName}
+        </Text>
+        <Text style={styles.spotifyRowMeta} numberOfLines={1}>
+          {props.item.cityName} • {props.item.eventDate}
+        </Text>
+      </View>
+
+      <Text style={styles.spotifyRowMeta}>{props.item.songCount} songs</Text>
+    </Pressable>
+  );
+}
+
 export function ArtistScreen(props: {
   artist: string;
   onBack: () => void;
@@ -224,6 +279,14 @@ export function ArtistScreen(props: {
   const [spotifyError, setSpotifyError] = React.useState("");
   const [spotifyData, setSpotifyData] =
     React.useState<SpotifyArtistPageResponse | null>(null);
+
+  const [setlistLoading, setSetlistLoading] = React.useState(true);
+  const [setlistError, setSetlistError] = React.useState("");
+  const [setlists, setSetlists] = React.useState<SetlistItem[]>([]);
+
+  const [similarArtistsLoading, setSimilarArtistsLoading] = React.useState(true);
+  const [similarArtistsError, setSimilarArtistsError] = React.useState("");
+  const [similarArtists, setSimilarArtists] = React.useState<SimilarArtist[]>([]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -272,10 +335,48 @@ export function ArtistScreen(props: {
     }
   }, [props.artist]);
 
+  const loadSetlists = React.useCallback(async () => {
+    setSetlistLoading(true);
+    setSetlistError("");
+
+    try {
+      const res = await apiGet<{ setlists: SetlistItem[] }>(
+        `/setlist/artist?artist=${encodeURIComponent(props.artist.trim())}`,
+      );
+
+      setSetlists(res.setlists ?? []);
+    } catch (e: any) {
+      setSetlistError(e?.message ?? "Failed to load setlists");
+      setSetlists([]);
+    } finally {
+      setSetlistLoading(false);
+    }
+  }, [props.artist]);
+
+  const loadSimilarArtists = React.useCallback(async () => {
+    setSimilarArtistsLoading(true);
+    setSimilarArtistsError("");
+
+    try {
+      const res = await apiGet<{ artists: SimilarArtist[] }>(
+        `/lastfm/similar-artists?artist=${encodeURIComponent(props.artist.trim())}`,
+      );
+
+      setSimilarArtists(res.artists ?? []);
+    } catch (e: any) {
+      setSimilarArtistsError(e?.message ?? "Failed to load similar artists");
+      setSimilarArtists([]);
+    } finally {
+      setSimilarArtistsLoading(false);
+    }
+  }, [props.artist]);
+
   React.useEffect(() => {
     void load();
     void loadSpotifyArtistPage();
-  }, [load, loadSpotifyArtistPage]);
+    void loadSetlists();
+    void loadSimilarArtists();
+  }, [load, loadSpotifyArtistPage, loadSetlists, loadSimilarArtists]);
 
   const stats = computeArtistStats(gigs);
   const spotifyArtist = spotifyData?.artist ?? null;
@@ -431,6 +532,51 @@ export function ArtistScreen(props: {
             ))}
           </View>
         </SectionCard>
+      ) : null}
+
+      {!setlistLoading && setlists.length > 0 ? (
+        <SectionCard title="Recent setlists" subtitle={`${setlists.length} shown`}>
+          <View style={styles.spotifyList}>
+            {setlists.slice(0, 5).map((item) => (
+              <SetlistRow
+                key={item.id}
+                item={item}
+                onPress={handleOpenUrl}
+              />
+            ))}
+          </View>
+        </SectionCard>
+      ) : null}
+
+      {setlistError ? (
+        <View style={styles.card}>
+          <Text style={styles.spotifyFallbackText}>{setlistError}</Text>
+        </View>
+      ) : null}
+
+      {!similarArtistsLoading && similarArtists.length > 0 ? (
+        <SectionCard title="Fans also like" subtitle="From Last.fm">
+          <View style={styles.genreRow}>
+            {similarArtists.slice(0, 8).map((artist) => (
+              <Pressable
+                key={artist.name}
+                onPress={() => void handleOpenUrl(artist.url)}
+                style={({ pressed }) => [
+                  styles.genreChip,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Text style={styles.genreChipText}>{artist.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </SectionCard>
+      ) : null}
+
+      {similarArtistsError ? (
+        <View style={styles.card}>
+          <Text style={styles.spotifyFallbackText}>{similarArtistsError}</Text>
+        </View>
       ) : null}
 
       {loading ? (
@@ -924,6 +1070,17 @@ const styles = StyleSheet.create({
 
   releaseBody: {
     flex: 1,
+  },
+
+  setlistBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   pressed: {

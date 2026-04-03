@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import * as Location from "expo-location";
+import { Ionicons } from "@expo/vector-icons";
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
@@ -27,6 +28,7 @@ import { getCachedGigs, setCachedGigs } from "../lib/gigsCache";
 import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
 import { parseYmdToUtcDate } from "../lib/date";
 import { reverseGeocodeCity, searchPlaces } from "../lib/mapbox";
+import { TicketScanScreen } from "./TicketScanScreen";
 
 type MbArtist = {
   id: string;
@@ -69,6 +71,7 @@ const UI_COPY = {
   artistLoading: "Looking up artists…",
   venueLoading: "Finding the venue…",
   prefilled: "Filled from Discover ✓",
+  scanned: "Filled from ticket scan ✓",
   autoCity: "City found ✓",
   saving: "Locking it in…",
 };
@@ -169,7 +172,9 @@ export function AddGigScreen(props: {
 
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
+  const [justScanned, setJustScanned] = React.useState(false);
   const [justAutoCity, setJustAutoCity] = React.useState(false);
+  const [scanningTicket, setScanningTicket] = React.useState(false);
 
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
@@ -192,26 +197,32 @@ export function AddGigScreen(props: {
     if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
     if (props.prefill.city != null) setCity(String(props.prefill.city));
     if (props.prefill.date != null) setDate(String(props.prefill.date));
-    if (typeof props.prefill.rating === "number")
+    if (typeof props.prefill.rating === "number") {
       setRating(props.prefill.rating);
+    }
 
-    if ((props.prefill as any).artistMbid != null)
+    if ((props.prefill as any).artistMbid != null) {
       setArtistMbid(String((props.prefill as any).artistMbid));
-    if ((props.prefill as any).notes != null)
+    }
+    if ((props.prefill as any).notes != null) {
       setNotes(String((props.prefill as any).notes));
-    if ((props.prefill as any).externalSource != null)
+    }
+    if ((props.prefill as any).externalSource != null) {
       setExternalSource(String((props.prefill as any).externalSource));
-    if ((props.prefill as any).externalId != null)
+    }
+    if ((props.prefill as any).externalId != null) {
       setExternalId(String((props.prefill as any).externalId));
-    if ((props.prefill as any).ticketUrl != null)
+    }
+    if ((props.prefill as any).ticketUrl != null) {
       setTicketUrl(String((props.prefill as any).ticketUrl));
+    }
 
     setJustPrefilled(true);
     const t = setTimeout(() => setJustPrefilled(false), 2500);
 
     props.onPrefillUsed?.();
     return () => clearTimeout(t);
-  }, [props.prefill]);
+  }, [props.prefill, props.onPrefillUsed]);
 
   const runMbSearch = React.useCallback(async (q: string) => {
     const query = q.trim();
@@ -466,6 +477,65 @@ export function AddGigScreen(props: {
     }
   };
 
+  const handleTicketScanned = (scanPrefill: Partial<CreateGigInput>) => {
+    if (scanPrefill.artist != null) setArtist(String(scanPrefill.artist));
+    if (scanPrefill.venue != null) setVenue(String(scanPrefill.venue));
+    if (scanPrefill.city != null) setCity(String(scanPrefill.city));
+    if (scanPrefill.date != null) setDate(String(scanPrefill.date));
+    if (typeof scanPrefill.rating === "number") setRating(scanPrefill.rating);
+
+    if ((scanPrefill as any).artistMbid != null) {
+      setArtistMbid(String((scanPrefill as any).artistMbid));
+    }
+    if ((scanPrefill as any).notes != null) {
+      setNotes(String((scanPrefill as any).notes));
+    }
+    if ((scanPrefill as any).externalSource != null) {
+      setExternalSource(String((scanPrefill as any).externalSource));
+    }
+    if ((scanPrefill as any).externalId != null) {
+      setExternalId(String((scanPrefill as any).externalId));
+    }
+    if ((scanPrefill as any).ticketUrl != null) {
+      setTicketUrl(String((scanPrefill as any).ticketUrl));
+    }
+
+    setScanningTicket(false);
+    setJustScanned(true);
+    setTimeout(() => setJustScanned(false), 2500);
+  };
+
+  const resetForm = () => {
+    setArtist("");
+    setVenue("");
+    setCity("");
+    setDate("");
+    setRating(undefined);
+
+    setNotes("");
+    setArtistMbid(undefined);
+    setExternalSource(undefined);
+    setExternalId(undefined);
+    setTicketUrl(undefined);
+
+    setSelectedVenueLat(undefined);
+    setSelectedVenueLng(undefined);
+    setSelectedVenuePlaceName(undefined);
+    setSelectedVenueMapboxId(undefined);
+
+    setMbResults([]);
+    setMbOpen(false);
+    setMbError("");
+
+    setMapboxVenueResults([]);
+    setTmResults([]);
+    setVenueOpen(false);
+    setVenueError("");
+    setVenueLoading(false);
+
+    setJustAutoCity(false);
+  };
+
   const submit = async () => {
     const payload: CreateGigInput = {
       artist: artist.trim(),
@@ -517,35 +587,7 @@ export function AddGigScreen(props: {
 
       showToast({ message: "Saved" });
       props.onCreated?.(created);
-
-      setArtist("");
-      setVenue("");
-      setCity("");
-      setDate("");
-      setRating(undefined);
-
-      setNotes("");
-      setArtistMbid(undefined);
-      setExternalSource(undefined);
-      setExternalId(undefined);
-      setTicketUrl(undefined);
-
-      setSelectedVenueLat(undefined);
-      setSelectedVenueLng(undefined);
-      setSelectedVenuePlaceName(undefined);
-      setSelectedVenueMapboxId(undefined);
-
-      setMbResults([]);
-      setMbOpen(false);
-      setMbError("");
-
-      setMapboxVenueResults([]);
-      setTmResults([]);
-      setVenueOpen(false);
-      setVenueError("");
-      setVenueLoading(false);
-
-      setJustAutoCity(false);
+      resetForm();
     } catch (e: any) {
       if (isOfflineError(e)) {
         try {
@@ -567,29 +609,7 @@ export function AddGigScreen(props: {
             "You’re offline. This gig was queued and will sync when you’re back online.",
           );
           props.onCreated?.({} as any);
-          setArtist("");
-          setVenue("");
-          setCity("");
-          setDate("");
-          setRating(undefined);
-          setNotes("");
-          setArtistMbid(undefined);
-          setExternalSource(undefined);
-          setExternalId(undefined);
-          setTicketUrl(undefined);
-          setSelectedVenueLat(undefined);
-          setSelectedVenueLng(undefined);
-          setSelectedVenuePlaceName(undefined);
-          setSelectedVenueMapboxId(undefined);
-          setMbResults([]);
-          setMbOpen(false);
-          setMbError("");
-          setMapboxVenueResults([]);
-          setTmResults([]);
-          setVenueOpen(false);
-          setVenueError("");
-          setVenueLoading(false);
-          setJustAutoCity(false);
+          resetForm();
           return;
         } catch (qErr: any) {
           Alert.alert(
@@ -612,6 +632,16 @@ export function AddGigScreen(props: {
     }
   };
 
+  if (scanningTicket) {
+    return (
+      <TicketScanScreen
+        onPressLogo={props.onPressLogo}
+        onBack={() => setScanningTicket(false)}
+        onScanned={handleTicketScanned}
+      />
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -632,14 +662,38 @@ export function AddGigScreen(props: {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.card}>
-            <Text style={styles.title}>Log a gig</Text>
+            <View style={styles.titleRow}>
+              <Text style={styles.title}>Log a gig</Text>
+
+              <Pressable
+                onPress={() => setScanningTicket(true)}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.scanHeaderBtn,
+                  pressed
+                    ? { opacity: 0.9, transform: [{ scale: 0.97 }] }
+                    : null,
+                ]}
+              >
+                <Ionicons
+                  name="scan-outline"
+                  size={18}
+                  color={Colours.text.primary}
+                />
+              </Pressable>
+            </View>
+
             <Text style={styles.subtitle}>
               Use <Text style={styles.bold}>Discover</Text> to prefill shows
-              faster.
+              faster, or scan a ticket photo to auto-fill what we can.
             </Text>
 
             {justPrefilled ? (
               <Text style={styles.ok}>{UI_COPY.prefilled}</Text>
+            ) : null}
+
+            {justScanned ? (
+              <Text style={styles.ok}>{UI_COPY.scanned}</Text>
             ) : null}
           </View>
 
@@ -714,7 +768,9 @@ export function AddGigScreen(props: {
               </View>
             ) : null}
 
-            {venueError ? <Text style={styles.errorText}>{venueError}</Text> : null}
+            {venueError ? (
+              <Text style={styles.errorText}>{venueError}</Text>
+            ) : null}
 
             {venueOpen &&
             !venueLoading &&
@@ -859,6 +915,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
   title: {
     color: Colours.text.primary,
     fontSize: 20,
@@ -971,6 +1034,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
     borderColor: Colours.ui.border,
+  },
+
+  scanHeaderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(47,140,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.35)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
 
   locationBtn: {

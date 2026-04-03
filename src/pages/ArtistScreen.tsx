@@ -9,6 +9,8 @@ import {
   Image,
   Pressable,
   Linking,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -233,22 +235,30 @@ function ReleaseCard(props: {
 
 function SetlistRow(props: {
   item: SetlistItem;
-  onPress: (url: string | null) => void;
+  onPress: (item: SetlistItem) => void;
 }) {
   return (
     <Pressable
-      onPress={() => props.onPress(props.item.url)}
+      onPress={() => props.onPress(props.item)}
       style={({ pressed }) => [
         styles.releaseCard,
         pressed ? styles.pressed : null,
       ]}
     >
-      <View style={styles.setlistBadge}>
+      <View style={styles.setlistPoster}>
+        <View style={styles.setlistPosterGlow} />
         <Ionicons
-          name="musical-notes-outline"
-          size={18}
+          name="flash-outline"
+          size={16}
+          color={Colours.text.primary}
+          style={styles.setlistPosterIconTop}
+        />
+        <Ionicons
+          name="musical-notes"
+          size={22}
           color={Colours.text.primary}
         />
+        <Text style={styles.setlistPosterText}>LIVE</Text>
       </View>
 
       <View style={styles.releaseBody}>
@@ -270,6 +280,7 @@ export function ArtistScreen(props: {
   onBack: () => void;
   onEditGig?: (gig: Gig) => void;
   onPressLogo?: () => void;
+  onPressSimilarArtist?: (artist: string) => void;
 }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -283,6 +294,9 @@ export function ArtistScreen(props: {
   const [setlistLoading, setSetlistLoading] = React.useState(true);
   const [setlistError, setSetlistError] = React.useState("");
   const [setlists, setSetlists] = React.useState<SetlistItem[]>([]);
+  const [selectedSetlist, setSelectedSetlist] = React.useState<SetlistItem | null>(
+    null,
+  );
 
   const [similarArtistsLoading, setSimilarArtistsLoading] = React.useState(true);
   const [similarArtistsError, setSimilarArtistsError] = React.useState("");
@@ -535,13 +549,13 @@ export function ArtistScreen(props: {
       ) : null}
 
       {!setlistLoading && setlists.length > 0 ? (
-        <SectionCard title="Recent setlists" subtitle={`${setlists.length} shown`}>
+        <SectionCard title="Recent setlists" subtitle={`${Math.min(setlists.length, 3)} shown`}>
           <View style={styles.spotifyList}>
-            {setlists.slice(0, 5).map((item) => (
+            {setlists.slice(0, 3).map((item) => (
               <SetlistRow
                 key={item.id}
                 item={item}
-                onPress={handleOpenUrl}
+                onPress={(next) => setSelectedSetlist(next)}
               />
             ))}
           </View>
@@ -560,7 +574,14 @@ export function ArtistScreen(props: {
             {similarArtists.slice(0, 8).map((artist) => (
               <Pressable
                 key={artist.name}
-                onPress={() => void handleOpenUrl(artist.url)}
+                onPress={() => {
+                  if (props.onPressSimilarArtist) {
+                    props.onPressSimilarArtist(artist.name);
+                    return;
+                  }
+
+                  void handleOpenUrl(artist.url);
+                }}
                 style={({ pressed }) => [
                   styles.genreChip,
                   pressed ? styles.pressed : null,
@@ -654,6 +675,97 @@ export function ArtistScreen(props: {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       />
+
+      <Modal
+        visible={!!selectedSetlist}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedSetlist(null)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setSelectedSetlist(null)}
+        >
+          <Pressable
+            style={styles.setlistModalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.notesModalTitle}>Setlist</Text>
+
+            {selectedSetlist ? (
+              <>
+                <Text style={styles.setlistModalMetaTitle}>
+                  {selectedSetlist.venueName}
+                </Text>
+
+                <Text style={styles.setlistModalMetaText}>
+                  {selectedSetlist.cityName} • {selectedSetlist.eventDate}
+                </Text>
+
+                <Text style={styles.setlistModalMetaText}>
+                  {selectedSetlist.songCount} songs
+                </Text>
+
+                <ScrollView
+                  style={{ maxHeight: 320, marginTop: 14 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {selectedSetlist.sets.map((set, setIndex) => (
+                    <View
+                      key={`${set.name}-${setIndex}`}
+                      style={styles.setBlock}
+                    >
+                      <Text style={styles.setBlockTitle}>
+                        {set.name || (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
+                      </Text>
+
+                      <View style={{ height: 8 }} />
+
+                      {set.songs.length > 0 ? (
+                        set.songs.map((song, songIndex) => (
+                          <Text
+                            key={`${song}-${songIndex}`}
+                            style={styles.songRow}
+                          >
+                            {songIndex + 1}. {song}
+                          </Text>
+                        ))
+                      ) : (
+                        <Text style={styles.notesModalBody}>No songs listed.</Text>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <View style={{ gap: 8, marginTop: 14 }}>
+                  {selectedSetlist.url ? (
+                    <Pressable
+                      onPress={() => void handleOpenUrl(selectedSetlist.url)}
+                      style={({ pressed }) => [
+                        styles.notesCloseBtn,
+                        styles.openSetlistBtn,
+                        pressed ? styles.pressed : null,
+                      ]}
+                    >
+                      <Text style={styles.smallBtnText}>Open on Setlist.fm</Text>
+                    </Pressable>
+                  ) : null}
+
+                  <Pressable
+                    onPress={() => setSelectedSetlist(null)}
+                    style={({ pressed }) => [
+                      styles.notesCloseBtn,
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <Text style={styles.smallBtnText}>Close</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1072,15 +1184,137 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  setlistBadge: {
+  setlistPoster: {
     width: 56,
     height: 56,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#1A1026",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.10)",
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+
+  setlistPosterGlow: {
+    position: "absolute",
+    top: -8,
+    left: -6,
+    right: -6,
+    height: 24,
+    backgroundColor: "rgba(255,80,80,0.22)",
+    borderRadius: 999,
+  },
+
+  setlistPosterIconTop: {
+    position: "absolute",
+    top: 7,
+    right: 7,
+    opacity: 0.9,
+  },
+
+  setlistPosterText: {
+    marginTop: 2,
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+
+  setlistModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 16,
+    maxHeight: "82%",
+  },
+
+  notesModalTitle: {
+    color: Colours.text.primary,
+    fontSize: 17,
+    lineHeight: 22,
+    fontWeight: "700",
+  },
+
+  notesModalBody: {
+    marginTop: 10,
+    color: Colours.text.secondary,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400",
+  },
+
+  notesCloseBtn: {
+    alignSelf: "flex-start",
+    marginTop: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+
+  openSetlistBtn: {
+    marginTop: 0,
+  },
+
+  smallBtnText: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.1,
+  },
+
+  setlistModalMetaTitle: {
+    marginTop: 10,
+    color: Colours.text.primary,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+
+  setlistModalMetaText: {
+    marginTop: 4,
+    color: Colours.text.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+
+  setBlock: {
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+
+  setBlockTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  songRow: {
+    color: Colours.text.secondary,
+    fontWeight: "600",
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 4,
   },
 
   pressed: {

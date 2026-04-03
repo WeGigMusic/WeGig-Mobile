@@ -660,7 +660,7 @@ export function EditGigScreen(props: {
       </KeyboardAvoidingView>
 
       <Modal
-        visible={setSetlistModalOpen}
+          visible={setlistModalOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setSetlistModalOpen(false)}

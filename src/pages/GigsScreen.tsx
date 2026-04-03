@@ -507,6 +507,7 @@ export function GigsScreen(props: {
         onPressLogo={props.onPressLogo}
         onBack={() => setArtistView(null)}
         onEditGig={(g) => setEditingGig(g)}
+        onPressSimilarArtist={(artist) => setArtistView(artist)}
       />
     );
   }

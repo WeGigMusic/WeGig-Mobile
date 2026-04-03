@@ -8,6 +8,8 @@ import {
   Alert,
   Animated,
   Modal,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +22,27 @@ import { parseYmdToUtcDate } from "../lib/date";
 
 type TmEventByIdResponse = {
   url?: string;
+};
+
+type GigSetlistItem = {
+  id: string;
+  eventDate: string;
+  venueName: string;
+  cityName: string;
+  countryCode: string | null;
+  url: string | null;
+  songCount: number;
+  sets: Array<{
+    name: string;
+    encore: number;
+    songs: string[];
+  }>;
+};
+
+type GigSetlistMatchResponse = {
+  matched: boolean;
+  confidence: number;
+  setlist: GigSetlistItem | null;
 };
 
 function formatGigDateUk(value?: string) {
@@ -39,6 +62,10 @@ function isFutureGigDate(value?: string) {
   );
 
   return d.getTime() > todayUtc.getTime();
+}
+
+function formatConfidence(value: number) {
+  return `${Math.round(value * 100)}%`;
 }
 
 export function GigCard({
@@ -64,7 +91,12 @@ export function GigCard({
 }) {
   const favouriteScaleAnim = React.useRef(new Animated.Value(1)).current;
   const firstGigScaleAnim = React.useRef(new Animated.Value(1)).current;
+
   const [notesOpen, setNotesOpen] = React.useState(false);
+  const [setlistOpen, setSetlistOpen] = React.useState(false);
+  const [setlistLoading, setSetlistLoading] = React.useState(false);
+  const [setlistMatch, setSetlistMatch] =
+    React.useState<GigSetlistMatchResponse | null>(null);
 
   const noteText = String(gig.notes ?? "").trim();
   const hasNotes = noteText.length > 0;
@@ -151,6 +183,59 @@ export function GigCard({
   const isFutureGig = isFutureGigDate(gig.date);
   const socialText = isFutureGig ? "Also going" : "Also went";
 
+  const canLookupSetlist = React.useMemo(() => {
+    return Boolean(
+      !isFutureGig &&
+        String(gig.artist ?? "").trim() &&
+        String(gig.venue ?? "").trim() &&
+        String(gig.city ?? "").trim() &&
+        String(gig.date ?? "").trim(),
+    );
+  }, [gig.artist, gig.city, gig.date, gig.venue, isFutureGig]);
+
+  React.useEffect(() => {
+    if (!canLookupSetlist) {
+      setSetlistMatch(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSetlistMatch = async () => {
+      setSetlistLoading(true);
+
+      try {
+        const qs = new URLSearchParams();
+        qs.set("artist", String(gig.artist ?? "").trim());
+        qs.set("date", String(gig.date ?? "").trim());
+        qs.set("city", String(gig.city ?? "").trim());
+        qs.set("venue", String(gig.venue ?? "").trim());
+
+        const res = await apiGet<GigSetlistMatchResponse>(
+          `/setlist/gig-match?${qs.toString()}`,
+        );
+
+        if (!cancelled) {
+          setSetlistMatch(res);
+        }
+      } catch {
+        if (!cancelled) {
+          setSetlistMatch(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setSetlistLoading(false);
+        }
+      }
+    };
+
+    void loadSetlistMatch();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canLookupSetlist, gig.artist, gig.city, gig.date, gig.venue]);
+
   const openTickets = async (e?: any) => {
     try {
       e?.stopPropagation?.();
@@ -192,11 +277,45 @@ export function GigCard({
     Alert.alert("No tickets", "No ticket link found for this gig yet.");
   };
 
+  const openSetlistUrl = async () => {
+    const url = setlistMatch?.setlist?.url?.trim();
+    if (!url) return;
+
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Couldn’t open link", "That setlist link looks invalid.");
+    }
+  };
+
+  const handleOpenSetlist = async (e?: any) => {
+    try {
+      e?.stopPropagation?.();
+    } catch {}
+
+    try {
+      await Haptics.selectionAsync();
+    } catch {}
+
+    if (setlistMatch?.matched && setlistMatch.setlist) {
+      setSetlistOpen(true);
+      return;
+    }
+
+    if (setlistLoading) {
+      return;
+    }
+
+    Alert.alert("No setlist yet", "No reliable setlist match was found for this gig.");
+  };
+
   const hasTickets =
     Boolean(((gig as any).ticketUrl as string | undefined)?.trim()) ||
     ((gig as any).externalSource === "Ticketmaster" &&
       Boolean((gig as any).externalId));
 
+  const hasSetlist = Boolean(setlistMatch?.matched && setlistMatch.setlist);
+const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
   const showFirstSelector = showFirstGigAction && !isFirstGig;
   const showFavouriteSelector = showFavouriteAction && !isFavouriteGig;
   const showSelectionActions = showFirstSelector || showFavouriteSelector;
@@ -346,6 +465,24 @@ export function GigCard({
                   <Text style={styles.smallBtnText}>Notes</Text>
                 </Pressable>
               ) : null}
+
+              {showSetlistChip ? (
+  <Pressable
+    onPress={handleOpenSetlist}
+    style={({ pressed }) => [
+      styles.setlistChip,
+      pressed ? styles.smallBtnPressed : null,
+    ]}
+    hitSlop={8}
+  >
+    <Ionicons
+      name="musical-notes-outline"
+      size={13}
+      color={Colours.text.primary}
+    />
+    <Text style={styles.smallBtnText}>Setlist</Text>
+  </Pressable>
+) : null}
             </View>
           </View>
 
@@ -364,11 +501,7 @@ export function GigCard({
                   <Animated.View
                     style={{ transform: [{ scale: firstGigScaleAnim }] }}
                   >
-                    <Ionicons
-                      name="ticket"
-                      size={12}
-                      color="#7EB6FF"
-                    />
+                    <Ionicons name="ticket" size={12} color="#7EB6FF" />
                   </Animated.View>
                 </Pressable>
               ) : null}
@@ -386,11 +519,7 @@ export function GigCard({
                   <Animated.View
                     style={{ transform: [{ scale: favouriteScaleAnim }] }}
                   >
-                    <Ionicons
-                      name="star"
-                      size={11}
-                      color="#FFD166"
-                    />
+                    <Ionicons name="star" size={11} color="#FFD166" />
                   </Animated.View>
                 </Pressable>
               ) : null}
@@ -425,6 +554,114 @@ export function GigCard({
             >
               <Text style={styles.smallBtnText}>Close</Text>
             </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={setlistOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSetlistOpen(false)}
+      >
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setSetlistOpen(false)}
+        >
+          <Pressable
+            style={styles.setlistModalCard}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.notesModalTitle}>Setlist</Text>
+
+            {setlistMatch?.setlist ? (
+              <>
+                <Text style={styles.setlistModalMetaTitle}>
+                  {setlistMatch.setlist.venueName}
+                </Text>
+
+                <Text style={styles.setlistModalMetaText}>
+                  {setlistMatch.setlist.cityName} • {setlistMatch.setlist.eventDate}
+                </Text>
+
+                <Text style={styles.setlistModalMetaText}>
+                  Confidence {formatConfidence(setlistMatch.confidence)} •{" "}
+                  {setlistMatch.setlist.songCount} songs
+                </Text>
+
+                <ScrollView
+                  style={{ maxHeight: 320, marginTop: 14 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {setlistMatch.setlist.sets.map((set, setIndex) => (
+                    <View
+                      key={`${set.name}-${setIndex}`}
+                      style={styles.setBlock}
+                    >
+                      <Text style={styles.setBlockTitle}>
+                        {set.name || (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
+                      </Text>
+
+                      <View style={{ height: 8 }} />
+
+                      {set.songs.length > 0 ? (
+                        set.songs.map((song, songIndex) => (
+                          <Text
+                            key={`${song}-${songIndex}`}
+                            style={styles.songRow}
+                          >
+                            {songIndex + 1}. {song}
+                          </Text>
+                        ))
+                      ) : (
+                        <Text style={styles.notesModalBody}>No songs listed.</Text>
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <View style={{ gap: 8, marginTop: 14 }}>
+                  {setlistMatch.setlist.url ? (
+                    <Pressable
+                      onPress={() => void openSetlistUrl()}
+                      style={({ pressed }) => [
+                        styles.notesCloseBtn,
+                        styles.openSetlistBtn,
+                        pressed ? styles.smallBtnPressed : null,
+                      ]}
+                    >
+                      <Text style={styles.smallBtnText}>Open on Setlist.fm</Text>
+                    </Pressable>
+                  ) : null}
+
+                  <Pressable
+                    onPress={() => setSetlistOpen(false)}
+                    style={({ pressed }) => [
+                      styles.notesCloseBtn,
+                      pressed ? styles.smallBtnPressed : null,
+                    ]}
+                  >
+                    <Text style={styles.smallBtnText}>Close</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.notesModalBody}>
+                  No matched setlist available.
+                </Text>
+
+                <Pressable
+                  onPress={() => setSetlistOpen(false)}
+                  style={({ pressed }) => [
+                    styles.notesCloseBtn,
+                    pressed ? styles.smallBtnPressed : null,
+                  ]}
+                >
+                  <Text style={styles.smallBtnText}>Close</Text>
+                </Pressable>
+              </>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -630,6 +867,30 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
 
+  setlistChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(46,229,157,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(46,229,157,0.28)",
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+
+  setlistChipMuted: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+
   smallBtnPressed: {
     opacity: 0.9,
   },
@@ -660,6 +921,17 @@ const styles = StyleSheet.create({
     padding: 16,
   },
 
+  setlistModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 16,
+    maxHeight: "82%",
+  },
+
   notesModalTitle: {
     color: Colours.text.primary,
     fontSize: 17,
@@ -684,5 +956,47 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 12,
+  },
+
+  openSetlistBtn: {
+    marginTop: 0,
+  },
+
+  setlistModalMetaTitle: {
+    marginTop: 10,
+    color: Colours.text.primary,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+
+  setlistModalMetaText: {
+    marginTop: 4,
+    color: Colours.text.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
+
+  setBlock: {
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+  },
+
+  setBlockTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  songRow: {
+    color: Colours.text.secondary,
+    fontWeight: "600",
+    fontSize: 13,
+    lineHeight: 19,
+    marginBottom: 4,
   },
 });

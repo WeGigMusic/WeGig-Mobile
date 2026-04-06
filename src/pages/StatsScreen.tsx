@@ -126,19 +126,13 @@ function buildStats(gigs: Gig[]) {
       progressLabel: `${Math.min(total, 1)}/1 gigs`,
     },
     {
-      title: "Origin Story",
-      icon: "🌱",
-      unlocked: total >= 1,
-      progressLabel: `${Math.min(total, 1)}/1 gigs`,
-    },
-    {
-      title: "That One Night",
+      title: "First Review",
       icon: "✨",
       unlocked: rated.length >= 1,
       progressLabel: `${Math.min(rated.length, 1)}/1 rated gigs`,
     },
     {
-      title: "Regular",
+      title: "Scene Regular",
       icon: "🔥",
       unlocked: total >= 5,
       progressLabel: `${Math.min(total, 5)}/5 gigs`,
@@ -162,13 +156,13 @@ function buildStats(gigs: Gig[]) {
       progressLabel: `${Math.min(topArtistCount, 3)}/3 same artist`,
     },
     {
-      title: "Five-Star Night",
+      title: "Perfect Set",
       icon: "🌟",
       unlocked: hasFiveStarGig,
       progressLabel: `${hasFiveStarGig ? 1 : 0}/1 five-star gigs`,
     },
     {
-      title: "Critic",
+      title: "Sharp Ears",
       icon: "📝",
       unlocked: rated.length >= 5,
       progressLabel: `${Math.min(rated.length, 5)}/5 rated gigs`,

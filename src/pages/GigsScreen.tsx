@@ -47,39 +47,35 @@ type BadgeInfo = {
 const BADGE_INFO: Record<string, BadgeInfo> = {
   "First Gig": {
     title: "First Gig",
-    description: "Awarded when you log your first gig in WeGig.",
+    description: "Logged your first gig on WeGig.",
   },
-  "Origin Story": {
-    title: "Origin Story",
-    description: "Marks the start of your gig history in the app.",
-  },
-  "That One Night": {
-    title: "That One Night",
-    description: "Unlocked when you rate at least one gig.",
-  },
-  Regular: {
-    title: "Regular",
-    description: "Awarded after logging 5 gigs.",
+  "Scene Regular": {
+    title: "Scene Regular",
+    description: "Logged 5 gigs.",
   },
   "Venue Hopper": {
     title: "Venue Hopper",
-    description: "Unlocked after visiting 3 different venues.",
+    description: "Visited 3 different venues.",
   },
   "City Explorer": {
     title: "City Explorer",
-    description: "Unlocked after logging gigs in 3 different cities.",
+    description: "Logged gigs in 3 different cities.",
   },
   Superfan: {
     title: "Superfan",
-    description: "Unlocked when you log the same artist 3 times.",
+    description: "Saw the same artist 3 times.",
   },
-  "Five-Star Night": {
-    title: "Five-Star Night",
-    description: "Unlocked when you give a gig a 5-star rating.",
+  "Perfect Set": {
+    title: "Perfect Set",
+    description: "Gave a gig a 5-star rating.",
   },
-  Critic: {
-    title: "Critic",
-    description: "Unlocked after rating 5 gigs.",
+  "Sharp Ears": {
+    title: "Sharp Ears",
+    description: "Rated 5 gigs.",
+  },
+  "First Review": {
+    title: "First Review",
+    description: "Rated your first gig.",
   },
 };
 
@@ -114,18 +110,17 @@ function computeGigBadges(gigs: Gig[]) {
 
   const badges: BadgeChip[] = [
     { title: "First Gig", icon: "🎟️", unlocked: total >= 1 },
-    { title: "Origin Story", icon: "🌱", unlocked: total >= 1 },
-    { title: "That One Night", icon: "✨", unlocked: rated.length >= 1 },
-    { title: "Regular", icon: "🔥", unlocked: total >= 5 },
+    { title: "First Review", icon: "✨", unlocked: rated.length >= 1 },
+    { title: "Scene Regular", icon: "🔥", unlocked: total >= 5 },
     { title: "Venue Hopper", icon: "🏟️", unlocked: venueCount >= 3 },
     { title: "City Explorer", icon: "🌍", unlocked: cityCount >= 3 },
     { title: "Superfan", icon: "⭐", unlocked: topArtistCount >= 3 },
     {
-      title: "Five-Star Night",
+      title: "Perfect Set",
       icon: "🌟",
       unlocked: gigs.some((g) => g.rating === 5),
     },
-    { title: "Critic", icon: "📝", unlocked: rated.length >= 5 },
+    { title: "Sharp Ears", icon: "📝", unlocked: rated.length >= 5 },
   ];
 
   return badges.filter((b) => b.unlocked);

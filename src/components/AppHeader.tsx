@@ -28,13 +28,13 @@ export function AppHeader(props: AppHeaderProps) {
       })
     : 56;
 
-  const animatedLogoWidth = props.scrollY
-    ? props.scrollY.interpolate({
-        inputRange: [-60, 0, 120],
-        outputRange: [156, 140, 90],
-        extrapolate: "clamp",
-      })
-    : 140;
+const animatedLogoWidth = props.scrollY
+  ? props.scrollY.interpolate({
+      inputRange: [-60, 0, 120],
+      outputRange: [172, 154, 102],
+      extrapolate: "clamp",
+    })
+  : 154;
 
   const animatedTranslateY = props.scrollY
     ? props.scrollY.interpolate({
@@ -121,9 +121,10 @@ const styles = StyleSheet.create({
     height: 56,
   },
 
-  logoBtn: {
-    justifyContent: "center",
-  },
+ logoBtn: {
+  justifyContent: "center",
+  marginLeft: -6, // 👈 tweak between -4 and -8
+},
 
   backBtn: {
     flexDirection: "row",

@@ -214,7 +214,6 @@ function EventCard(props: {
               externalSource: "Ticketmaster",
               externalId: props.item.id,
               ticketUrl: props.item.url,
-              notes: "Imported from Ticketmaster",
             });
           }}
           style={styles.resultActionBtn}

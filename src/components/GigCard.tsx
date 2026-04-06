@@ -9,7 +9,6 @@ import {
   Animated,
   Modal,
   ScrollView,
-  ActivityIndicator,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -315,7 +314,7 @@ export function GigCard({
       Boolean((gig as any).externalId));
 
   const hasSetlist = Boolean(setlistMatch?.matched && setlistMatch.setlist);
-const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
+  const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
   const showFirstSelector = showFirstGigAction && !isFirstGig;
   const showFavouriteSelector = showFavouriteAction && !isFavouriteGig;
   const showSelectionActions = showFirstSelector || showFavouriteSelector;
@@ -346,20 +345,39 @@ const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
             )}
           </View>
 
-          <Pressable
-            onPress={handlePress}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.editIconBtn,
-              pressed ? { opacity: 0.8 } : null,
-            ]}
-          >
-            <Ionicons
-              name="create-outline"
-              size={15}
-              color={Colours.text.muted}
-            />
-          </Pressable>
+          <View style={styles.topRightActions}>
+            {hasNotes ? (
+              <Pressable
+                onPress={handleOpenNotes}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.topIconBtn,
+                  pressed ? styles.topIconBtnPressed : null,
+                ]}
+              >
+                <Ionicons
+                  name="document-text-outline"
+                  size={13}
+                  color="rgba(255,255,255,0.54)"
+                />
+              </Pressable>
+            ) : null}
+
+            <Pressable
+              onPress={handlePress}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.topIconBtn,
+                pressed ? styles.topIconBtnPressed : null,
+              ]}
+            >
+              <Ionicons
+                name="create-outline"
+                size={14}
+                color="rgba(255,255,255,0.64)"
+              />
+            </Pressable>
+          </View>
         </View>
 
         <Text style={styles.meta}>
@@ -392,7 +410,7 @@ const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
                 >
                   <Ionicons
                     name="ticket-outline"
-                    size={16}
+                    size={15}
                     color={Colours.text.muted}
                   />
                 </Animated.View>
@@ -417,7 +435,7 @@ const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
                 >
                   <Ionicons
                     name="star-outline"
-                    size={16}
+                    size={15}
                     color={Colours.text.muted}
                   />
                 </Animated.View>
@@ -427,66 +445,55 @@ const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
           </View>
         ) : null}
 
-        <View style={styles.socialInline}>
-          <AvatarStack avatars={social.avatars} extraCount={social.count} />
-          <Text style={styles.socialInlineText}>{socialText}</Text>
-        </View>
-
-        <View style={styles.footerRow}>
-          <View style={styles.footerLeft}>
-            <View style={styles.footerActionsRow}>
-              {hasTickets ? (
-                <Pressable
-                  onPress={openTickets}
-                  style={({ pressed }) => [
-                    styles.smallBtn,
-                    pressed ? styles.smallBtnPressed : null,
-                  ]}
-                  hitSlop={8}
-                >
-                  <Text style={styles.smallBtnText}>Tickets</Text>
-                </Pressable>
-              ) : null}
-
-              {hasNotes ? (
-                <Pressable
-                  onPress={handleOpenNotes}
-                  style={({ pressed }) => [
-                    styles.notesChip,
-                    pressed ? styles.smallBtnPressed : null,
-                  ]}
-                  hitSlop={8}
-                >
-                  <Ionicons
-                    name="chatbubble-ellipses-outline"
-                    size={13}
-                    color={Colours.text.primary}
-                  />
-                  <Text style={styles.smallBtnText}>Notes</Text>
-                </Pressable>
-              ) : null}
-
-              {showSetlistChip ? (
-  <Pressable
-    onPress={handleOpenSetlist}
-    style={({ pressed }) => [
-      styles.setlistChip,
-      pressed ? styles.smallBtnPressed : null,
-    ]}
-    hitSlop={8}
-  >
-    <Ionicons
-      name="musical-notes-outline"
-      size={13}
-      color={Colours.text.primary}
-    />
-    <Text style={styles.smallBtnText}>Setlist</Text>
-  </Pressable>
-) : null}
-            </View>
+        <View style={styles.socialRow}>
+          <View style={styles.socialLeft}>
+            <AvatarStack avatars={social.avatars} extraCount={social.count} />
+            <Text style={styles.socialInlineText}>{socialText}</Text>
           </View>
 
-          {showPinnedMarkers ? (
+          <View style={styles.socialRight}>
+            {hasTickets ? (
+              <Pressable
+                onPress={openTickets}
+                style={({ pressed }) => [
+                  styles.inlineAction,
+                  pressed ? styles.smallBtnPressed : null,
+                ]}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="ticket-outline"
+                  size={12}
+                  color={Colours.text.muted}
+                />
+                <Text style={styles.inlineActionText}>Tickets</Text>
+              </Pressable>
+            ) : null}
+
+            {showSetlistChip ? (
+              <Pressable
+                onPress={handleOpenSetlist}
+                style={({ pressed }) => [
+                  styles.inlineAction,
+                  pressed ? styles.smallBtnPressed : null,
+                ]}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="musical-notes-outline"
+                  size={12}
+                  color={Colours.text.muted}
+                />
+                <Text style={styles.inlineActionText}>Setlist</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+
+        {showPinnedMarkers ? (
+          <View style={styles.footerRow}>
+            <View style={styles.footerSpacer} />
+
             <View style={styles.markerRow}>
               {isFirstGig ? (
                 <Pressable
@@ -501,7 +508,7 @@ const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
                   <Animated.View
                     style={{ transform: [{ scale: firstGigScaleAnim }] }}
                   >
-                    <Ionicons name="ticket" size={12} color="#7EB6FF" />
+                    <Ionicons name="ticket" size={10} color="#7EB6FF" />
                   </Animated.View>
                 </Pressable>
               ) : null}
@@ -519,13 +526,13 @@ const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
                   <Animated.View
                     style={{ transform: [{ scale: favouriteScaleAnim }] }}
                   >
-                    <Ionicons name="star" size={11} color="#FFD166" />
+                    <Ionicons name="star" size={10} color="#FFD166" />
                   </Animated.View>
                 </Pressable>
               ) : null}
             </View>
-          ) : null}
-        </View>
+          </View>
+        ) : null}
       </Pressable>
 
       <Modal
@@ -673,7 +680,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 16,
-    padding: 12,
+    padding: 10,
     borderWidth: 1,
     borderColor: Colours.ui.border,
   },
@@ -695,7 +702,7 @@ const styles = StyleSheet.create({
   artistPressable: {
     alignSelf: "flex-start",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.14)",
+    borderBottomColor: "rgba(255,255,255,0.12)",
     paddingBottom: 1,
   },
 
@@ -705,20 +712,31 @@ const styles = StyleSheet.create({
 
   artist: {
     color: Colours.text.primary,
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: "700",
   },
 
-  editIconBtn: {
-    width: 24,
-    height: 24,
+  topRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    marginTop: -1,
+  },
+
+  topIconBtn: {
+    width: 22,
+    height: 22,
     alignItems: "center",
     justifyContent: "center",
   },
 
+  topIconBtnPressed: {
+    opacity: 0.8,
+  },
+
   meta: {
-    marginTop: 4,
+    marginTop: 3,
     color: Colours.text.secondary,
     fontSize: 14,
     lineHeight: 18,
@@ -726,7 +744,7 @@ const styles = StyleSheet.create({
   },
 
   dateRatingRow: {
-    marginTop: 3,
+    marginTop: 2,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -742,23 +760,23 @@ const styles = StyleSheet.create({
 
   ratingInline: {
     color: Colours.text.primary,
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
   },
 
   topActions: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 8,
   },
 
   actionChip: {
-    minWidth: 52,
-    paddingVertical: 6,
+    minWidth: 50,
+    paddingVertical: 5,
     paddingHorizontal: 8,
-    borderRadius: 14,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.04)",
@@ -771,13 +789,13 @@ const styles = StyleSheet.create({
   },
 
   actionIconWrap: {
-    height: 18,
+    height: 17,
     alignItems: "center",
     justifyContent: "center",
   },
 
   actionChipText: {
-    marginTop: 3,
+    marginTop: 2,
     color: Colours.text.muted,
     fontSize: 10,
     lineHeight: 12,
@@ -785,11 +803,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.1,
   },
 
-  socialInline: {
-    marginTop: 10,
+  socialRow: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+
+  socialLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flex: 1,
+    minWidth: 0,
   },
 
   socialInlineText: {
@@ -800,36 +827,51 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
+  socialRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    flexShrink: 0,
+  },
+
+  inlineAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+  },
+
+  inlineActionText: {
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
   footerRow: {
-    marginTop: 10,
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
-  footerLeft: {
+  footerSpacer: {
     flex: 1,
-    alignItems: "flex-start",
-    justifyContent: "center",
-  },
-
-  footerActionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
   },
 
   markerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginLeft: 10,
+    gap: 5,
+    marginLeft: 8,
   },
 
   markerBtn: {
-    width: 24,
-    height: 24,
+    width: 20,
+    height: 20,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
@@ -837,58 +879,13 @@ const styles = StyleSheet.create({
   },
 
   firstMarkerBtn: {
-    backgroundColor: "rgba(47,140,255,0.10)",
-    borderColor: "rgba(47,140,255,0.28)",
+    backgroundColor: "transparent",
+    borderColor: "rgba(126,182,255,0.18)",
   },
 
   favouriteMarkerBtn: {
-    backgroundColor: "rgba(255,209,102,0.10)",
-    borderColor: "rgba(255,209,102,0.28)",
-  },
-
-  smallBtn: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-
-  notesChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-
-  setlistChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(46,229,157,0.10)",
-    borderWidth: 1,
-    borderColor: "rgba(46,229,157,0.28)",
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-
-  setlistChipMuted: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    backgroundColor: "transparent",
+    borderColor: "rgba(255,209,102,0.18)",
   },
 
   smallBtnPressed: {
@@ -896,11 +893,11 @@ const styles = StyleSheet.create({
   },
 
   smallBtnText: {
-    color: Colours.text.primary,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.1,
+    color: Colours.text.secondary,
+    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0,
   },
 
   modalOverlay: {

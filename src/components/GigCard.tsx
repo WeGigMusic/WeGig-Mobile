@@ -318,7 +318,6 @@ export function GigCard({
   const showFirstSelector = showFirstGigAction && !isFirstGig;
   const showFavouriteSelector = showFavouriteAction && !isFavouriteGig;
   const showSelectionActions = showFirstSelector || showFavouriteSelector;
-  const showPinnedMarkers = Boolean(isFirstGig || isFavouriteGig);
   const hasRating = typeof gig.rating === "number";
 
   return (
@@ -346,6 +345,42 @@ export function GigCard({
           </View>
 
           <View style={styles.topRightActions}>
+            {isFirstGig ? (
+              <Pressable
+                onPress={handleToggleFirstGig}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.topMarkerBtn,
+                  styles.firstTopMarkerBtn,
+                  pressed ? styles.topIconBtnPressed : null,
+                ]}
+              >
+                <Animated.View
+                  style={{ transform: [{ scale: firstGigScaleAnim }] }}
+                >
+                  <Ionicons name="ticket" size={11} color="#7EB6FF" />
+                </Animated.View>
+              </Pressable>
+            ) : null}
+
+            {isFavouriteGig ? (
+              <Pressable
+                onPress={handleToggleFavourite}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.topMarkerBtn,
+                  styles.favouriteTopMarkerBtn,
+                  pressed ? styles.topIconBtnPressed : null,
+                ]}
+              >
+                <Animated.View
+                  style={{ transform: [{ scale: favouriteScaleAnim }] }}
+                >
+                  <Ionicons name="star" size={11} color="#FFD166" />
+                </Animated.View>
+              </Pressable>
+            ) : null}
+
             {hasNotes ? (
               <Pressable
                 onPress={handleOpenNotes}
@@ -489,50 +524,6 @@ export function GigCard({
             ) : null}
           </View>
         </View>
-
-        {showPinnedMarkers ? (
-          <View style={styles.footerRow}>
-            <View style={styles.footerSpacer} />
-
-            <View style={styles.markerRow}>
-              {isFirstGig ? (
-                <Pressable
-                  onPress={handleToggleFirstGig}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.markerBtn,
-                    styles.firstMarkerBtn,
-                    pressed ? { opacity: 0.82 } : null,
-                  ]}
-                >
-                  <Animated.View
-                    style={{ transform: [{ scale: firstGigScaleAnim }] }}
-                  >
-                    <Ionicons name="ticket" size={10} color="#7EB6FF" />
-                  </Animated.View>
-                </Pressable>
-              ) : null}
-
-              {isFavouriteGig ? (
-                <Pressable
-                  onPress={handleToggleFavourite}
-                  hitSlop={8}
-                  style={({ pressed }) => [
-                    styles.markerBtn,
-                    styles.favouriteMarkerBtn,
-                    pressed ? { opacity: 0.82 } : null,
-                  ]}
-                >
-                  <Animated.View
-                    style={{ transform: [{ scale: favouriteScaleAnim }] }}
-                  >
-                    <Ionicons name="star" size={10} color="#FFD166" />
-                  </Animated.View>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-        ) : null}
       </Pressable>
 
       <Modal
@@ -720,7 +711,7 @@ const styles = StyleSheet.create({
   topRightActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
+    gap: 4,
     marginTop: -1,
   },
 
@@ -733,6 +724,25 @@ const styles = StyleSheet.create({
 
   topIconBtnPressed: {
     opacity: 0.8,
+  },
+
+  topMarkerBtn: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+
+  firstTopMarkerBtn: {
+    backgroundColor: "transparent",
+    borderColor: "rgba(126,182,255,0.18)",
+  },
+
+  favouriteTopMarkerBtn: {
+    backgroundColor: "transparent",
+    borderColor: "rgba(255,209,102,0.18)",
   },
 
   meta: {
@@ -849,43 +859,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 11,
     lineHeight: 14,
-  },
-
-  footerRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  footerSpacer: {
-    flex: 1,
-  },
-
-  markerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    marginLeft: 8,
-  },
-
-  markerBtn: {
-    width: 20,
-    height: 20,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-
-  firstMarkerBtn: {
-    backgroundColor: "transparent",
-    borderColor: "rgba(126,182,255,0.18)",
-  },
-
-  favouriteMarkerBtn: {
-    backgroundColor: "transparent",
-    borderColor: "rgba(255,209,102,0.18)",
   },
 
   smallBtnPressed: {

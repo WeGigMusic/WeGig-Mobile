@@ -15,6 +15,7 @@ import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
 import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
 import { apiGet } from "./src/lib/api";
+import { configureNotificationBehaviour } from "./src/lib/notifications";
 
 import { GigsScreen } from "./src/pages/GigsScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
@@ -271,8 +272,6 @@ function AppShell() {
           <ProfileScreen
             onPressLogo={goHome}
             onGoToGigs={() => setTab("gigs")}
-            onOpenAbout={() => setProfileRoute("about")}
-            onOpenFeedback={() => setProfileRoute("feedback")}
             scrollToTopSignal={profileScrollToTopSignal}
           />
         )}
@@ -298,6 +297,10 @@ function AppShell() {
 }
 
 export default function App() {
+  React.useEffect(() => {
+    configureNotificationBehaviour();
+  }, []);
+
   return (
     <ToastProvider>
       <AppShell />

@@ -30,6 +30,7 @@ import type {
 } from "../shared/types/Gig";
 
 const HOME_CITY_KEY = "wegig.homeCity";
+const DISCOVER_CITY_KEY = "wegig.discoverCity";
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
@@ -268,9 +269,18 @@ export function DiscoverScreen(props: {
 
   const loadSavedCity = React.useCallback(async () => {
     try {
-      const saved = await AsyncStorage.getItem(HOME_CITY_KEY);
-      if (saved?.trim()) {
-        setCityInput(saved.trim());
+      const [discoverCity, homeCity] = await Promise.all([
+        AsyncStorage.getItem(DISCOVER_CITY_KEY),
+        AsyncStorage.getItem(HOME_CITY_KEY),
+      ]);
+
+      if (discoverCity?.trim()) {
+        setCityInput(discoverCity.trim());
+        return;
+      }
+
+      if (homeCity?.trim()) {
+        setCityInput(homeCity.trim());
       }
     } catch {
       // ignore
@@ -344,9 +354,10 @@ export function DiscoverScreen(props: {
   }, []);
 
   React.useEffect(() => {
+    void loadSavedCity();
     void loadLoggedGigs();
     void resolveDeviceCity();
-  }, [loadLoggedGigs, resolveDeviceCity]);
+  }, [loadSavedCity, loadLoggedGigs, resolveDeviceCity]);
 
   React.useEffect(() => {
     if (props.scrollToTopSignal == null) return;
@@ -360,10 +371,12 @@ export function DiscoverScreen(props: {
   React.useEffect(() => {
     const value = cityInput.trim();
 
-    if (!value) return;
-
     const t = setTimeout(() => {
-      AsyncStorage.setItem(HOME_CITY_KEY, value).catch(() => {});
+      if (value) {
+        AsyncStorage.setItem(DISCOVER_CITY_KEY, value).catch(() => {});
+      } else {
+        AsyncStorage.removeItem(DISCOVER_CITY_KEY).catch(() => {});
+      }
     }, 400);
 
     return () => clearTimeout(t);

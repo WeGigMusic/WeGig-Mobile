@@ -7,6 +7,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Animated,
+  Modal,
+  Pressable,
 } from "react-native";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
@@ -20,6 +22,46 @@ type BadgeDef = {
   icon: string;
   unlocked: boolean;
   progressLabel?: string;
+};
+
+type BadgeInfo = {
+  title: string;
+  description: string;
+};
+
+const BADGE_INFO: Record<string, BadgeInfo> = {
+  "First Gig": {
+    title: "First Gig",
+    description: "Logged your first gig on WeGig.",
+  },
+  "Scene Regular": {
+    title: "Scene Regular",
+    description: "Logged 5 gigs.",
+  },
+  "Venue Hopper": {
+    title: "Venue Hopper",
+    description: "Visited 3 different venues.",
+  },
+  "City Explorer": {
+    title: "City Explorer",
+    description: "Logged gigs in 3 different cities.",
+  },
+  Superfan: {
+    title: "Superfan",
+    description: "Saw the same artist 3 times.",
+  },
+  "Perfect Set": {
+    title: "Perfect Set",
+    description: "Gave a gig a 5-star rating.",
+  },
+  "Sharp Ears": {
+    title: "Sharp Ears",
+    description: "Rated 5 gigs.",
+  },
+  "First Review": {
+    title: "First Review",
+    description: "Rated your first gig.",
+  },
 };
 
 function avg(nums: number[]) {
@@ -206,7 +248,9 @@ function StatCard(props: { label: string; value: string; subtitle?: string }) {
         {props.value}
       </Text>
       {props.subtitle ? (
-        <Text style={styles.statCardSubtitle}>{props.subtitle}</Text>
+        <Text style={styles.statCardSubtitle} numberOfLines={2}>
+          {props.subtitle}
+        </Text>
       ) : null}
     </View>
   );
@@ -243,18 +287,55 @@ function ProgressRow(props: {
   );
 }
 
-function AchievementPill(props: BadgeDef) {
+function AchievementPill(
+  props: BadgeDef & {
+    onLongPress?: () => void;
+  },
+) {
   return (
-    <View
-      style={[
+    <Pressable
+      onLongPress={props.onLongPress}
+      delayLongPress={320}
+      style={({ pressed }) => [
         styles.badgePill,
         props.unlocked ? styles.badgePillOn : styles.badgePillOff,
+        pressed ? { opacity: 0.9 } : null,
       ]}
     >
       <Text style={styles.badgePillText}>
         {props.icon} {props.title}
       </Text>
-    </View>
+    </Pressable>
+  );
+}
+
+function BadgeInfoModal(props: {
+  visible: boolean;
+  title: string;
+  description: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      visible={props.visible}
+      transparent
+      animationType="fade"
+      onRequestClose={props.onClose}
+      statusBarTranslucent
+    >
+      <Pressable onPress={props.onClose} style={styles.badgeModalOverlay}>
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={styles.badgeModalCard}
+        >
+          <Text style={styles.badgeModalTitle}>{props.title}</Text>
+
+          <Text style={styles.badgeModalDescription}>{props.description}</Text>
+
+          <Text style={styles.badgeModalHint}>Tap outside to close</Text>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -268,6 +349,8 @@ export function StatsScreen(props: {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [gigs, setGigs] = React.useState<Gig[]>([]);
+  const [selectedBadgeInfo, setSelectedBadgeInfo] =
+    React.useState<BadgeInfo | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -347,7 +430,7 @@ export function StatsScreen(props: {
                 subtitle={
                   stats.topArtist
                     ? `${stats.topArtist[1]} ${
-                        stats.topArtist[1] === 1 ? "show" : "shows"
+                        stats.topArtist[1] === 1 ? "gig" : "gigs"
                       }`
                     : "Log more gigs"
                 }
@@ -452,6 +535,14 @@ export function StatsScreen(props: {
                   icon={badge.icon}
                   unlocked={badge.unlocked}
                   progressLabel={badge.progressLabel}
+                  onLongPress={() =>
+                    setSelectedBadgeInfo(
+                      BADGE_INFO[badge.title] ?? {
+                        title: badge.title,
+                        description: "Badge progress from your gig history.",
+                      },
+                    )
+                  }
                 />
               ))}
             </View>
@@ -473,6 +564,13 @@ export function StatsScreen(props: {
 
         <View style={{ height: 110 }} />
       </AnimatedScrollView>
+
+      <BadgeInfoModal
+        visible={!!selectedBadgeInfo}
+        title={selectedBadgeInfo?.title ?? ""}
+        description={selectedBadgeInfo?.description ?? ""}
+        onClose={() => setSelectedBadgeInfo(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -486,7 +584,7 @@ const styles = StyleSheet.create({
   body: {
     padding: 16,
     paddingTop: 12,
-    gap: 12,
+    gap: 10,
   },
 
   inlineRow: {
@@ -538,7 +636,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
-    padding: 14,
+    padding: 12,
   },
 
   heroKicker: {
@@ -550,15 +648,15 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
-    marginTop: 6,
+    marginTop: 4,
     color: Colours.text.primary,
     fontWeight: "800",
-    fontSize: 20,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 22,
   },
 
   heroSubtitle: {
-    marginTop: 4,
+    marginTop: 2,
     color: Colours.text.secondary,
     fontWeight: "500",
     fontSize: 13,
@@ -566,7 +664,7 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    marginTop: 4,
+    marginTop: 6,
     color: Colours.text.secondary,
     fontWeight: "700",
     fontSize: 14,
@@ -593,7 +691,8 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
-    padding: 12,
+    padding: 10,
+    minHeight: 110,
   },
 
   statCardLabel: {
@@ -608,8 +707,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: Colours.text.primary,
     fontWeight: "800",
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 16,
+    lineHeight: 20,
   },
 
   statCardSubtitle: {
@@ -617,12 +716,12 @@ const styles = StyleSheet.create({
     color: Colours.text.secondary,
     fontWeight: "500",
     fontSize: 12,
-    lineHeight: 16,
+    lineHeight: 15,
   },
 
   progressRow: {
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 12,
   },
 
   progressRowHeader: {
@@ -715,8 +814,8 @@ const styles = StyleSheet.create({
 
   badgePillOff: {
     backgroundColor: "rgba(255,255,255,0.03)",
-    borderColor: "rgba(255,255,255,0.05)",
-    opacity: 0.6,
+    borderColor: "rgba(255,255,255,0.06)",
+    opacity: 0.72,
   },
 
   badgePillText: {
@@ -731,7 +830,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
-    padding: 14,
+    padding: 12,
   },
 
   nextUnlockKicker: {
@@ -745,8 +844,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
     color: Colours.text.primary,
     fontWeight: "800",
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 18,
   },
 
   nextUnlockText: {
@@ -755,5 +854,49 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 12,
     lineHeight: 17,
+  },
+
+  badgeModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingHorizontal: 16,
+    paddingTop: 120,
+  },
+
+  badgeModalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor: "#17191C",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    shadowColor: "#000",
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+
+  badgeModalTitle: {
+    color: Colours.text.primary,
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
+  badgeModalDescription: {
+    color: Colours.text.secondary,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+
+  badgeModalHint: {
+    marginTop: 14,
+    color: Colours.text.muted,
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

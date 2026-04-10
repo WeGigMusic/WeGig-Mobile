@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { setCachedGigs } from "../lib/gigsCache";
 import { apiGet, apiPost, ApiError } from "../lib/api";
+import { syncGigReminderNotifications } from "../lib/notifications";
 import type { Gig, GigsResponse, CreateGigInput } from "../shared/types/Gig";
 
 import { AddGigScreen } from "./AddGigScreen";
@@ -327,6 +328,7 @@ export function GigsScreen(props: {
       const res = await apiGet<GigsResponse>("/gigs");
       setData(res);
       setCachedGigs(res.gigs ?? []);
+      await syncGigReminderNotifications(res.gigs ?? []);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load gigs");
     } finally {
@@ -582,41 +584,28 @@ export function GigsScreen(props: {
                   </Text>
 
                   {showcaseBadges.length > 0 ? (
-                    <>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingRight: 8 }}
-                      >
-                        {showcaseBadges.map((badge) => (
-                          <BadgeShowcaseChip
-                            key={badge.title}
-                            title={badge.title}
-                            icon={badge.icon}
-                            onLongPress={() =>
-                              setSelectedBadgeInfo(
-                                BADGE_INFO[badge.title] ?? {
-                                  title: badge.title,
-                                  description:
-                                    "Badge unlocked in your gig history.",
-                                },
-                              )
-                            }
-                          />
-                        ))}
-                      </ScrollView>
-
-                      <Text
-                        style={{
-                          color: Colours.text.muted,
-                          fontWeight: "500",
-                          fontSize: 12,
-                          lineHeight: 16,
-                        }}
-                      >
-                        Hold a badge to see what it means.
-                      </Text>
-                    </>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ paddingRight: 8 }}
+                    >
+                      {showcaseBadges.map((badge) => (
+                        <BadgeShowcaseChip
+                          key={badge.title}
+                          title={badge.title}
+                          icon={badge.icon}
+                          onLongPress={() =>
+                            setSelectedBadgeInfo(
+                              BADGE_INFO[badge.title] ?? {
+                                title: badge.title,
+                                description:
+                                  "Badge unlocked in your gig history.",
+                              },
+                            )
+                          }
+                        />
+                      ))}
+                    </ScrollView>
                   ) : (
                     <Text
                       style={{

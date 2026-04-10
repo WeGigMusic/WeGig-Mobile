@@ -28,6 +28,7 @@ import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
 import { searchPlaces } from "../lib/mapbox";
+import { syncGigReminderNotifications } from "../lib/notifications";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 import { avatarPresets } from "../config/avatarPresets";
 
@@ -38,6 +39,8 @@ const AVATAR_PRESET_KEY = "wegig.avatarPreset";
 const AVATAR_URI_KEY = "wegig.avatarUri";
 const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
+const NOTIFY_GIG_REMINDER_KEY = "wegig.notifyGigReminder";
+const NOTIFY_RATE_REMINDER_KEY = "wegig.notifyRateReminder";
 
 const WEGIG_INSTAGRAM_URL = "https://www.instagram.com/wegigmusic/";
 const WEGIG_FACEBOOK_URL =
@@ -136,7 +139,11 @@ function ActionRow(props: {
         ) : null}
       </View>
 
-      <Text style={styles.chevron}>›</Text>
+      <Ionicons
+        name="chevron-forward"
+        size={16}
+        color={Colours.text.muted}
+      />
     </Pressable>
   );
 }
@@ -228,10 +235,13 @@ export function ProfileScreen({
   const [stats, setStats] = React.useState<ReturnType<
     typeof computeProfileStats
   > | null>(null);
+  const [allGigs, setAllGigs] = React.useState<Gig[]>([]);
 
   const [displayName, setDisplayName] = React.useState("Nowar");
   const [homeCity, setHomeCity] = React.useState("");
   const [hapticsEnabled, setHapticsEnabled] = React.useState(true);
+  const [gigReminderEnabled, setGigReminderEnabled] = React.useState(true);
+  const [rateReminderEnabled, setRateReminderEnabled] = React.useState(true);
 
   const [savingPrefs, setSavingPrefs] = React.useState(false);
   const [sharingProfile, setSharingProfile] = React.useState(false);
@@ -252,13 +262,16 @@ export function ProfileScreen({
 
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [dn, hc, hap, preset, uri] = await Promise.all([
-        AsyncStorage.getItem(DISPLAY_NAME_KEY),
-        AsyncStorage.getItem(HOME_CITY_KEY),
-        AsyncStorage.getItem(HAPTICS_KEY),
-        AsyncStorage.getItem(AVATAR_PRESET_KEY),
-        AsyncStorage.getItem(AVATAR_URI_KEY),
-      ]);
+      const [dn, hc, hap, preset, uri, notifyGig, notifyRate] =
+        await Promise.all([
+          AsyncStorage.getItem(DISPLAY_NAME_KEY),
+          AsyncStorage.getItem(HOME_CITY_KEY),
+          AsyncStorage.getItem(HAPTICS_KEY),
+          AsyncStorage.getItem(AVATAR_PRESET_KEY),
+          AsyncStorage.getItem(AVATAR_URI_KEY),
+          AsyncStorage.getItem(NOTIFY_GIG_REMINDER_KEY),
+          AsyncStorage.getItem(NOTIFY_RATE_REMINDER_KEY),
+        ]);
 
       if (dn && dn.trim()) setDisplayName(dn.trim());
       if (hc && hc.trim()) setHomeCity(hc.trim());
@@ -267,6 +280,14 @@ export function ProfileScreen({
 
       if (hap != null) {
         setHapticsEnabled(hap === "1");
+      }
+
+      if (notifyGig != null) {
+        setGigReminderEnabled(notifyGig === "1");
+      }
+
+      if (notifyRate != null) {
+        setRateReminderEnabled(notifyRate === "1");
       }
     } catch {}
   }, []);
@@ -305,6 +326,14 @@ export function ProfileScreen({
       }
 
       await AsyncStorage.setItem(HAPTICS_KEY, hapticsEnabled ? "1" : "0");
+      await AsyncStorage.setItem(
+        NOTIFY_GIG_REMINDER_KEY,
+        gigReminderEnabled ? "1" : "0",
+      );
+      await AsyncStorage.setItem(
+        NOTIFY_RATE_REMINDER_KEY,
+        rateReminderEnabled ? "1" : "0",
+      );
 
       Alert.alert("Saved", "Preferences updated.");
     } catch (e: any) {
@@ -312,7 +341,13 @@ export function ProfileScreen({
     } finally {
       setSavingPrefs(false);
     }
-  }, [displayName, homeCity, hapticsEnabled]);
+  }, [
+    displayName,
+    homeCity,
+    hapticsEnabled,
+    gigReminderEnabled,
+    rateReminderEnabled,
+  ]);
 
   const toggleHaptics = React.useCallback(async () => {
     const next = !hapticsEnabled;
@@ -329,13 +364,51 @@ export function ProfileScreen({
     }
   }, [hapticsEnabled]);
 
+  const toggleGigReminder = React.useCallback(async () => {
+    const next = !gigReminderEnabled;
+    setGigReminderEnabled(next);
+
+    try {
+      await AsyncStorage.setItem(
+        NOTIFY_GIG_REMINDER_KEY,
+        next ? "1" : "0",
+      );
+    } catch {}
+
+    if (hapticsEnabled) {
+      try {
+        await Haptics.selectionAsync();
+      } catch {}
+    }
+  }, [gigReminderEnabled, hapticsEnabled]);
+
+  const toggleRateReminder = React.useCallback(async () => {
+    const next = !rateReminderEnabled;
+    setRateReminderEnabled(next);
+
+    try {
+      await AsyncStorage.setItem(
+        NOTIFY_RATE_REMINDER_KEY,
+        next ? "1" : "0",
+      );
+    } catch {}
+
+    if (hapticsEnabled) {
+      try {
+        await Haptics.selectionAsync();
+      } catch {}
+    }
+  }, [rateReminderEnabled, hapticsEnabled]);
+
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const nextGigs = res.gigs ?? [];
+      setAllGigs(nextGigs);
       setStats(computeProfileStats(nextGigs));
     } catch {
+      setAllGigs([]);
       setStats(null);
     } finally {
       setLoading(false);
@@ -356,6 +429,11 @@ export function ProfileScreen({
       animated: true,
     });
   }, [scrollToTopSignal]);
+
+  React.useEffect(() => {
+    if (loading) return;
+    void syncGigReminderNotifications(allGigs);
+  }, [allGigs, gigReminderEnabled, rateReminderEnabled, loading]);
 
   const runCitySearch = React.useCallback(async (q: string) => {
     const query = q.trim();
@@ -661,51 +739,47 @@ export function ProfileScreen({
           </Pressable>
 
           <View style={styles.profileHeroText}>
-            <View style={styles.heroTopRow}>
-              <View style={styles.nameGroup}>
-                <View style={styles.nameWithShareRow}>
-                  <Text style={styles.name}>{displayName}</Text>
+            <View style={styles.nameWithShareRow}>
+              <Text style={styles.name}>{displayName}</Text>
 
-                  <Pressable
-                    onPress={() => void handleShareProfile()}
-                    style={({ pressed }) => [
-                      styles.shareButton,
-                      pressed ? { opacity: 0.78 } : null,
-                      sharingProfile ? { opacity: 0.5 } : null,
-                    ]}
-                    hitSlop={10}
-                  >
-                    <Ionicons
-                      name="share-outline"
-                      size={14}
-                      color={Colours.text.muted}
-                    />
-                  </Pressable>
-                </View>
+              <Pressable
+                onPress={() => void handleShareProfile()}
+                style={({ pressed }) => [
+                  styles.shareButton,
+                  pressed ? { opacity: 0.78 } : null,
+                  sharingProfile ? { opacity: 0.5 } : null,
+                ]}
+                hitSlop={10}
+              >
+                <Ionicons
+                  name="share-outline"
+                  size={14}
+                  color={Colours.text.muted}
+                />
+              </Pressable>
+            </View>
 
-                <Text style={styles.metaLine}>{metaLine}</Text>
-              </View>
+            <Text style={styles.metaLine}>{metaLine}</Text>
 
-              <View
+            <View
+              style={[
+                styles.statusPill,
+                {
+                  backgroundColor: `${stats?.statusColor ?? "#6B7280"}22`,
+                  borderColor: `${stats?.statusColor ?? "#6B7280"}55`,
+                },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.statusPill,
-                  {
-                    backgroundColor: `${stats?.statusColor ?? "#6B7280"}22`,
-                    borderColor: `${stats?.statusColor ?? "#6B7280"}55`,
-                  },
+                  styles.statusPillText,
+                  { color: stats?.statusColor ?? "#6B7280" },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.statusPillText,
-                    { color: stats?.statusColor ?? "#6B7280" },
-                  ]}
-                >
-                  {(stats?.statusIcon ?? "✨") +
-                    " " +
-                    (stats?.statusLabel ?? "New Fan")}
-                </Text>
-              </View>
+                {(stats?.statusIcon ?? "✨") +
+                  " " +
+                  (stats?.statusLabel ?? "New Fan")}
+              </Text>
             </View>
           </View>
         </View>
@@ -816,17 +890,69 @@ export function ProfileScreen({
           </View>
         </View>
 
-        <SectionTitle title="Follow WeGig" />
+        <SectionTitle title="Notifications" />
+        <View style={styles.card}>
+          <View style={styles.toggleRowNoBorder}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>Gig reminders</Text>
+              <Text style={styles.toggleSubtitle}>
+                Get a reminder the day before gigs you’ve logged
+              </Text>
+            </View>
+
+            <Switch
+              value={gigReminderEnabled}
+              onValueChange={() => void toggleGigReminder()}
+              trackColor={{
+                false: "rgba(255,255,255,0.18)",
+                true: "rgba(47,140,255,0.35)",
+              }}
+              thumbColor={
+                gigReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
+              }
+              ios_backgroundColor="rgba(255,255,255,0.18)"
+            />
+          </View>
+
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>Rate your gigs</Text>
+              <Text style={styles.toggleSubtitle}>
+                Get a reminder the day after to log your rating
+              </Text>
+            </View>
+
+            <Switch
+              value={rateReminderEnabled}
+              onValueChange={() => void toggleRateReminder()}
+              trackColor={{
+                false: "rgba(255,255,255,0.18)",
+                true: "rgba(47,140,255,0.35)",
+              }}
+              thumbColor={
+                rateReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
+              }
+              ios_backgroundColor="rgba(255,255,255,0.18)"
+            />
+          </View>
+        </View>
+
+        <SectionTitle title="Account" />
         <View style={styles.card}>
           <ActionRow
-            title="Instagram"
-            subtitle="@wegigmusic"
-            onPress={() => void openExternalLink(WEGIG_INSTAGRAM_URL)}
+            title="Sign in to sync"
+            subtitle="Apple, Google, Facebook or email"
+            onPress={handleSignIn}
           />
           <ActionRow
-            title="Facebook"
-            subtitle="WeGig on Facebook"
-            onPress={() => void openExternalLink(WEGIG_FACEBOOK_URL)}
+            title="Change password"
+            subtitle="Email login only (coming soon)"
+            onPress={handleChangePassword}
+          />
+          <ActionRow
+            title="Log out"
+            subtitle="Coming soon"
+            onPress={handleLogout}
             isLast
           />
         </View>
@@ -860,28 +986,23 @@ export function ProfileScreen({
           />
         </View>
 
-        <SectionTitle title="Account" />
+        <SectionTitle title="Follow WeGig" />
         <View style={styles.card}>
           <ActionRow
-            title="Sign in to sync"
-            subtitle="Apple, Google, Facebook or email"
-            onPress={handleSignIn}
+            title="Instagram"
+            subtitle="@wegigmusic"
+            onPress={() => void openExternalLink(WEGIG_INSTAGRAM_URL)}
           />
           <ActionRow
-            title="Change password"
-            subtitle="Email login only (coming soon)"
-            onPress={handleChangePassword}
-          />
-          <ActionRow
-            title="Log out"
-            subtitle="Coming soon"
-            onPress={handleLogout}
+            title="Facebook"
+            subtitle="WeGig on Facebook"
+            onPress={() => void openExternalLink(WEGIG_FACEBOOK_URL)}
             isLast
           />
         </View>
 
         <Text style={styles.versionText}>WeGig {APP_VERSION}</Text>
-        <View style={{ height: 8 }} />
+        <View style={{ height: 20 }} />
       </ScrollView>
 
       <View style={styles.hiddenShareLayer} pointerEvents="none">
@@ -978,12 +1099,12 @@ const styles = StyleSheet.create({
   },
 
   sectionTitle: {
-    marginTop: 2,
-    marginBottom: 2,
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 17,
-    letterSpacing: 0.2,
+    marginTop: 4,
+    marginBottom: 4,
+    color: Colours.text.secondary,
+    fontWeight: "700",
+    fontSize: 15,
+    lineHeight: 19,
   },
 
   profileHero: {
@@ -991,7 +1112,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     backgroundColor: Colours.background.card,
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: Colours.ui.border,
     padding: 14,
@@ -999,24 +1120,7 @@ const styles = StyleSheet.create({
 
   profileHeroText: {
     flex: 1,
-  },
-
-  heroTopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-
-  nameGroup: {
-    flex: 1,
     minWidth: 0,
-  },
-
-  nameWithShareRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
   },
 
   avatar: {
@@ -1043,12 +1147,26 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
 
+  nameWithShareRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
   name: {
     color: Colours.text.primary,
     fontWeight: "800",
-    fontSize: 22,
-    lineHeight: 26,
+    fontSize: 20,
+    lineHeight: 24,
     flexShrink: 1,
+  },
+
+  metaLine: {
+    marginTop: 6,
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 13,
+    lineHeight: 17,
   },
 
   statusPill: {
@@ -1057,8 +1175,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
-    marginLeft: 8,
-    flexShrink: 0,
+    marginTop: 10,
   },
 
   statusPillText: {
@@ -1066,14 +1183,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     letterSpacing: 0.1,
-  },
-
-  metaLine: {
-    marginTop: 8,
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 13,
-    lineHeight: 17,
   },
 
   shareButton: {
@@ -1091,7 +1200,7 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: Colours.background.card,
-    borderRadius: 20,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: Colours.ui.border,
     paddingVertical: 4,
@@ -1108,7 +1217,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: Colours.ui.divider ?? Colours.ui.border,
   },
@@ -1132,13 +1241,6 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
 
-  chevron: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 17,
-    lineHeight: 20,
-  },
-
   toggleRow: {
     marginTop: 6,
     flexDirection: "row",
@@ -1147,6 +1249,13 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === "ios" ? 6 : 2,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.08)",
+  },
+
+  toggleRowNoBorder: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: Platform.OS === "ios" ? 6 : 2,
   },
 
   toggleTitle: {
@@ -1178,7 +1287,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     opacity: 0.7,
-    marginTop: 4,
+    marginTop: 6,
   },
 
   errorText: {

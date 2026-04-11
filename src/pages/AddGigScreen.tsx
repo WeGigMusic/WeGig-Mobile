@@ -296,6 +296,13 @@ export function AddGigScreen(props: {
   React.useEffect(() => {
     const q = venue.trim();
 
+    if (selectedVenueGooglePlaceId) {
+      setVenueResults([]);
+      setVenueOpen(false);
+      setVenueLoading(false);
+      return;
+    }
+
     if (q.length < 2) {
       setVenueResults([]);
       setVenueOpen(false);
@@ -309,7 +316,7 @@ export function AddGigScreen(props: {
     }, 320);
 
     return () => clearTimeout(t);
-  }, [venue, runVenueSearch]);
+  }, [venue, runVenueSearch, selectedVenueGooglePlaceId]);
 
   const chooseGoogleVenue = async (suggestion: PlaceSuggestion) => {
     try {
@@ -321,6 +328,11 @@ export function AddGigScreen(props: {
         venueSessionToken,
       );
 
+      setSelectedVenueGooglePlaceId(details.placeId);
+      setSelectedVenueLat(details.latitude);
+      setSelectedVenueLng(details.longitude);
+      setSelectedVenuePlaceName(details.formattedAddress);
+
       setVenue(details.venueName);
 
       const placeCity = details.city.trim();
@@ -330,13 +342,9 @@ export function AddGigScreen(props: {
         setTimeout(() => setJustAutoCity(false), 2200);
       }
 
-      setSelectedVenueLat(details.latitude);
-      setSelectedVenueLng(details.longitude);
-      setSelectedVenuePlaceName(details.formattedAddress);
-      setSelectedVenueGooglePlaceId(details.placeId);
-
-      setVenueOpen(false);
       setVenueResults([]);
+      setVenueOpen(false);
+      setVenueError("");
       setVenueLoading(false);
 
       setVenueSessionToken(createSessionToken());
@@ -727,7 +735,6 @@ export function AddGigScreen(props: {
                         <Text style={styles.suggestMeta}>{place.subtitle}</Text>
                       ) : null}
                     </View>
-                    <Text style={styles.sourcePill}>Google</Text>
                   </Pressable>
                 ))}
               </View>
@@ -912,19 +919,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 12,
     lineHeight: 16,
-  },
-
-  sourcePill: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 11,
-    lineHeight: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(47,140,255,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.4)",
   },
 
   scanHeaderBtn: {

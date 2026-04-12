@@ -6,7 +6,6 @@ import {
   View,
   Linking,
   Alert,
-  Animated,
   Modal,
   ScrollView,
 } from "react-native";
@@ -73,24 +72,13 @@ export function GigCard({
   onPressArtist,
   isFirstGig,
   isFavouriteGig,
-  showFirstGigAction = true,
-  showFavouriteAction = true,
-  onToggleFavourite,
-  onToggleFirstGig,
 }: {
   gig: Gig;
   onPress?: () => void;
   onPressArtist?: (artist: string) => void;
   isFirstGig?: boolean;
   isFavouriteGig?: boolean;
-  showFirstGigAction?: boolean;
-  showFavouriteAction?: boolean;
-  onToggleFavourite?: () => void;
-  onToggleFirstGig?: () => void;
 }) {
-  const favouriteScaleAnim = React.useRef(new Animated.Value(1)).current;
-  const firstGigScaleAnim = React.useRef(new Animated.Value(1)).current;
-
   const [notesOpen, setNotesOpen] = React.useState(false);
   const [setlistOpen, setSetlistOpen] = React.useState(false);
   const [setlistLoading, setSetlistLoading] = React.useState(false);
@@ -109,61 +97,16 @@ export function GigCard({
 
   const handlePressArtist = async (e?: any) => {
     if (!onPressArtist) return;
+
     try {
       e?.stopPropagation?.();
     } catch {}
+
     try {
       await Haptics.selectionAsync();
     } catch {}
+
     onPressArtist(gig.artist);
-  };
-
-  const handleToggleFavourite = async (e?: any) => {
-    try {
-      e?.stopPropagation?.();
-    } catch {}
-
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
-
-    Animated.sequence([
-      Animated.spring(favouriteScaleAnim, {
-        toValue: 1.35,
-        useNativeDriver: true,
-      }),
-      Animated.spring(favouriteScaleAnim, {
-        toValue: 1,
-        friction: 3,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    onToggleFavourite?.();
-  };
-
-  const handleToggleFirstGig = async (e?: any) => {
-    try {
-      e?.stopPropagation?.();
-    } catch {}
-
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
-
-    Animated.sequence([
-      Animated.spring(firstGigScaleAnim, {
-        toValue: 1.3,
-        useNativeDriver: true,
-      }),
-      Animated.spring(firstGigScaleAnim, {
-        toValue: 1,
-        friction: 3,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    onToggleFirstGig?.();
   };
 
   const handleOpenNotes = async (e?: any) => {
@@ -315,16 +258,18 @@ export function GigCard({
 
   const hasSetlist = Boolean(setlistMatch?.matched && setlistMatch.setlist);
   const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
-  const showFirstSelector = showFirstGigAction && !isFirstGig;
-  const showFavouriteSelector = showFavouriteAction && !isFavouriteGig;
-  const showSelectionActions = showFirstSelector || showFavouriteSelector;
   const hasRating = typeof gig.rating === "number";
 
   return (
     <>
       <Pressable
         onPress={handlePress}
-        style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
+        style={({ pressed }) => [
+          styles.card,
+          isFirstGig ? styles.firstGigCard : null,
+          isFavouriteGig ? styles.favouriteGigCard : null,
+          pressed ? styles.pressed : null,
+        ]}
       >
         <View style={styles.topRow}>
           <View style={styles.titleWrap}>
@@ -342,45 +287,25 @@ export function GigCard({
             ) : (
               <Text style={styles.artist}>{gig.artist}</Text>
             )}
+
+            {(isFirstGig || isFavouriteGig) && (
+              <View style={styles.badgeRow}>
+                {isFirstGig ? (
+                  <View style={styles.firstBadge}>
+                    <Text style={styles.firstBadgeText}>First gig</Text>
+                  </View>
+                ) : null}
+
+                {isFavouriteGig ? (
+                  <View style={styles.favouriteBadge}>
+                    <Text style={styles.favouriteBadgeText}>Favourite</Text>
+                  </View>
+                ) : null}
+              </View>
+            )}
           </View>
 
           <View style={styles.topRightActions}>
-            {isFirstGig ? (
-              <Pressable
-                onPress={handleToggleFirstGig}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.topMarkerBtn,
-                  styles.firstTopMarkerBtn,
-                  pressed ? styles.topIconBtnPressed : null,
-                ]}
-              >
-                <Animated.View
-                  style={{ transform: [{ scale: firstGigScaleAnim }] }}
-                >
-                  <Ionicons name="ticket" size={11} color="#7EB6FF" />
-                </Animated.View>
-              </Pressable>
-            ) : null}
-
-            {isFavouriteGig ? (
-              <Pressable
-                onPress={handleToggleFavourite}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.topMarkerBtn,
-                  styles.favouriteTopMarkerBtn,
-                  pressed ? styles.topIconBtnPressed : null,
-                ]}
-              >
-                <Animated.View
-                  style={{ transform: [{ scale: favouriteScaleAnim }] }}
-                >
-                  <Ionicons name="star" size={11} color="#FFD166" />
-                </Animated.View>
-              </Pressable>
-            ) : null}
-
             {hasNotes ? (
               <Pressable
                 onPress={handleOpenNotes}
@@ -425,60 +350,6 @@ export function GigCard({
             <Text style={styles.ratingInline}>★ {gig.rating}/5</Text>
           ) : null}
         </View>
-
-        {showSelectionActions ? (
-          <View style={styles.topActions}>
-            {showFirstSelector ? (
-              <Pressable
-                onPress={handleToggleFirstGig}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.actionChip,
-                  pressed ? styles.actionChipPressed : null,
-                ]}
-              >
-                <Animated.View
-                  style={[
-                    styles.actionIconWrap,
-                    { transform: [{ scale: firstGigScaleAnim }] },
-                  ]}
-                >
-                  <Ionicons
-                    name="ticket-outline"
-                    size={15}
-                    color={Colours.text.muted}
-                  />
-                </Animated.View>
-                <Text style={styles.actionChipText}>First</Text>
-              </Pressable>
-            ) : null}
-
-            {showFavouriteSelector ? (
-              <Pressable
-                onPress={handleToggleFavourite}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.actionChip,
-                  pressed ? styles.actionChipPressed : null,
-                ]}
-              >
-                <Animated.View
-                  style={[
-                    styles.actionIconWrap,
-                    { transform: [{ scale: favouriteScaleAnim }] },
-                  ]}
-                >
-                  <Ionicons
-                    name="star-outline"
-                    size={15}
-                    color={Colours.text.muted}
-                  />
-                </Animated.View>
-                <Text style={styles.actionChipText}>Fave</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
 
         <View style={styles.socialRow}>
           <View style={styles.socialLeft}>
@@ -676,6 +547,16 @@ const styles = StyleSheet.create({
     borderColor: Colours.ui.border,
   },
 
+  firstGigCard: {
+    borderColor: "rgba(126,182,255,0.42)",
+    backgroundColor: "rgba(126,182,255,0.04)",
+  },
+
+  favouriteGigCard: {
+    borderColor: "rgba(255,209,102,0.42)",
+    backgroundColor: "rgba(255,209,102,0.04)",
+  },
+
   pressed: {
     opacity: 0.92,
   },
@@ -708,6 +589,46 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
+  badgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+    flexWrap: "wrap",
+  },
+
+  firstBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(126,182,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(126,182,255,0.26)",
+  },
+
+  firstBadgeText: {
+    color: "#7EB6FF",
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "700",
+  },
+
+  favouriteBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,209,102,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,209,102,0.26)",
+  },
+
+  favouriteBadgeText: {
+    color: "#FFD166",
+    fontSize: 10,
+    lineHeight: 12,
+    fontWeight: "700",
+  },
+
   topRightActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -724,25 +645,6 @@ const styles = StyleSheet.create({
 
   topIconBtnPressed: {
     opacity: 0.8,
-  },
-
-  topMarkerBtn: {
-    width: 20,
-    height: 20,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-  },
-
-  firstTopMarkerBtn: {
-    backgroundColor: "transparent",
-    borderColor: "rgba(126,182,255,0.18)",
-  },
-
-  favouriteTopMarkerBtn: {
-    backgroundColor: "transparent",
-    borderColor: "rgba(255,209,102,0.18)",
   },
 
   meta: {
@@ -773,44 +675,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "600",
-  },
-
-  topActions: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-
-  actionChip: {
-    minWidth: 50,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-
-  actionChipPressed: {
-    opacity: 0.85,
-  },
-
-  actionIconWrap: {
-    height: 17,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  actionChipText: {
-    marginTop: 2,
-    color: Colours.text.muted,
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "700",
-    letterSpacing: 0.1,
   },
 
   socialRow: {

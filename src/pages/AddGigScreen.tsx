@@ -113,9 +113,16 @@ function findDuplicate(existing: Gig[], payload: any): Gig | null {
 }
 
 export function AddGigScreen(props: {
-  onCreated?: (gig: Gig) => void;
+  onCreated?: (
+    gig: Gig,
+    options?: {
+      markAsFirst?: boolean;
+      markAsFavourite?: boolean;
+    },
+  ) => void;
   prefill?: Partial<CreateGigInput> | null;
   autoCreate?: boolean;
+  hasFirstGig?: boolean;
   onPrefillUsed?: () => void;
   onPressLogo?: () => void;
   onBack?: () => void;
@@ -181,6 +188,9 @@ export function AddGigScreen(props: {
   const [justAutoCity, setJustAutoCity] = React.useState(false);
   const [scanningTicket, setScanningTicket] = React.useState(false);
   const [autoCreateAttempted, setAutoCreateAttempted] = React.useState(false);
+
+  const [markAsFirst, setMarkAsFirst] = React.useState(!props.hasFirstGig);
+  const [markAsFavourite, setMarkAsFavourite] = React.useState(false);
 
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
@@ -287,11 +297,7 @@ export function AddGigScreen(props: {
     if (autoCreateAttempted) return;
     if (loading) return;
 
-    const hasRequired =
-      artist.trim() &&
-      venue.trim() &&
-      city.trim() &&
-      date.trim();
+    const hasRequired = artist.trim() && venue.trim() && city.trim() && date.trim();
 
     if (!hasRequired) return;
 
@@ -464,14 +470,11 @@ export function AddGigScreen(props: {
           setTimeout(() => setJustAutoCity(false), 2200);
           return;
         }
-      } catch {
-        // fallback below
-      }
+      } catch {}
 
       const places = await Location.reverseGeocodeAsync(coords);
       const place = places?.[0];
-      const inferredCity =
-        place?.city || place?.subregion || place?.region || "";
+      const inferredCity = place?.city || place?.subregion || place?.region || "";
 
       if (inferredCity) {
         setCity(inferredCity);
@@ -547,6 +550,8 @@ export function AddGigScreen(props: {
 
     setJustAutoCity(false);
     setAutoCreateAttempted(false);
+    setMarkAsFirst(!props.hasFirstGig);
+    setMarkAsFavourite(false);
   };
 
   const submit = async () => {
@@ -599,7 +604,10 @@ export function AddGigScreen(props: {
       } catch {}
 
       showToast({ message: "Saved" });
-      props.onCreated?.(created);
+      props.onCreated?.(created, {
+        markAsFirst: !props.hasFirstGig && markAsFirst,
+        markAsFavourite,
+      });
       resetForm();
     } catch (e: any) {
       if (isOfflineError(e)) {
@@ -621,7 +629,10 @@ export function AddGigScreen(props: {
             "Saved offline",
             "You’re offline. This gig was queued and will sync when you’re back online.",
           );
-          props.onCreated?.({} as any);
+          props.onCreated?.({} as any, {
+            markAsFirst: !props.hasFirstGig && markAsFirst,
+            markAsFavourite,
+          });
           resetForm();
           return;
         } catch (qErr: any) {
@@ -845,6 +856,82 @@ export function AddGigScreen(props: {
               </View>
             )}
 
+            <View style={styles.highlightSection}>
+              <Text style={styles.sectionTitle}>Highlights</Text>
+
+              {!props.hasFirstGig ? (
+                <Pressable
+                  onPress={() => setMarkAsFirst((v) => !v)}
+                  style={({ pressed }) => [
+                    styles.highlightRow,
+                    markAsFirst ? styles.highlightActiveBlue : null,
+                    pressed ? styles.highlightPressed : null,
+                  ]}
+                >
+                  <View style={styles.highlightLeft}>
+                    <View
+                      style={[
+                        styles.highlightIconWrap,
+                        markAsFirst ? styles.highlightIconBlue : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name={markAsFirst ? "checkmark" : "ticket-outline"}
+                        size={16}
+                        color={markAsFirst ? "#7EB6FF" : Colours.text.muted}
+                      />
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.highlightTitle}>
+                        {markAsFirst
+                          ? "Will be set as first gig"
+                          : "Mark as first gig"}
+                      </Text>
+                      <Text style={styles.highlightText}>
+                        Use this for your first live show memory.
+                      </Text>
+                    </View>
+                  </View>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                onPress={() => setMarkAsFavourite((v) => !v)}
+                style={({ pressed }) => [
+                  styles.highlightRow,
+                  markAsFavourite ? styles.highlightActiveGold : null,
+                  pressed ? styles.highlightPressed : null,
+                ]}
+              >
+                <View style={styles.highlightLeft}>
+                  <View
+                    style={[
+                      styles.highlightIconWrap,
+                      markAsFavourite ? styles.highlightIconGold : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name={markAsFavourite ? "checkmark" : "star-outline"}
+                      size={16}
+                      color={markAsFavourite ? "#FFD166" : Colours.text.muted}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.highlightTitle}>
+                      {markAsFavourite
+                        ? "Will be set as favourite"
+                        : "Mark as favourite"}
+                    </Text>
+                    <Text style={styles.highlightText}>
+                      Save this as your standout gig.
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+
             <TextField
               label="Notes (optional)"
               value={notes}
@@ -1023,5 +1110,81 @@ const styles = StyleSheet.create({
 
   ratingBlock: {
     gap: 8,
+  },
+
+  highlightSection: {
+    marginTop: 4,
+  },
+
+  sectionTitle: {
+    color: Colours.text.muted,
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
+  highlightRow: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  highlightPressed: {
+    opacity: 0.9,
+  },
+
+  highlightActiveBlue: {
+    backgroundColor: "rgba(126,182,255,0.08)",
+    borderColor: "rgba(126,182,255,0.3)",
+  },
+
+  highlightActiveGold: {
+    backgroundColor: "rgba(255,209,102,0.08)",
+    borderColor: "rgba(255,209,102,0.3)",
+  },
+
+  highlightLeft: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+  },
+
+  highlightIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  highlightIconBlue: {
+    backgroundColor: "rgba(126,182,255,0.12)",
+    borderColor: "rgba(126,182,255,0.22)",
+  },
+
+  highlightIconGold: {
+    backgroundColor: "rgba(255,209,102,0.12)",
+    borderColor: "rgba(255,209,102,0.22)",
+  },
+
+  highlightTitle: {
+    color: Colours.text.primary,
+    fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  highlightText: {
+    color: Colours.text.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "500",
+    marginTop: 2,
   },
 });

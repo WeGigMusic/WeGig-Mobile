@@ -13,6 +13,7 @@ import {
   Linking,
 } from "react-native";
 
+import { Ionicons } from "@expo/vector-icons";
 import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
@@ -72,6 +73,10 @@ export function EditGigScreen(props: {
   onDone: () => void;
   onPressLogo?: () => void;
   onBack?: () => void;
+  isFirstGig?: boolean;
+  isFavouriteGig?: boolean;
+  onToggleFirst?: () => void;
+  onToggleFavourite?: () => void;
 }) {
   const { showToast } = useToast();
 
@@ -482,6 +487,80 @@ export function EditGigScreen(props: {
               </View>
             )}
 
+            <View style={styles.highlightSection}>
+              <Text style={styles.sectionTitle}>Highlights</Text>
+
+              <Pressable
+                onPress={props.onToggleFirst}
+                style={({ pressed }) => [
+                  styles.highlightRow,
+                  props.isFirstGig ? styles.highlightActiveBlue : null,
+                  pressed ? styles.highlightPressed : null,
+                ]}
+              >
+                <View style={styles.highlightLeft}>
+                  <View
+                    style={[
+                      styles.highlightIconWrap,
+                      props.isFirstGig ? styles.highlightIconBlue : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name={props.isFirstGig ? "ticket" : "ticket-outline"}
+                      size={16}
+                      color={props.isFirstGig ? "#7EB6FF" : Colours.text.muted}
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.highlightTitle}>
+                      {props.isFirstGig ? "First gig" : "Mark as first gig"}
+                    </Text>
+                    <Text style={styles.highlightText}>
+                      Your origin story gig.
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={props.onToggleFavourite}
+                style={({ pressed }) => [
+                  styles.highlightRow,
+                  props.isFavouriteGig ? styles.highlightActiveGold : null,
+                  pressed ? styles.highlightPressed : null,
+                ]}
+              >
+                <View style={styles.highlightLeft}>
+                  <View
+                    style={[
+                      styles.highlightIconWrap,
+                      props.isFavouriteGig ? styles.highlightIconGold : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name={props.isFavouriteGig ? "star" : "star-outline"}
+                      size={16}
+                      color={
+                        props.isFavouriteGig ? "#FFD166" : Colours.text.muted
+                      }
+                    />
+                  </View>
+
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.highlightTitle}>
+                      {props.isFavouriteGig
+                        ? "Favourite gig"
+                        : "Mark as favourite"}
+                    </Text>
+                    <Text style={styles.highlightText}>
+                      Your standout memory gig.
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            </View>
+
             <View style={styles.setlistCard}>
               <View style={styles.setlistHeaderRow}>
                 <View style={{ flex: 1 }}>
@@ -588,7 +667,9 @@ export function EditGigScreen(props: {
             {loading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>{UI_COPY.deleting}</Text>
+                <Text style={styles.muted}>
+                  {loading ? UI_COPY.saving : UI_COPY.deleting}
+                </Text>
               </View>
             ) : null}
           </View>
@@ -745,6 +826,68 @@ const styles = {
     color: Colours.text.muted,
     fontWeight: "700" as const,
     fontSize: 12,
+  },
+  highlightSection: {
+    marginTop: 4,
+  },
+  sectionTitle: {
+    color: Colours.text.muted,
+    fontSize: 12,
+    fontWeight: "700" as const,
+    marginBottom: 8,
+  },
+  highlightRow: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  highlightLeft: {
+    flexDirection: "row" as const,
+    gap: 10,
+    alignItems: "center" as const,
+  },
+  highlightTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800" as const,
+    fontSize: 14,
+  },
+  highlightText: {
+    color: Colours.text.muted,
+    fontSize: 12,
+    fontWeight: "600" as const,
+    marginTop: 2,
+  },
+  highlightActiveBlue: {
+    backgroundColor: "rgba(126,182,255,0.08)",
+    borderColor: "rgba(126,182,255,0.3)",
+  },
+  highlightActiveGold: {
+    backgroundColor: "rgba(255,209,102,0.08)",
+    borderColor: "rgba(255,209,102,0.3)",
+  },
+  highlightPressed: {
+    opacity: 0.9,
+  },
+  highlightIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  highlightIconBlue: {
+    backgroundColor: "rgba(126,182,255,0.12)",
+    borderColor: "rgba(126,182,255,0.22)",
+  },
+  highlightIconGold: {
+    backgroundColor: "rgba(255,209,102,0.12)",
+    borderColor: "rgba(255,209,102,0.22)",
   },
   setlistCard: {
     backgroundColor: "rgba(255,255,255,0.03)",

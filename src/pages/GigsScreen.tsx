@@ -106,8 +106,7 @@ function computeGigBadges(gigs: Gig[]) {
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  const topArtistCount =
-    Object.values(artists).sort((a, b) => b - a)[0] ?? 0;
+  const topArtistCount = Object.values(artists).sort((a, b) => b - a)[0] ?? 0;
 
   const badges: BadgeChip[] = [
     { title: "First Gig", icon: "🎟️", unlocked: total >= 1 },
@@ -474,6 +473,7 @@ export function GigsScreen(props: {
         onPressLogo={props.onPressLogo}
         prefill={discoverPrefill ?? props.prefill}
         autoCreate={!!props.autoCreatePrefill}
+        hasFirstGig={Boolean(firstGigId)}
         onPrefillUsed={() => {
           clearDiscoverPrefill();
         }}
@@ -481,16 +481,24 @@ export function GigsScreen(props: {
           setAddingGig(false);
           clearDiscoverPrefill();
         }}
-        onCreated={(createdGig) => {
+        onCreated={async (createdGig, options) => {
           setAddingGig(false);
           clearDiscoverPrefill();
 
           if (createdGig?.id) {
+            if (options?.markAsFirst) {
+              await toggleFirstGig(createdGig.id);
+            }
+
+            if (options?.markAsFavourite) {
+              await toggleFavouriteGig(createdGig.id);
+            }
+
             setEditingGig(createdGig);
           }
 
-          void load();
-          void loadPinnedGigIds();
+          await load();
+          await loadPinnedGigIds();
           props.onGigCreated?.();
         }}
       />
@@ -508,6 +516,10 @@ export function GigsScreen(props: {
           void load();
           void loadPinnedGigIds();
         }}
+        isFirstGig={editingGig.id === firstGigId}
+        isFavouriteGig={editingGig.id === favouriteGigId}
+        onToggleFirst={() => void toggleFirstGig(editingGig.id)}
+        onToggleFavourite={() => void toggleFavouriteGig(editingGig.id)}
       />
     );
   }
@@ -526,8 +538,6 @@ export function GigsScreen(props: {
 
   const gigs = data?.gigs ?? [];
   const isEmpty = !loading && !error && gigs.length === 0;
-  const hasFirstGig = Boolean(firstGigId);
-  const hasFavouriteGig = Boolean(favouriteGigId);
 
   const showcaseBadges = computeGigBadges(gigs).slice(0, 6);
 
@@ -642,12 +652,6 @@ export function GigsScreen(props: {
                   onPressArtist={(artist: string) => setArtistView(artist)}
                   isFirstGig={item.id === firstGigId}
                   isFavouriteGig={item.id === favouriteGigId}
-                  showFirstGigAction={!hasFirstGig || item.id === firstGigId}
-                  showFavouriteAction={
-                    !hasFavouriteGig || item.id === favouriteGigId
-                  }
-                  onToggleFavourite={() => void toggleFavouriteGig(item.id)}
-                  onToggleFirstGig={() => void toggleFirstGig(item.id)}
                 />
               )}
               refreshing={loading}

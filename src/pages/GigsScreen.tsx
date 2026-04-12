@@ -250,6 +250,7 @@ export function GigsScreen(props: {
   resetSignal?: number;
   scrollToTopSignal?: number;
   prefill?: Partial<CreateGigInput> | null;
+  autoCreatePrefill?: boolean;
   onPrefillUsed?: () => void;
   onGigCreated?: () => void;
 }) {
@@ -387,14 +388,21 @@ export function GigsScreen(props: {
 
     setDiscoverPrefill(normalizedPrefill);
 
-    if (hasRequired) {
-      setConfirmingGig(true);
-      setAddingGig(false);
-    } else {
+    if (!hasRequired) {
       setAddingGig(true);
       setConfirmingGig(false);
+      return;
     }
-  }, [props.prefill]);
+
+    if (props.autoCreatePrefill) {
+      setAddingGig(true);
+      setConfirmingGig(false);
+      return;
+    }
+
+    setConfirmingGig(true);
+    setAddingGig(false);
+  }, [props.prefill, props.autoCreatePrefill]);
 
   const clearDiscoverPrefill = React.useCallback(() => {
     setDiscoverPrefill(null);
@@ -408,10 +416,11 @@ export function GigsScreen(props: {
     setError("");
 
     try {
-      await apiPost<Gig>("/gigs", discoverPrefill);
+      const created = await apiPost<Gig>("/gigs", discoverPrefill);
 
       clearDiscoverPrefill();
       setConfirmingGig(false);
+      setEditingGig(created);
       await load();
       await loadPinnedGigIds();
       props.onGigCreated?.();
@@ -464,6 +473,7 @@ export function GigsScreen(props: {
       <AddGigScreen
         onPressLogo={props.onPressLogo}
         prefill={discoverPrefill ?? props.prefill}
+        autoCreate={!!props.autoCreatePrefill}
         onPrefillUsed={() => {
           clearDiscoverPrefill();
         }}
@@ -471,9 +481,14 @@ export function GigsScreen(props: {
           setAddingGig(false);
           clearDiscoverPrefill();
         }}
-        onCreated={() => {
+        onCreated={(createdGig) => {
           setAddingGig(false);
           clearDiscoverPrefill();
+
+          if (createdGig?.id) {
+            setEditingGig(createdGig);
+          }
+
           void load();
           void loadPinnedGigIds();
           props.onGigCreated?.();

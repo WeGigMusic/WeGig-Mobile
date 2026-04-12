@@ -94,6 +94,7 @@ function AppShell() {
   const [prefill, setPrefill] = React.useState<Partial<CreateGigInput> | null>(
     null,
   );
+  const [autoCreatePrefill, setAutoCreatePrefill] = React.useState(false);
 
   const [queuedCount, setQueuedCount] = React.useState(0);
   const [isOnline, setIsOnline] = React.useState(true);
@@ -197,6 +198,7 @@ function AppShell() {
       if (isSameTab) {
         if (next === "gigs") {
           setPrefill(null);
+          setAutoCreatePrefill(false);
           setGigsResetSignal((n) => n + 1);
           setGigsScrollToTopSignal((n) => n + 1);
         }
@@ -240,9 +242,14 @@ function AppShell() {
             resetSignal={gigsResetSignal}
             scrollToTopSignal={gigsScrollToTopSignal}
             prefill={prefill}
-            onPrefillUsed={() => setPrefill(null)}
+            autoCreatePrefill={autoCreatePrefill}
+            onPrefillUsed={() => {
+              setPrefill(null);
+              setAutoCreatePrefill(false);
+            }}
             onGigCreated={() => {
               setPrefill(null);
+              setAutoCreatePrefill(false);
               setRefreshKey((k) => k + 1);
               void runSync();
             }}
@@ -253,6 +260,7 @@ function AppShell() {
             scrollToTopSignal={discoverScrollToTopSignal}
             onAddToGigs={(draft) => {
               setPrefill(draft);
+              setAutoCreatePrefill(true);
               setTab("gigs");
             }}
           />

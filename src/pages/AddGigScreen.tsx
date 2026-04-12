@@ -115,6 +115,7 @@ function findDuplicate(existing: Gig[], payload: any): Gig | null {
 export function AddGigScreen(props: {
   onCreated?: (gig: Gig) => void;
   prefill?: Partial<CreateGigInput> | null;
+  autoCreate?: boolean;
   onPrefillUsed?: () => void;
   onPressLogo?: () => void;
   onBack?: () => void;
@@ -179,6 +180,7 @@ export function AddGigScreen(props: {
   const [justScanned, setJustScanned] = React.useState(false);
   const [justAutoCity, setJustAutoCity] = React.useState(false);
   const [scanningTicket, setScanningTicket] = React.useState(false);
+  const [autoCreateAttempted, setAutoCreateAttempted] = React.useState(false);
 
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
@@ -221,6 +223,7 @@ export function AddGigScreen(props: {
       setTicketUrl(String((props.prefill as any).ticketUrl));
     }
 
+    setAutoCreateAttempted(false);
     setJustPrefilled(true);
     const t = setTimeout(() => setJustPrefilled(false), 2500);
 
@@ -277,6 +280,38 @@ export function AddGigScreen(props: {
 
     return () => clearTimeout(t);
   }, [artist, runMbSearch]);
+
+  React.useEffect(() => {
+    if (!props.autoCreate) return;
+    if (!props.prefill) return;
+    if (autoCreateAttempted) return;
+    if (loading) return;
+
+    const hasRequired =
+      artist.trim() &&
+      venue.trim() &&
+      city.trim() &&
+      date.trim();
+
+    if (!hasRequired) return;
+
+    setAutoCreateAttempted(true);
+
+    const t = setTimeout(() => {
+      void submit();
+    }, 250);
+
+    return () => clearTimeout(t);
+  }, [
+    props.autoCreate,
+    props.prefill,
+    autoCreateAttempted,
+    loading,
+    artist,
+    venue,
+    city,
+    date,
+  ]);
 
   const chooseArtist = (a: MbArtist) => {
     setArtist(a.name);
@@ -511,6 +546,7 @@ export function AddGigScreen(props: {
     setVenueSessionToken(createSessionToken());
 
     setJustAutoCity(false);
+    setAutoCreateAttempted(false);
   };
 
   const submit = async () => {

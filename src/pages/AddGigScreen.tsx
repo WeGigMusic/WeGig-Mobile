@@ -80,18 +80,32 @@ function findDuplicate(existing: Gig[], payload: any): Gig | null {
   }
 
   const a = norm(payload?.artist);
+  const d = norm(payload?.date);
+  const placeId = norm(payload?.venuePlaceId);
+
+  if (a && d && placeId) {
+    const dup = existing.find((g: any) => {
+      return (
+        norm(g?.artist) === a &&
+        norm(g?.date) === d &&
+        norm(g?.venuePlaceId) === placeId
+      );
+    });
+
+    if (dup) return dup;
+  }
+
   const v = norm(payload?.venue);
   const c = norm(payload?.city);
-  const d = norm(payload?.date);
 
   if (!a || !v || !c || !d) return null;
 
-  const dup = existing.find((g) => {
+  const dup = existing.find((g: any) => {
     return (
-      norm((g as any).artist) === a &&
-      norm((g as any).venue) === v &&
-      norm((g as any).city) === c &&
-      norm((g as any).date) === d
+      norm(g?.artist) === a &&
+      norm(g?.venue) === v &&
+      norm(g?.city) === c &&
+      norm(g?.date) === d
     );
   });
 
@@ -128,6 +142,13 @@ export function AddGigScreen(props: {
   const [venueSessionToken, setVenueSessionToken] = React.useState(
     createSessionToken(),
   );
+  const [locationBias, setLocationBias] = React.useState<
+    | {
+        latitude: number;
+        longitude: number;
+      }
+    | undefined
+  >(undefined);
 
   const [selectedVenueLat, setSelectedVenueLat] = React.useState<
     number | undefined
@@ -138,8 +159,9 @@ export function AddGigScreen(props: {
   const [selectedVenuePlaceName, setSelectedVenuePlaceName] = React.useState<
     string | undefined
   >(undefined);
-  const [selectedVenueGooglePlaceId, setSelectedVenueGooglePlaceId] =
-    React.useState<string | undefined>(undefined);
+  const [selectedVenuePlaceId, setSelectedVenuePlaceId] = React.useState<
+    string | undefined
+  >(undefined);
 
   const [notes, setNotes] = React.useState("");
   const [externalSource, setExternalSource] = React.useState<
@@ -279,7 +301,17 @@ export function AddGigScreen(props: {
       setVenueError("");
 
       try {
-        const results = await searchVenues(query, venueSessionToken);
+        const results = await searchVenues(query, venueSessionToken, {
+          cityHint: city.trim() || undefined,
+          locationBias: locationBias
+            ? {
+                latitude: locationBias.latitude,
+                longitude: locationBias.longitude,
+                radiusMeters: 50000,
+              }
+            : undefined,
+        });
+
         setVenueResults(results.slice(0, 8));
         setVenueOpen(true);
       } catch (e: any) {
@@ -290,13 +322,13 @@ export function AddGigScreen(props: {
         setVenueLoading(false);
       }
     },
-    [venueSessionToken],
+    [venueSessionToken, city, locationBias],
   );
 
   React.useEffect(() => {
     const q = venue.trim();
 
-    if (selectedVenueGooglePlaceId) {
+    if (selectedVenuePlaceId) {
       setVenueResults([]);
       setVenueOpen(false);
       setVenueLoading(false);
@@ -316,7 +348,7 @@ export function AddGigScreen(props: {
     }, 320);
 
     return () => clearTimeout(t);
-  }, [venue, runVenueSearch, selectedVenueGooglePlaceId]);
+  }, [venue, runVenueSearch, selectedVenuePlaceId]);
 
   const chooseGoogleVenue = async (suggestion: PlaceSuggestion) => {
     try {
@@ -328,7 +360,7 @@ export function AddGigScreen(props: {
         venueSessionToken,
       );
 
-      setSelectedVenueGooglePlaceId(details.placeId);
+      setSelectedVenuePlaceId(details.placeId);
       setSelectedVenueLat(details.latitude);
       setSelectedVenueLng(details.longitude);
       setSelectedVenuePlaceName(details.formattedAddress);
@@ -385,6 +417,8 @@ export function AddGigScreen(props: {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       };
+
+      setLocationBias(coords);
 
       try {
         const resolvedCity = await reverseGeocodeCity(coords);
@@ -463,7 +497,8 @@ export function AddGigScreen(props: {
     setSelectedVenueLat(undefined);
     setSelectedVenueLng(undefined);
     setSelectedVenuePlaceName(undefined);
-    setSelectedVenueGooglePlaceId(undefined);
+    setSelectedVenuePlaceId(undefined);
+    setLocationBias(undefined);
 
     setMbResults([]);
     setMbOpen(false);
@@ -496,7 +531,7 @@ export function AddGigScreen(props: {
     payload.venueLatitude = selectedVenueLat;
     payload.venueLongitude = selectedVenueLng;
     payload.venuePlaceName = selectedVenuePlaceName;
-    payload.venueMapboxId = selectedVenueGooglePlaceId;
+    payload.venuePlaceId = selectedVenuePlaceId;
 
     if (!payload.artist || !payload.venue || !payload.city || !payload.date) {
       Alert.alert(
@@ -701,7 +736,7 @@ export function AddGigScreen(props: {
                 setSelectedVenueLat(undefined);
                 setSelectedVenueLng(undefined);
                 setSelectedVenuePlaceName(undefined);
-                setSelectedVenueGooglePlaceId(undefined);
+                setSelectedVenuePlaceId(undefined);
               }}
               placeholder="Start typing a venue (e.g. Wembley Stadium)…"
               autoCapitalize="words"
@@ -742,6 +777,10 @@ export function AddGigScreen(props: {
 
             <TextField label="City" value={city} onChangeText={setCity} />
 
+            {justAutoCity ? (
+              <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
+            ) : null}
+
             <Pressable
               onPress={handleUseMyLocation}
               style={({ pressed }) => [
@@ -751,10 +790,6 @@ export function AddGigScreen(props: {
             >
               <Text style={styles.locationBtnText}>Use my current location</Text>
             </Pressable>
-
-            {justAutoCity ? (
-              <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
-            ) : null}
 
             <DateField
               label="Date"

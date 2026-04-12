@@ -21,34 +21,16 @@ import { DateField } from "../components/DateField";
 import { useToast } from "../components/ToastProvider";
 
 import { apiPatch, apiDelete, apiGet } from "../lib/api";
-import { searchPlaces } from "../lib/mapbox";
 import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
 import { parseYmdToUtcDate } from "../lib/date";
-
-type TmVenue = {
-  id: string;
-  name: string;
-  city?: string | null;
-  countryCode?: string | null;
-};
-
-type TmVenueSearchResponse =
-  | {
-      venues?: TmVenue[];
-    }
-  | any;
-
-type MapboxPlace = {
-  id: string;
-  name: string;
-  placeName: string;
-  city?: string;
-  region?: string;
-  country?: string;
-  latitude: number;
-  longitude: number;
-};
+import {
+  createSessionToken,
+  getPlaceDetails,
+  searchVenues,
+  type PlaceDetails,
+  type PlaceSuggestion,
+} from "./googlePlaces";
 
 type GigSetlistItem = {
   id: string;
@@ -111,10 +93,24 @@ export function EditGigScreen(props: {
   const [venueTouched, setVenueTouched] = React.useState(false);
   const [justAutoCity, setJustAutoCity] = React.useState(false);
 
-  const [mapboxVenueResults, setMapboxVenueResults] = React.useState<
-    MapboxPlace[]
-  >([]);
-  const [tmResults, setTmResults] = React.useState<TmVenue[]>([]);
+  const [venueResults, setVenueResults] = React.useState<PlaceSuggestion[]>([]);
+  const [venueSessionToken, setVenueSessionToken] = React.useState(
+    createSessionToken(),
+  );
+  const [locationBias] = React.useState<
+    | {
+        latitude: number;
+        longitude: number;
+      }
+    | undefined
+  >(
+    props.gig.venueLatitude != null && props.gig.venueLongitude != null
+      ? {
+          latitude: props.gig.venueLatitude,
+          longitude: props.gig.venueLongitude,
+        }
+      : undefined,
+  );
 
   const [selectedVenueLat, setSelectedVenueLat] = React.useState<
     number | undefined
@@ -125,9 +121,9 @@ export function EditGigScreen(props: {
   const [selectedVenuePlaceName, setSelectedVenuePlaceName] = React.useState<
     string | undefined
   >(props.gig.venuePlaceName);
-  const [selectedVenueMapboxId, setSelectedVenueMapboxId] = React.useState<
+  const [selectedVenuePlaceId, setSelectedVenuePlaceId] = React.useState<
     string | undefined
-  >(props.gig.venueMapboxId);
+  >(props.gig.venuePlaceId);
 
   const [setlistLoading, setSetlistLoading] = React.useState(false);
   const [setlistError, setSetlistError] = React.useState("");
@@ -160,11 +156,10 @@ export function EditGigScreen(props: {
   );
 
   const runVenueSearch = React.useCallback(
-    async (q: string, cityHint: string) => {
+    async (q: string) => {
       const query = q.trim();
       if (query.length < 2) {
-        setMapboxVenueResults([]);
-        setTmResults([]);
+        setVenueResults([]);
         setVenueError("");
         setVenueLoading(false);
         return;
@@ -174,116 +169,89 @@ export function EditGigScreen(props: {
       setVenueError("");
 
       try {
-        const mapboxPlaces = await searchPlaces({
-          query,
-          cityHint: cityHint.trim() || undefined,
-          limit: 8,
+        const results = await searchVenues(query, venueSessionToken, {
+          cityHint: city.trim() || undefined,
+          locationBias: locationBias
+            ? {
+                latitude: locationBias.latitude,
+                longitude: locationBias.longitude,
+                radiusMeters: 50000,
+              }
+            : undefined,
         });
 
-        setMapboxVenueResults(mapboxPlaces);
-        setTmResults([]);
-        setVenueOpen(true);
-        return;
-      } catch {
-        // fall through to Ticketmaster fallback
-      }
-
-      try {
-        const qs = new URLSearchParams();
-        qs.set("q", query);
-        if (cityHint.trim()) qs.set("city", cityHint.trim());
-        qs.set("size", "8");
-
-        const res = await apiGet<TmVenueSearchResponse>(
-          `/tm/venues/search?${qs.toString()}`,
-        );
-
-        const venues: TmVenue[] = (res?.venues as TmVenue[]) ?? [];
-        setTmResults(Array.isArray(venues) ? venues.slice(0, 8) : []);
-        setMapboxVenueResults([]);
+        setVenueResults(results.slice(0, 8));
         setVenueOpen(true);
       } catch (e: any) {
         setVenueError(e?.message ?? "Venue search failed");
-        setMapboxVenueResults([]);
-        setTmResults([]);
+        setVenueResults([]);
         setVenueOpen(false);
       } finally {
         setVenueLoading(false);
       }
     },
-    [],
+    [venueSessionToken, city, locationBias],
   );
 
   React.useEffect(() => {
     if (!venueTouched) return;
 
-    setSelectedVenueLat(undefined);
-    setSelectedVenueLng(undefined);
-    setSelectedVenuePlaceName(undefined);
-    setSelectedVenueMapboxId(undefined);
-
     const q = venue.trim();
+
+    if (selectedVenuePlaceId) {
+      setVenueResults([]);
+      setVenueOpen(false);
+      setVenueLoading(false);
+      return;
+    }
+
     if (q.length < 2) {
-      setMapboxVenueResults([]);
-      setTmResults([]);
+      setVenueResults([]);
       setVenueOpen(false);
       setVenueError("");
       return;
     }
 
     const t = setTimeout(() => {
-      void runVenueSearch(q, city);
+      void runVenueSearch(q);
     }, 320);
 
     return () => clearTimeout(t);
-  }, [venue, city, runVenueSearch, venueTouched]);
+  }, [venue, runVenueSearch, venueTouched, selectedVenuePlaceId]);
 
-  const chooseMapboxVenue = (place: MapboxPlace) => {
-    setVenue(place.name);
+  const chooseGoogleVenue = async (suggestion: PlaceSuggestion) => {
+    try {
+      setVenueLoading(true);
+      setVenueError("");
 
-    const placeCity = (place.city ?? "").trim();
-    if (placeCity) {
-      setCity(placeCity);
-      setJustAutoCity(true);
-      setTimeout(() => setJustAutoCity(false), 2200);
-    }
+      const details: PlaceDetails = await getPlaceDetails(
+        suggestion.placeId,
+        venueSessionToken,
+      );
 
-    setSelectedVenueLat(place.latitude);
-    setSelectedVenueLng(place.longitude);
-    setSelectedVenuePlaceName(place.placeName);
-    setSelectedVenueMapboxId(place.id);
+      setSelectedVenuePlaceId(details.placeId);
+      setSelectedVenueLat(details.latitude);
+      setSelectedVenueLng(details.longitude);
+      setSelectedVenuePlaceName(details.formattedAddress);
 
-    setVenueOpen(false);
-    setMapboxVenueResults([]);
-    setTmResults([]);
-    setVenueError("");
-  };
+      setVenue(details.venueName);
 
-  const chooseTicketmasterVenue = (v: TmVenue) => {
-    setVenue(v.name);
-
-    const venueCity = (v.city ?? "").toString().trim();
-    if (venueCity) {
-      const current = city.trim().toLowerCase();
-      const shouldOverwrite =
-        !current || current === "unknown city" || current === "unknown";
-
-      if (shouldOverwrite) {
-        setCity(venueCity);
+      const placeCity = details.city.trim();
+      if (placeCity) {
+        setCity(placeCity);
         setJustAutoCity(true);
         setTimeout(() => setJustAutoCity(false), 2200);
       }
+
+      setVenueOpen(false);
+      setVenueResults([]);
+      setVenueError("");
+      setVenueLoading(false);
+      setVenueSessionToken(createSessionToken());
+    } catch (e: any) {
+      setVenueError(e?.message ?? "Failed to load venue details");
+      setVenueLoading(false);
     }
-
-    setSelectedVenueLat(undefined);
-    setSelectedVenueLng(undefined);
-    setSelectedVenuePlaceName(undefined);
-    setSelectedVenueMapboxId(undefined);
-
-    setVenueOpen(false);
-    setMapboxVenueResults([]);
-    setTmResults([]);
-    setVenueError("");
   };
 
   const loadSetlistMatch = React.useCallback(async () => {
@@ -341,7 +309,7 @@ export function EditGigScreen(props: {
       venueLatitude: selectedVenueLat,
       venueLongitude: selectedVenueLng,
       venuePlaceName: selectedVenuePlaceName,
-      venueMapboxId: selectedVenueMapboxId,
+      venuePlaceId: selectedVenuePlaceId,
       ticketUrl: props.gig.ticketUrl,
       externalSource: props.gig.externalSource,
       externalId: props.gig.externalId,
@@ -440,8 +408,13 @@ export function EditGigScreen(props: {
                 setVenueTouched(true);
                 setVenue(t);
                 setVenueOpen(true);
+                setVenueError("");
+                setSelectedVenueLat(undefined);
+                setSelectedVenueLng(undefined);
+                setSelectedVenuePlaceName(undefined);
+                setSelectedVenuePlaceId(undefined);
               }}
-              placeholder="Start typing venue…"
+              placeholder="Start typing a venue…"
               autoCapitalize="words"
             />
 
@@ -458,60 +431,25 @@ export function EditGigScreen(props: {
               </Text>
             ) : null}
 
-            {venueOpen &&
-            !venueLoading &&
-            (mapboxVenueResults.length > 0 || tmResults.length > 0) ? (
+            {venueOpen && !venueLoading && venueResults.length > 0 ? (
               <View style={styles.suggestCard}>
-                {mapboxVenueResults.map((place) => {
-                  const meta = [place.city, place.region, place.country]
-                    .filter(Boolean)
-                    .join(" • ");
-
-                  return (
-                    <Pressable
-                      key={place.id}
-                      onPress={() => chooseMapboxVenue(place)}
-                      style={({ pressed }) => [
-                        styles.suggestRow,
-                        pressed ? { opacity: 0.9 } : null,
-                      ]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.suggestTitle}>{place.name}</Text>
-                        {meta ? (
-                          <Text style={styles.suggestMeta}>{meta}</Text>
-                        ) : null}
-                      </View>
-                      <Text style={styles.sourcePill}>Mapbox</Text>
-                    </Pressable>
-                  );
-                })}
-
-                {tmResults.map((v) => {
-                  const meta = [v.city ?? "", v.countryCode ?? ""]
-                    .map((x) => String(x).trim())
-                    .filter(Boolean)
-                    .join(" • ");
-
-                  return (
-                    <Pressable
-                      key={v.id}
-                      onPress={() => chooseTicketmasterVenue(v)}
-                      style={({ pressed }) => [
-                        styles.suggestRow,
-                        pressed ? { opacity: 0.9 } : null,
-                      ]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.suggestTitle}>{v.name}</Text>
-                        {meta ? (
-                          <Text style={styles.suggestMeta}>{meta}</Text>
-                        ) : null}
-                      </View>
-                      <Text style={styles.sourcePillMuted}>TM</Text>
-                    </Pressable>
-                  );
-                })}
+                {venueResults.map((place) => (
+                  <Pressable
+                    key={place.placeId}
+                    onPress={() => void chooseGoogleVenue(place)}
+                    style={({ pressed }) => [
+                      styles.suggestRow,
+                      pressed ? { opacity: 0.9 } : null,
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.suggestTitle}>{place.title}</Text>
+                      {place.subtitle ? (
+                        <Text style={styles.suggestMeta}>{place.subtitle}</Text>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                ))}
               </View>
             ) : null}
 
@@ -650,9 +588,7 @@ export function EditGigScreen(props: {
             {loading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>
-                  {UI_COPY.deleting}
-                </Text>
+                <Text style={styles.muted}>{UI_COPY.deleting}</Text>
               </View>
             ) : null}
           </View>
@@ -660,7 +596,7 @@ export function EditGigScreen(props: {
       </KeyboardAvoidingView>
 
       <Modal
-          visible={setlistModalOpen}
+        visible={setlistModalOpen}
         transparent
         animationType="fade"
         onRequestClose={() => setSetlistModalOpen(false)}
@@ -809,30 +745,6 @@ const styles = {
     color: Colours.text.muted,
     fontWeight: "700" as const,
     fontSize: 12,
-  },
-  sourcePill: {
-    color: Colours.text.primary,
-    fontWeight: "800" as const,
-    fontSize: 11,
-    lineHeight: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(47,140,255,0.2)",
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.4)",
-  },
-  sourcePillMuted: {
-    color: Colours.text.muted,
-    fontWeight: "800" as const,
-    fontSize: 11,
-    lineHeight: 14,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
   },
   setlistCard: {
     backgroundColor: "rgba(255,255,255,0.03)",

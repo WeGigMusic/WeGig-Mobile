@@ -15,7 +15,7 @@ export type Gig = {
   venueLatitude?: number;
   venueLongitude?: number;
   venuePlaceName?: string;
-  venueMapboxId?: string;
+  venuePlaceId?: string;
 };
 
 export type GigsResponse = {
@@ -39,5 +39,5 @@ export type CreateGigInput = {
   venueLatitude?: number;
   venueLongitude?: number;
   venuePlaceName?: string;
-  venueMapboxId?: string;
+  venuePlaceId?: string;
 };

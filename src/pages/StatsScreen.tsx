@@ -30,37 +30,41 @@ type BadgeInfo = {
 };
 
 const BADGE_INFO: Record<string, BadgeInfo> = {
-  "First Gig": {
-    title: "First Gig",
+  "Setlist Opener": {
+    title: "Setlist Opener",
     description: "Logged your first gig on WeGig.",
+  },
+  Soundcheck: {
+    title: "Soundcheck",
+    description: "Rated your first gig.",
   },
   "Scene Regular": {
     title: "Scene Regular",
-    description: "Logged 5 gigs.",
+    description: "Logged 10 gigs.",
   },
-  "Venue Hopper": {
-    title: "Venue Hopper",
-    description: "Visited 3 different venues.",
+  "Touring the Scene": {
+    title: "Touring the Scene",
+    description: "Visited 7 different venues.",
   },
-  "City Explorer": {
-    title: "City Explorer",
-    description: "Logged gigs in 3 different cities.",
+  "On Tour": {
+    title: "On Tour",
+    description: "Logged gigs in 5 different cities.",
   },
-  Superfan: {
-    title: "Superfan",
-    description: "Saw the same artist 3 times.",
+  "Die Hard": {
+    title: "Die Hard",
+    description: "Saw the same artist 5 times.",
   },
-  "Perfect Set": {
-    title: "Perfect Set",
-    description: "Gave a gig a 5-star rating.",
+  Encore: {
+    title: "Encore",
+    description: "Rated a gig 5 stars.",
   },
-  "Sharp Ears": {
-    title: "Sharp Ears",
+  "Well Tuned": {
+    title: "Well Tuned",
     description: "Rated 5 gigs.",
   },
-  "First Review": {
-    title: "First Review",
-    description: "Rated your first gig.",
+  Headliner: {
+    title: "Headliner",
+    description: "Logged 20 gigs.",
   },
 };
 
@@ -125,22 +129,26 @@ function buildStats(gigs: Gig[]) {
   let statusColor = "#6B7280";
   let statusIcon = "✨";
 
-  if (total >= 10) {
-    statusLabel = "Scene Member";
+  if (total >= 20) {
+    statusLabel = "Headliner";
+    statusColor = "#FFB703";
+    statusIcon = "🎤";
+  } else if (total >= 10) {
+    statusLabel = "Scene Regular";
     statusColor = "#8A5BFF";
-    statusIcon = "⚡";
-  } else if (cityCount >= 3) {
-    statusLabel = "Explorer";
+    statusIcon = "🔥";
+  } else if (cityCount >= 5) {
+    statusLabel = "On Tour";
     statusColor = "#C0C4CC";
     statusIcon = "🌍";
   } else if (rated.length >= 5) {
-    statusLabel = "Reviewer";
+    statusLabel = "Well Tuned";
     statusColor = "#2EE59D";
-    statusIcon = "📝";
-  } else if (total >= 5) {
-    statusLabel = "Regular";
+    statusIcon = "🎚️";
+  } else if (total >= 1) {
+    statusLabel = "Setlist Opener";
     statusColor = "#2F8CFF";
-    statusIcon = "🔥";
+    statusIcon = "🎟️";
   }
 
   const bestNight =
@@ -162,52 +170,58 @@ function buildStats(gigs: Gig[]) {
 
   const badges: BadgeDef[] = [
     {
-      title: "First Gig",
+      title: "Setlist Opener",
       icon: "🎟️",
       unlocked: total >= 1,
       progressLabel: `${Math.min(total, 1)}/1 gigs`,
     },
     {
-      title: "First Review",
-      icon: "✨",
+      title: "Soundcheck",
+      icon: "🎧",
       unlocked: rated.length >= 1,
       progressLabel: `${Math.min(rated.length, 1)}/1 rated gigs`,
     },
     {
       title: "Scene Regular",
       icon: "🔥",
-      unlocked: total >= 5,
-      progressLabel: `${Math.min(total, 5)}/5 gigs`,
+      unlocked: total >= 10,
+      progressLabel: `${Math.min(total, 10)}/10 gigs`,
     },
     {
-      title: "Venue Hopper",
+      title: "Touring the Scene",
       icon: "🏟️",
-      unlocked: venueCount >= 3,
-      progressLabel: `${Math.min(venueCount, 3)}/3 venues`,
+      unlocked: venueCount >= 7,
+      progressLabel: `${Math.min(venueCount, 7)}/7 venues`,
     },
     {
-      title: "City Explorer",
+      title: "On Tour",
       icon: "🌍",
-      unlocked: cityCount >= 3,
-      progressLabel: `${Math.min(cityCount, 3)}/3 cities`,
+      unlocked: cityCount >= 5,
+      progressLabel: `${Math.min(cityCount, 5)}/5 cities`,
     },
     {
-      title: "Superfan",
+      title: "Die Hard",
       icon: "⭐",
-      unlocked: topArtistCount >= 3,
-      progressLabel: `${Math.min(topArtistCount, 3)}/3 same artist`,
+      unlocked: topArtistCount >= 5,
+      progressLabel: `${Math.min(topArtistCount, 5)}/5 same artist`,
     },
     {
-      title: "Perfect Set",
+      title: "Encore",
       icon: "🌟",
       unlocked: hasFiveStarGig,
       progressLabel: `${hasFiveStarGig ? 1 : 0}/1 five-star gigs`,
     },
     {
-      title: "Sharp Ears",
-      icon: "📝",
+      title: "Well Tuned",
+      icon: "🎚️",
       unlocked: rated.length >= 5,
       progressLabel: `${Math.min(rated.length, 5)}/5 rated gigs`,
+    },
+    {
+      title: "Headliner",
+      icon: "🎤",
+      unlocked: total >= 20,
+      progressLabel: `${Math.min(total, 20)}/20 gigs`,
     },
   ];
 
@@ -230,9 +244,10 @@ function buildStats(gigs: Gig[]) {
     statusLabel,
     statusColor,
     statusIcon,
-    explorerProgress: clampProgress(cityCount, 3),
-    superfanProgress: clampProgress(topArtistCount, 3),
-    venueProgress: clampProgress(venueCount, 3),
+    onTourProgress: clampProgress(cityCount, 5),
+    dieHardProgress: clampProgress(topArtistCount, 5),
+    touringProgress: clampProgress(venueCount, 7),
+    headlinerProgress: clampProgress(total, 20),
   };
 }
 
@@ -329,9 +344,7 @@ function BadgeInfoModal(props: {
           style={styles.badgeModalCard}
         >
           <Text style={styles.badgeModalTitle}>{props.title}</Text>
-
           <Text style={styles.badgeModalDescription}>{props.description}</Text>
-
           <Text style={styles.badgeModalHint}>Tap outside to close</Text>
         </Pressable>
       </Pressable>
@@ -467,21 +480,27 @@ export function StatsScreen(props: {
             <SectionTitle title="Progress" />
             <View style={styles.card}>
               <ProgressRow
-                label="Explorer"
-                valueText={`${Math.min(stats.cityCount, 3)}/3 cities`}
-                progress={stats.explorerProgress}
+                label="Headliner"
+                valueText={`${Math.min(stats.total, 20)}/20 gigs`}
+                progress={stats.headlinerProgress}
+                tint="#FFB703"
+              />
+              <ProgressRow
+                label="On Tour"
+                valueText={`${Math.min(stats.cityCount, 5)}/5 cities`}
+                progress={stats.onTourProgress}
                 tint="#C0C4CC"
               />
               <ProgressRow
-                label="Superfan"
-                valueText={`${Math.min(stats.topArtistCount, 3)}/3 same artist`}
-                progress={stats.superfanProgress}
+                label="Die Hard"
+                valueText={`${Math.min(stats.topArtistCount, 5)}/5 same artist`}
+                progress={stats.dieHardProgress}
                 tint="#FFD166"
               />
               <ProgressRow
-                label="Venue Hopper"
-                valueText={`${Math.min(stats.venueCount, 3)}/3 venues`}
-                progress={stats.venueProgress}
+                label="Touring the Scene"
+                valueText={`${Math.min(stats.venueCount, 7)}/7 venues`}
+                progress={stats.touringProgress}
                 tint="#2F8CFF"
               />
             </View>
@@ -505,7 +524,8 @@ export function StatsScreen(props: {
                     const maxCount = Math.max(
                       ...stats.timeline.map((entry) => entry.count),
                     );
-                    const width = maxCount > 0 ? (item.count / maxCount) * 100 : 0;
+                    const width =
+                      maxCount > 0 ? (item.count / maxCount) * 100 : 0;
 
                     return (
                       <View key={item.year} style={styles.timelineRow}>

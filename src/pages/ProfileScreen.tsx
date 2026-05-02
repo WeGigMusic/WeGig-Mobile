@@ -894,17 +894,17 @@ export function ProfileScreen({
               </View>
 
               <Switch
-                value={hapticsEnabled}
-                onValueChange={() => void toggleHaptics()}
-                trackColor={{
-                  false: "rgba(255,255,255,0.18)",
-                  true: "rgba(46,229,157,0.35)",
-                }}
-                thumbColor={
-                  hapticsEnabled ? "#2EE59D" : "rgba(255,255,255,0.75)"
-                }
-                ios_backgroundColor="rgba(255,255,255,0.18)"
-              />
+  value={hapticsEnabled}
+  onValueChange={() => void toggleHaptics()}
+  trackColor={{
+    false: "rgba(255,255,255,0.18)",
+    true: "rgba(47,140,255,0.35)",
+  }}
+  thumbColor={
+    hapticsEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
+  }
+  ios_backgroundColor="rgba(255,255,255,0.18)"
+/>
             </View>
 
             <PrimaryButton

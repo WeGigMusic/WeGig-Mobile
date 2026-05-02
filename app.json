@@ -44,7 +44,8 @@
           "calendarPermission": "WeGig uses your calendar so you can add future gigs."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-localization"
     ]
   }
 }

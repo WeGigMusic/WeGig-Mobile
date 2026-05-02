@@ -55,6 +55,7 @@ export default function AuthScreen() {
         });
 
         posthog.capture("login_completed");
+        void posthog.flush();
       }
     } catch (e: any) {
       Alert.alert("Login Failed", e.message);

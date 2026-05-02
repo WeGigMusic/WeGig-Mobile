@@ -18,6 +18,7 @@ import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { Colours } from "../theme/colours";
 import { apiPost } from "../lib/api";
+import { posthog } from "../lib/analytics";
 import type { CreateGigInput } from "../shared/types/Gig";
 
 type TicketScanResult = {
@@ -116,6 +117,9 @@ export function TicketScanScreen(props: Props) {
   };
 
   const scanUri = async (uri: string) => {
+    posthog.capture("ticket_import_started");
+    void posthog.flush();
+
     setLoading(true);
     setResult(null);
     setShowRawText(false);
@@ -179,7 +183,9 @@ export function TicketScanScreen(props: Props) {
 
     const cleanedScanText = cleanRawTextForNotes(result.rawText ?? "");
     const existingNotes =
-      typeof result.prefill.notes === "string" ? result.prefill.notes.trim() : "";
+      typeof result.prefill.notes === "string"
+        ? result.prefill.notes.trim()
+        : "";
 
     const mergedNotes = [existingNotes, cleanedScanText]
       .filter(Boolean)

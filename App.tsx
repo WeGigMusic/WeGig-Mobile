@@ -11,6 +11,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import type { Session } from "@supabase/supabase-js";
+import { PostHogProvider } from "posthog-react-native";
+import { posthog } from "./src/lib/analytics";
 
 import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
@@ -211,15 +213,29 @@ function AppShell() {
         }
 
         if (next === "stats") {
+          posthog.capture("stats_viewed");
+          void posthog.flush();
           setStatsScrollToTopSignal((n) => n + 1);
         }
 
         if (next === "profile") {
+          posthog.capture("profile_viewed");
+          void posthog.flush();
           setProfileRoute("home");
           setProfileScrollToTopSignal((n) => n + 1);
         }
 
         return;
+      }
+
+      if (next === "stats") {
+        posthog.capture("stats_viewed");
+        void posthog.flush();
+      }
+
+      if (next === "profile") {
+        posthog.capture("profile_viewed");
+        void posthog.flush();
       }
 
       if (next !== "profile") setProfileRoute("home");
@@ -251,6 +267,9 @@ function AppShell() {
               setAutoCreatePrefill(false);
             }}
             onGigCreated={() => {
+              posthog.capture("gig_created");
+              void posthog.flush();
+
               setPrefill(null);
               setAutoCreatePrefill(false);
               setRefreshKey((k) => k + 1);
@@ -344,13 +363,19 @@ export default function App() {
   }
 
   if (!session) {
-    return <AuthScreen />;
+    return (
+      <PostHogProvider client={posthog}>
+        <AuthScreen />
+      </PostHogProvider>
+    );
   }
 
   return (
-    <ToastProvider>
-      <AppShell />
-    </ToastProvider>
+    <PostHogProvider client={posthog}>
+      <ToastProvider>
+        <AppShell />
+      </ToastProvider>
+    </PostHogProvider>
   );
 }
 

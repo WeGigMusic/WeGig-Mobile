@@ -18,6 +18,7 @@ import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { GigCard } from "../components/GigCard";
 import { apiGet } from "../lib/api";
+import { posthog } from "../lib/analytics";
 import { Colours } from "../theme/colours";
 import type { Gig, GigsResponse } from "../shared/types/Gig";
 
@@ -287,9 +288,8 @@ export function ArtistScreen(props: {
 
   const [setlistLoading, setSetlistLoading] = React.useState(true);
   const [setlists, setSetlists] = React.useState<SetlistItem[]>([]);
-  const [selectedSetlist, setSelectedSetlist] = React.useState<SetlistItem | null>(
-    null,
-  );
+  const [selectedSetlist, setSelectedSetlist] =
+    React.useState<SetlistItem | null>(null);
 
   const [similarArtistsLoading, setSimilarArtistsLoading] = React.useState(true);
   const [similarArtistsError, setSimilarArtistsError] = React.useState("");
@@ -374,6 +374,14 @@ export function ArtistScreen(props: {
     } finally {
       setSimilarArtistsLoading(false);
     }
+  }, [props.artist]);
+
+  React.useEffect(() => {
+    posthog.capture("artist_page_viewed", {
+      artist: props.artist,
+    });
+
+    void posthog.flush();
   }, [props.artist]);
 
   React.useEffect(() => {
@@ -519,13 +527,25 @@ export function ArtistScreen(props: {
       ) : null}
 
       {!setlistLoading && setlists.length > 0 ? (
-        <SectionCard title="Recent setlists" subtitle={`${Math.min(setlists.length, 3)} shown`}>
+        <SectionCard
+          title="Recent setlists"
+          subtitle={`${Math.min(setlists.length, 3)} shown`}
+        >
           <View style={styles.spotifyList}>
             {setlists.slice(0, 3).map((item) => (
               <SetlistRow
                 key={item.id}
                 item={item}
-                onPress={(next) => setSelectedSetlist(next)}
+                onPress={(next) => {
+                  posthog.capture("setlist_opened", {
+                    artist: props.artist,
+                    venue: next.venueName,
+                    date: next.eventDate,
+                  });
+
+                  void posthog.flush();
+                  setSelectedSetlist(next);
+                }}
               />
             ))}
           </View>
@@ -692,7 +712,8 @@ export function ArtistScreen(props: {
                       style={styles.setBlock}
                     >
                       <Text style={styles.setBlockTitle}>
-                        {set.name || (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
+                        {set.name ||
+                          (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
                       </Text>
 
                       <View style={{ height: 8 }} />

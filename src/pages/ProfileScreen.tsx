@@ -27,6 +27,8 @@ import { PrimaryButton } from "../components/PrimaryButton";
 import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
+import { supabase } from "../lib/supabase";
+import { posthog } from "../lib/analytics";
 import { searchPlaces } from "../lib/mapbox";
 import { syncGigReminderNotifications } from "../lib/notifications";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
@@ -576,8 +578,31 @@ export function ProfileScreen({
     );
   }, []);
 
-  const handleLogout = React.useCallback(() => {
-    Alert.alert("Log out", "Log out will be added once auth is connected.");
+    const handleLogout = React.useCallback(() => {
+    Alert.alert(
+      "Log out",
+      "Are you sure you want to log out?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Log out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await supabase.auth.signOut();
+
+              posthog.capture("logout_completed");
+              posthog.reset();
+            } catch (e: any) {
+              Alert.alert("Logout failed", e?.message ?? "Please try again.");
+            }
+          },
+        },
+      ],
+    );
   }, []);
 
   const handleSignIn = React.useCallback(() => {
@@ -949,9 +974,9 @@ export function ProfileScreen({
             subtitle="Email login only (coming soon)"
             onPress={handleChangePassword}
           />
-          <ActionRow
+                 <ActionRow
             title="Log out"
-            subtitle="Coming soon"
+            subtitle="Sign out of this device"
             onPress={handleLogout}
             isLast
           />

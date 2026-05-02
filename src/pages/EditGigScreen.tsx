@@ -22,6 +22,12 @@ import { DateField } from "../components/DateField";
 import { useToast } from "../components/ToastProvider";
 
 import { apiPatch, apiDelete, apiGet } from "../lib/api";
+import { getCachedGigs, setCachedGigs } from "../lib/gigsCache";
+import {
+  enqueueGigDelete,
+  enqueueGigUpdate,
+  isOfflineError,
+} from "../lib/offlineQueue";
 import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
 import { parseYmdToUtcDate } from "../lib/date";
@@ -303,7 +309,7 @@ export function EditGigScreen(props: {
     return () => clearTimeout(t);
   }, [loadSetlistMatch, canLookupSetlist]);
 
-  const save = async () => {
+      const save = async () => {
     const payload: Partial<CreateGigInput> = {
       artist: artist.trim(),
       venue: venue.trim(),
@@ -335,17 +341,32 @@ export function EditGigScreen(props: {
     }
 
     setLoading(true);
+
     try {
       await apiPatch(`/gigs/${props.gig.id}`, payload);
+
+      try {
+        const cached = await getCachedGigs();
+        const updated = cached.map((g) =>
+          g.id === props.gig.id
+            ? {
+                ...g,
+                ...payload,
+              }
+            : g,
+        );
+        await setCachedGigs(updated as Gig[]);
+      } catch {}
+
       showToast({ message: "Saved" });
 
       if (addToCalendar && canAddToCalendar) {
         try {
-      await addGigToCalendar({
-  title: `${payload.artist!} @ ${payload.venue!}`,
-  location: `${payload.venue!}, ${payload.city!}`,
-  date: payload.date!,
-});
+          await addGigToCalendar({
+            title: `${payload.artist!} @ ${payload.venue!}`,
+            location: `${payload.venue!}, ${payload.city!}`,
+            date: payload.date!,
+          });
         } catch (e: any) {
           Alert.alert("Calendar", e?.message ?? "Couldn’t add to calendar");
         }
@@ -353,6 +374,38 @@ export function EditGigScreen(props: {
 
       props.onDone();
     } catch (e: any) {
+      if (isOfflineError(e)) {
+        try {
+          await enqueueGigUpdate(props.gig.id, payload);
+
+          const cached = await getCachedGigs();
+          const updated = cached.map((g) =>
+            g.id === props.gig.id
+              ? {
+                  ...g,
+                  ...payload,
+                }
+              : g,
+          );
+
+          await setCachedGigs(updated as Gig[]);
+
+          Alert.alert(
+            "Saved offline",
+            "You’re offline. These changes were queued and will sync when you’re back online.",
+          );
+
+          props.onDone();
+          return;
+        } catch (qErr: any) {
+          Alert.alert(
+            "Offline save failed",
+            qErr?.message ?? "Couldn’t queue edit.",
+          );
+          return;
+        }
+      }
+
       Alert.alert("Error", e?.message ?? "Failed to save changes");
     } finally {
       setLoading(false);
@@ -368,11 +421,41 @@ export function EditGigScreen(props: {
 
   const deleteGig = async () => {
     setLoading(true);
+
     try {
       await apiDelete(`/gigs/${props.gig.id}`);
+
+      try {
+        const cached = await getCachedGigs();
+        await setCachedGigs(cached.filter((g) => g.id !== props.gig.id));
+      } catch {}
+
       showToast({ message: "Deleted" });
       props.onDone();
     } catch (e: any) {
+      if (isOfflineError(e)) {
+        try {
+          await enqueueGigDelete(props.gig.id);
+
+          const cached = await getCachedGigs();
+          await setCachedGigs(cached.filter((g) => g.id !== props.gig.id));
+
+          Alert.alert(
+            "Deleted offline",
+            "You’re offline. This delete was queued and will sync when you’re back online.",
+          );
+
+          props.onDone();
+          return;
+        } catch (qErr: any) {
+          Alert.alert(
+            "Offline delete failed",
+            qErr?.message ?? "Couldn’t queue delete.",
+          );
+          return;
+        }
+      }
+
       Alert.alert("Error", e?.message ?? "Failed to delete gig");
     } finally {
       setLoading(false);

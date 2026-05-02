@@ -1,12 +1,39 @@
-// src/lib/gigsCache.ts
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
+
+const GIGS_CACHE_KEY = "wegig:gigs:cache:v1";
+const GIGS_CACHE_META_KEY = "wegig:gigs:cacheMeta:v1";
 
 let gigsCache: Gig[] = [];
 let lastUpdatedAt = 0;
 
-export function setCachedGigs(next: Gig[]) {
+export async function hydrateCachedGigs() {
+  try {
+    const raw = await AsyncStorage.getItem(GIGS_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    gigsCache = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    gigsCache = [];
+  }
+
+  try {
+    const rawMeta = await AsyncStorage.getItem(GIGS_CACHE_META_KEY);
+    const meta = rawMeta ? JSON.parse(rawMeta) : null;
+    lastUpdatedAt = typeof meta?.lastUpdatedAt === "number" ? meta.lastUpdatedAt : 0;
+  } catch {
+    lastUpdatedAt = 0;
+  }
+}
+
+export async function setCachedGigs(next: Gig[]) {
   gigsCache = Array.isArray(next) ? next : [];
   lastUpdatedAt = Date.now();
+
+  await AsyncStorage.setItem(GIGS_CACHE_KEY, JSON.stringify(gigsCache));
+  await AsyncStorage.setItem(
+    GIGS_CACHE_META_KEY,
+    JSON.stringify({ lastUpdatedAt }),
+  );
 }
 
 export function getCachedGigs(): Gig[] {
@@ -21,10 +48,6 @@ function norm(s: unknown) {
   return String(s ?? "").trim().toLowerCase();
 }
 
-/**
- * Client-side duplicate check:
- * same artist+venue+city+date OR same externalSource+externalId
- */
 export function findDuplicateGig(
   draft: Partial<CreateGigInput> & { externalSource?: any; externalId?: any },
   gigs: Gig[] = gigsCache,
@@ -43,7 +66,10 @@ export function findDuplicateGig(
       const gExtId = norm((g as any).externalId);
 
       const matchesExternal =
-        externalSource && externalId && gExtSource === externalSource && gExtId === externalId;
+        externalSource &&
+        externalId &&
+        gExtSource === externalSource &&
+        gExtId === externalId;
 
       const matchesManual =
         artist &&

@@ -70,13 +70,11 @@ export function GigCard({
   gig,
   onPress,
   onPressArtist,
-  isFirstGig,
   isFavouriteGig,
 }: {
   gig: Gig;
   onPress?: () => void;
   onPressArtist?: (artist: string) => void;
-  isFirstGig?: boolean;
   isFavouriteGig?: boolean;
 }) {
   const [notesOpen, setNotesOpen] = React.useState(false);
@@ -266,7 +264,6 @@ export function GigCard({
         onPress={handlePress}
         style={({ pressed }) => [
           styles.card,
-          isFirstGig ? styles.firstGigCard : null,
           isFavouriteGig ? styles.favouriteGigCard : null,
           pressed ? styles.pressed : null,
         ]}
@@ -282,24 +279,18 @@ export function GigCard({
                   pressed ? styles.artistPressablePressed : null,
                 ]}
               >
-                <Text style={styles.artist}>{gig.artist}</Text>
+                <View style={styles.artistRow}>
+                  <Text style={styles.artist}>{gig.artist}</Text>
+                  {isFavouriteGig ? (
+                    <Ionicons name="star" size={13} color="#FFD166" />
+                  ) : null}
+                </View>
               </Pressable>
             ) : (
-              <Text style={styles.artist}>{gig.artist}</Text>
-            )}
-
-            {(isFirstGig || isFavouriteGig) && (
-              <View style={styles.badgeRow}>
-                {isFirstGig ? (
-                  <View style={styles.firstBadge}>
-                    <Text style={styles.firstBadgeText}>First gig</Text>
-                  </View>
-                ) : null}
-
+              <View style={styles.artistRow}>
+                <Text style={styles.artist}>{gig.artist}</Text>
                 {isFavouriteGig ? (
-                  <View style={styles.favouriteBadge}>
-                    <Text style={styles.favouriteBadgeText}>Favourite</Text>
-                  </View>
+                  <Ionicons name="star" size={13} color="#FFD166" />
                 ) : null}
               </View>
             )}
@@ -547,11 +538,6 @@ const styles = StyleSheet.create({
     borderColor: Colours.ui.border,
   },
 
-  firstGigCard: {
-    borderColor: "rgba(126,182,255,0.42)",
-    backgroundColor: "rgba(126,182,255,0.04)",
-  },
-
   favouriteGigCard: {
     borderColor: "rgba(255,209,102,0.42)",
     backgroundColor: "rgba(255,209,102,0.04)",
@@ -582,50 +568,16 @@ const styles = StyleSheet.create({
     opacity: 0.78,
   },
 
+  artistRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
   artist: {
     color: Colours.text.primary,
     fontSize: 16,
     lineHeight: 20,
-    fontWeight: "700",
-  },
-
-  badgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 6,
-    flexWrap: "wrap",
-  },
-
-  firstBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "rgba(126,182,255,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(126,182,255,0.26)",
-  },
-
-  firstBadgeText: {
-    color: "#7EB6FF",
-    fontSize: 10,
-    lineHeight: 12,
-    fontWeight: "700",
-  },
-
-  favouriteBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,209,102,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(255,209,102,0.26)",
-  },
-
-  favouriteBadgeText: {
-    color: "#FFD166",
-    fontSize: 10,
-    lineHeight: 12,
     fontWeight: "700",
   },
 

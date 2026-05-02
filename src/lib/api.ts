@@ -48,6 +48,15 @@ function withTimeout<T>(promise: Promise<T>, ms: number) {
   });
 }
 
+async function getAccessToken(): Promise<string | null> {
+  const { supabase } = await import("./supabase");
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return session?.access_token ?? null;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${BASE_URL}${normalizedPath}`;
@@ -58,6 +67,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData =
     typeof FormData !== "undefined" && init?.body instanceof FormData;
 
+  const accessToken = await getAccessToken();
+
   let res: Response;
 
   try {
@@ -67,11 +78,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         headers: isFormData
           ? {
               Accept: "application/json",
+              ...(accessToken
+                ? { Authorization: `Bearer ${accessToken}` }
+                : {}),
               ...(init?.headers || {}),
             }
           : {
               Accept: "application/json",
               "Content-Type": "application/json",
+              ...(accessToken
+                ? { Authorization: `Bearer ${accessToken}` }
+                : {}),
               ...(init?.headers || {}),
             },
       }),

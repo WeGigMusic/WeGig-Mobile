@@ -10,17 +10,20 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
+import type { Session } from "@supabase/supabase-js";
 
 import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
 import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
 import { apiGet } from "./src/lib/api";
 import { configureNotificationBehaviour } from "./src/lib/notifications";
+import { supabase } from "./src/lib/supabase";
 
 import { GigsScreen } from "./src/pages/GigsScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
 import { StatsScreen } from "./src/pages/StatsScreen";
 import { ProfileScreen } from "./src/pages/ProfileScreen";
+import AuthScreen from "./src/pages/AuthScreen";
 import AboutPrivacyScreen from "./src/pages/AboutPrivacyScreen";
 import HelpScreen from "./src/pages/HelpScreen";
 import FeedbackScreen from "./src/pages/FeedbackScreen";
@@ -305,9 +308,44 @@ function AppShell() {
 }
 
 export default function App() {
+  const [session, setSession] = React.useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = React.useState(true);
+
   React.useEffect(() => {
     configureNotificationBehaviour();
+
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session ?? null);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession ?? null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
+
+  if (authLoading) {
+    return (
+      <View style={styles.loadingWrap}>
+        <Text style={styles.loadingText}>Loading…</Text>
+      </View>
+    );
+  }
+
+  if (!session) {
+    return <AuthScreen />;
+  }
 
   return (
     <ToastProvider>
@@ -363,5 +401,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.15,
+  },
+
+  loadingWrap: {
+    flex: 1,
+    backgroundColor: Colours.background.app,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    color: Colours.text.primary,
+    fontWeight: "700",
   },
 });

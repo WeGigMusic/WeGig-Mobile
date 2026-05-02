@@ -29,7 +29,6 @@ import { GigCard } from "../components/GigCard";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 
-const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Gig>);
@@ -106,7 +105,8 @@ function computeGigBadges(gigs: Gig[]) {
     acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  const topArtistCount = Object.values(artists).sort((a, b) => b - a)[0] ?? 0;
+  const topArtistCount =
+    Object.values(artists).sort((a, b) => b - a)[0] ?? 0;
 
   const badges: BadgeChip[] = [
     { title: "First Gig", icon: "🎟️", unlocked: total >= 1 },
@@ -269,7 +269,6 @@ export function GigsScreen(props: {
   const [discoverPrefill, setDiscoverPrefill] =
     React.useState<Partial<CreateGigInput> | null>(null);
 
-  const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
 
   const [selectedBadgeInfo, setSelectedBadgeInfo] =
@@ -277,15 +276,9 @@ export function GigsScreen(props: {
 
   const loadPinnedGigIds = React.useCallback(async () => {
     try {
-      const [firstId, favouriteId] = await Promise.all([
-        AsyncStorage.getItem(FIRST_GIG_ID_KEY),
-        AsyncStorage.getItem(FAVOURITE_GIG_ID_KEY),
-      ]);
-
-      setFirstGigId(firstId ?? "");
+      const favouriteId = await AsyncStorage.getItem(FAVOURITE_GIG_ID_KEY);
       setFavouriteGigId(favouriteId ?? "");
     } catch {
-      setFirstGigId("");
       setFavouriteGigId("");
     }
   }, []);
@@ -303,21 +296,6 @@ export function GigsScreen(props: {
       } catch {}
     },
     [favouriteGigId],
-  );
-
-  const toggleFirstGig = React.useCallback(
-    async (gigId: string) => {
-      try {
-        if (firstGigId === gigId) {
-          await AsyncStorage.removeItem(FIRST_GIG_ID_KEY);
-          setFirstGigId("");
-        } else {
-          await AsyncStorage.setItem(FIRST_GIG_ID_KEY, gigId);
-          setFirstGigId(gigId);
-        }
-      } catch {}
-    },
-    [firstGigId],
   );
 
   const load = React.useCallback(async () => {
@@ -473,7 +451,6 @@ export function GigsScreen(props: {
         onPressLogo={props.onPressLogo}
         prefill={discoverPrefill ?? props.prefill}
         autoCreate={!!props.autoCreatePrefill}
-        hasFirstGig={Boolean(firstGigId)}
         onPrefillUsed={() => {
           clearDiscoverPrefill();
         }}
@@ -481,19 +458,11 @@ export function GigsScreen(props: {
           setAddingGig(false);
           clearDiscoverPrefill();
         }}
-        onCreated={async (createdGig, options) => {
+        onCreated={async (createdGig: Gig) => {
           setAddingGig(false);
           clearDiscoverPrefill();
 
           if (createdGig?.id) {
-            if (options?.markAsFirst) {
-              await toggleFirstGig(createdGig.id);
-            }
-
-            if (options?.markAsFavourite) {
-              await toggleFavouriteGig(createdGig.id);
-            }
-
             setEditingGig(createdGig);
           }
 
@@ -516,10 +485,7 @@ export function GigsScreen(props: {
           void load();
           void loadPinnedGigIds();
         }}
-        isFirstGig={editingGig.id === firstGigId}
-        isFavouriteGig={editingGig.id === favouriteGigId}
-        onToggleFirst={() => void toggleFirstGig(editingGig.id)}
-        onToggleFavourite={() => void toggleFavouriteGig(editingGig.id)}
+
       />
     );
   }
@@ -650,7 +616,6 @@ export function GigsScreen(props: {
                   gig={item}
                   onPress={() => setEditingGig(item)}
                   onPressArtist={(artist: string) => setArtistView(artist)}
-                  isFirstGig={item.id === firstGigId}
                   isFavouriteGig={item.id === favouriteGigId}
                 />
               )}

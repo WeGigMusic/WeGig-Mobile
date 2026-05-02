@@ -28,6 +28,7 @@ import { getCachedGigs, setCachedGigs } from "../lib/gigsCache";
 import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
 import { parseYmdToUtcDate } from "../lib/date";
 import { reverseGeocodeCity } from "../lib/mapbox";
+import { addGigToCalendar } from "../lib/calendar";
 import {
   createSessionToken,
   getPlaceDetails,
@@ -113,16 +114,9 @@ function findDuplicate(existing: Gig[], payload: any): Gig | null {
 }
 
 export function AddGigScreen(props: {
-  onCreated?: (
-    gig: Gig,
-    options?: {
-      markAsFirst?: boolean;
-      markAsFavourite?: boolean;
-    },
-  ) => void;
+  onCreated?: (gig: Gig) => void;
   prefill?: Partial<CreateGigInput> | null;
   autoCreate?: boolean;
-  hasFirstGig?: boolean;
   onPrefillUsed?: () => void;
   onPressLogo?: () => void;
   onBack?: () => void;
@@ -188,9 +182,7 @@ export function AddGigScreen(props: {
   const [justAutoCity, setJustAutoCity] = React.useState(false);
   const [scanningTicket, setScanningTicket] = React.useState(false);
   const [autoCreateAttempted, setAutoCreateAttempted] = React.useState(false);
-
-  const [markAsFirst, setMarkAsFirst] = React.useState(!props.hasFirstGig);
-  const [markAsFavourite, setMarkAsFavourite] = React.useState(false);
+  const [addToCalendar, setAddToCalendar] = React.useState(false);
 
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
@@ -201,6 +193,8 @@ export function AddGigScreen(props: {
     );
     return d.getTime() > todayUtc.getTime();
   }, [date]);
+
+  const canAddToCalendar = isFutureGig;
 
   React.useEffect(() => {
     if (isFutureGig && rating != null) setRating(undefined);
@@ -297,7 +291,11 @@ export function AddGigScreen(props: {
     if (autoCreateAttempted) return;
     if (loading) return;
 
-    const hasRequired = artist.trim() && venue.trim() && city.trim() && date.trim();
+    const hasRequired =
+      artist.trim() &&
+      venue.trim() &&
+      city.trim() &&
+      date.trim();
 
     if (!hasRequired) return;
 
@@ -474,7 +472,8 @@ export function AddGigScreen(props: {
 
       const places = await Location.reverseGeocodeAsync(coords);
       const place = places?.[0];
-      const inferredCity = place?.city || place?.subregion || place?.region || "";
+      const inferredCity =
+        place?.city || place?.subregion || place?.region || "";
 
       if (inferredCity) {
         setCity(inferredCity);
@@ -550,8 +549,7 @@ export function AddGigScreen(props: {
 
     setJustAutoCity(false);
     setAutoCreateAttempted(false);
-    setMarkAsFirst(!props.hasFirstGig);
-    setMarkAsFavourite(false);
+    setAddToCalendar(false);
   };
 
   const submit = async () => {
@@ -604,10 +602,20 @@ export function AddGigScreen(props: {
       } catch {}
 
       showToast({ message: "Saved" });
-      props.onCreated?.(created, {
-        markAsFirst: !props.hasFirstGig && markAsFirst,
-        markAsFavourite,
-      });
+
+      if (addToCalendar && canAddToCalendar) {
+        try {
+          await addGigToCalendar({
+  title: `${payload.artist} @ ${payload.venue}`,
+  location: `${payload.venue}, ${payload.city}`,
+  date: payload.date,
+});
+        } catch (e: any) {
+          Alert.alert("Calendar", e?.message ?? "Couldn’t add to calendar");
+        }
+      }
+
+      props.onCreated?.(created);
       resetForm();
     } catch (e: any) {
       if (isOfflineError(e)) {
@@ -629,10 +637,7 @@ export function AddGigScreen(props: {
             "Saved offline",
             "You’re offline. This gig was queued and will sync when you’re back online.",
           );
-          props.onCreated?.({} as any, {
-            markAsFirst: !props.hasFirstGig && markAsFirst,
-            markAsFavourite,
-          });
+          props.onCreated?.({} as any);
           resetForm();
           return;
         } catch (qErr: any) {
@@ -856,15 +861,15 @@ export function AddGigScreen(props: {
               </View>
             )}
 
-            <View style={styles.highlightSection}>
-              <Text style={styles.sectionTitle}>Highlights</Text>
+            {canAddToCalendar ? (
+              <View style={styles.highlightSection}>
+                <Text style={styles.sectionTitle}>Calendar</Text>
 
-              {!props.hasFirstGig ? (
                 <Pressable
-                  onPress={() => setMarkAsFirst((v) => !v)}
+                  onPress={() => setAddToCalendar((v) => !v)}
                   style={({ pressed }) => [
                     styles.highlightRow,
-                    markAsFirst ? styles.highlightActiveBlue : null,
+                    addToCalendar ? styles.highlightActiveBlue : null,
                     pressed ? styles.highlightPressed : null,
                   ]}
                 >
@@ -872,65 +877,30 @@ export function AddGigScreen(props: {
                     <View
                       style={[
                         styles.highlightIconWrap,
-                        markAsFirst ? styles.highlightIconBlue : null,
+                        addToCalendar ? styles.highlightIconBlue : null,
                       ]}
                     >
                       <Ionicons
-                        name={markAsFirst ? "checkmark" : "ticket-outline"}
+                        name={addToCalendar ? "checkmark" : "calendar-outline"}
                         size={16}
-                        color={markAsFirst ? "#7EB6FF" : Colours.text.muted}
+                        color={addToCalendar ? "#7EB6FF" : Colours.text.muted}
                       />
                     </View>
 
                     <View style={{ flex: 1 }}>
                       <Text style={styles.highlightTitle}>
-                        {markAsFirst
-                          ? "Will be set as first gig"
-                          : "Mark as first gig"}
+                        {addToCalendar
+                          ? "Will open calendar after save"
+                          : "Add to calendar"}
                       </Text>
                       <Text style={styles.highlightText}>
-                        Use this for your first live show memory.
+                        Create a calendar event for this gig.
                       </Text>
                     </View>
                   </View>
                 </Pressable>
-              ) : null}
-
-              <Pressable
-                onPress={() => setMarkAsFavourite((v) => !v)}
-                style={({ pressed }) => [
-                  styles.highlightRow,
-                  markAsFavourite ? styles.highlightActiveGold : null,
-                  pressed ? styles.highlightPressed : null,
-                ]}
-              >
-                <View style={styles.highlightLeft}>
-                  <View
-                    style={[
-                      styles.highlightIconWrap,
-                      markAsFavourite ? styles.highlightIconGold : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name={markAsFavourite ? "checkmark" : "star-outline"}
-                      size={16}
-                      color={markAsFavourite ? "#FFD166" : Colours.text.muted}
-                    />
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.highlightTitle}>
-                      {markAsFavourite
-                        ? "Will be set as favourite"
-                        : "Mark as favourite"}
-                    </Text>
-                    <Text style={styles.highlightText}>
-                      Save this as your standout gig.
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            </View>
+              </View>
+            ) : null}
 
             <TextField
               label="Notes (optional)"
@@ -1113,7 +1083,7 @@ const styles = StyleSheet.create({
   },
 
   highlightSection: {
-    marginTop: 4,
+    marginTop: 6,
   },
 
   sectionTitle: {
@@ -1124,7 +1094,6 @@ const styles = StyleSheet.create({
   },
 
   highlightRow: {
-    marginTop: 8,
     padding: 12,
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.04)",
@@ -1139,11 +1108,6 @@ const styles = StyleSheet.create({
   highlightActiveBlue: {
     backgroundColor: "rgba(126,182,255,0.08)",
     borderColor: "rgba(126,182,255,0.3)",
-  },
-
-  highlightActiveGold: {
-    backgroundColor: "rgba(255,209,102,0.08)",
-    borderColor: "rgba(255,209,102,0.3)",
   },
 
   highlightLeft: {
@@ -1168,23 +1132,15 @@ const styles = StyleSheet.create({
     borderColor: "rgba(126,182,255,0.22)",
   },
 
-  highlightIconGold: {
-    backgroundColor: "rgba(255,209,102,0.12)",
-    borderColor: "rgba(255,209,102,0.22)",
-  },
-
   highlightTitle: {
     color: Colours.text.primary,
     fontWeight: "700",
     fontSize: 14,
-    lineHeight: 18,
   },
 
   highlightText: {
     color: Colours.text.muted,
     fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "500",
     marginTop: 2,
   },
 });

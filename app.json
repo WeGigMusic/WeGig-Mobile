@@ -16,7 +16,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to suggest nearby gigs and auto-fill venues."
-      }
+      },
+      "bundleIdentifier": "com.anonymous.WeGigMobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,14 +25,26 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR"
+      ],
+      "package": "com.anonymous.WeGigMobile"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "@react-native-community/datetimepicker",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "WeGig uses your calendar so you can add future gigs."
+        }
+      ],
+      "expo-font"
     ]
   }
 }

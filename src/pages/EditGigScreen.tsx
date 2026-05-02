@@ -25,6 +25,7 @@ import { apiPatch, apiDelete, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
 import { parseYmdToUtcDate } from "../lib/date";
+import { addGigToCalendar } from "../lib/calendar";
 import {
   createSessionToken,
   getPlaceDetails,
@@ -73,10 +74,6 @@ export function EditGigScreen(props: {
   onDone: () => void;
   onPressLogo?: () => void;
   onBack?: () => void;
-  isFirstGig?: boolean;
-  isFavouriteGig?: boolean;
-  onToggleFirst?: () => void;
-  onToggleFavourite?: () => void;
 }) {
   const { showToast } = useToast();
 
@@ -91,6 +88,7 @@ export function EditGigScreen(props: {
   );
 
   const [loading, setLoading] = React.useState(false);
+  const [addToCalendar, setAddToCalendar] = React.useState(false);
 
   const [venueLoading, setVenueLoading] = React.useState(false);
   const [venueError, setVenueError] = React.useState("");
@@ -145,6 +143,8 @@ export function EditGigScreen(props: {
     );
     return d.getTime() > todayUtc.getTime();
   }, [date]);
+
+  const canAddToCalendar = isFutureGig;
 
   React.useEffect(() => {
     if (isFutureGig && rating != null) setRating(undefined);
@@ -338,6 +338,19 @@ export function EditGigScreen(props: {
     try {
       await apiPatch(`/gigs/${props.gig.id}`, payload);
       showToast({ message: "Saved" });
+
+      if (addToCalendar && canAddToCalendar) {
+        try {
+      await addGigToCalendar({
+  title: `${payload.artist!} @ ${payload.venue!}`,
+  location: `${payload.venue!}, ${payload.city!}`,
+  date: payload.date!,
+});
+        } catch (e: any) {
+          Alert.alert("Calendar", e?.message ?? "Couldn’t add to calendar");
+        }
+      }
+
       props.onDone();
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to save changes");
@@ -487,79 +500,46 @@ export function EditGigScreen(props: {
               </View>
             )}
 
-            <View style={styles.highlightSection}>
-              <Text style={styles.sectionTitle}>Highlights</Text>
+            {canAddToCalendar ? (
+              <View style={styles.highlightSection}>
+                <Text style={styles.sectionTitle}>Calendar</Text>
 
-              <Pressable
-                onPress={props.onToggleFirst}
-                style={({ pressed }) => [
-                  styles.highlightRow,
-                  props.isFirstGig ? styles.highlightActiveBlue : null,
-                  pressed ? styles.highlightPressed : null,
-                ]}
-              >
-                <View style={styles.highlightLeft}>
-                  <View
-                    style={[
-                      styles.highlightIconWrap,
-                      props.isFirstGig ? styles.highlightIconBlue : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name={props.isFirstGig ? "ticket" : "ticket-outline"}
-                      size={16}
-                      color={props.isFirstGig ? "#7EB6FF" : Colours.text.muted}
-                    />
-                  </View>
+                <Pressable
+                  onPress={() => setAddToCalendar((v) => !v)}
+                  style={({ pressed }) => [
+                    styles.highlightRow,
+                    addToCalendar ? styles.highlightActiveBlue : null,
+                    pressed ? styles.highlightPressed : null,
+                  ]}
+                >
+                  <View style={styles.highlightLeft}>
+                    <View
+                      style={[
+                        styles.highlightIconWrap,
+                        addToCalendar ? styles.highlightIconBlue : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name={addToCalendar ? "checkmark" : "calendar-outline"}
+                        size={16}
+                        color={addToCalendar ? "#7EB6FF" : Colours.text.muted}
+                      />
+                    </View>
 
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.highlightTitle}>
-                      {props.isFirstGig ? "First gig" : "Mark as first gig"}
-                    </Text>
-                    <Text style={styles.highlightText}>
-                      Your origin story gig.
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.highlightTitle}>
+                        {addToCalendar
+                          ? "Will open calendar after save"
+                          : "Add to calendar"}
+                      </Text>
+                      <Text style={styles.highlightText}>
+                        Create a calendar event for this gig.
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </Pressable>
-
-              <Pressable
-                onPress={props.onToggleFavourite}
-                style={({ pressed }) => [
-                  styles.highlightRow,
-                  props.isFavouriteGig ? styles.highlightActiveGold : null,
-                  pressed ? styles.highlightPressed : null,
-                ]}
-              >
-                <View style={styles.highlightLeft}>
-                  <View
-                    style={[
-                      styles.highlightIconWrap,
-                      props.isFavouriteGig ? styles.highlightIconGold : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name={props.isFavouriteGig ? "star" : "star-outline"}
-                      size={16}
-                      color={
-                        props.isFavouriteGig ? "#FFD166" : Colours.text.muted
-                      }
-                    />
-                  </View>
-
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.highlightTitle}>
-                      {props.isFavouriteGig
-                        ? "Favourite gig"
-                        : "Mark as favourite"}
-                    </Text>
-                    <Text style={styles.highlightText}>
-                      Your standout memory gig.
-                    </Text>
-                  </View>
-                </View>
-              </Pressable>
-            </View>
+                </Pressable>
+              </View>
+            ) : null}
 
             <View style={styles.setlistCard}>
               <View style={styles.setlistHeaderRow}>
@@ -667,9 +647,7 @@ export function EditGigScreen(props: {
             {loading ? (
               <View style={styles.loadingRow}>
                 <ActivityIndicator />
-                <Text style={styles.muted}>
-                  {loading ? UI_COPY.saving : UI_COPY.deleting}
-                </Text>
+                <Text style={styles.muted}>{UI_COPY.deleting}</Text>
               </View>
             ) : null}
           </View>
@@ -828,7 +806,7 @@ const styles = {
     fontSize: 12,
   },
   highlightSection: {
-    marginTop: 4,
+    marginTop: 6,
   },
   sectionTitle: {
     color: Colours.text.muted,
@@ -837,7 +815,6 @@ const styles = {
     marginBottom: 8,
   },
   highlightRow: {
-    marginTop: 8,
     padding: 12,
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.04)",
@@ -864,10 +841,6 @@ const styles = {
     backgroundColor: "rgba(126,182,255,0.08)",
     borderColor: "rgba(126,182,255,0.3)",
   },
-  highlightActiveGold: {
-    backgroundColor: "rgba(255,209,102,0.08)",
-    borderColor: "rgba(255,209,102,0.3)",
-  },
   highlightPressed: {
     opacity: 0.9,
   },
@@ -884,10 +857,6 @@ const styles = {
   highlightIconBlue: {
     backgroundColor: "rgba(126,182,255,0.12)",
     borderColor: "rgba(126,182,255,0.22)",
-  },
-  highlightIconGold: {
-    backgroundColor: "rgba(255,209,102,0.12)",
-    borderColor: "rgba(255,209,102,0.22)",
   },
   setlistCard: {
     backgroundColor: "rgba(255,255,255,0.03)",

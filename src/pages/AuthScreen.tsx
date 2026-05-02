@@ -8,6 +8,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { supabase } from "../lib/supabase";
+import { posthog } from "../lib/analytics";
 
 export default function AuthScreen() {
   const [email, setEmail] = useState("");
@@ -25,6 +26,8 @@ export default function AuthScreen() {
 
       if (error) throw error;
 
+      posthog.capture("sign_up_started");
+
       Alert.alert("Success", "Check your email to confirm your account.");
     } catch (e: any) {
       Alert.alert("Sign Up Failed", e.message);
@@ -37,12 +40,22 @@ export default function AuthScreen() {
     try {
       setLoading(true);
 
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
 
       if (error) throw error;
+
+      if (data.session?.user) {
+        const user = data.session.user;
+
+        posthog.identify(user.id, {
+    email: user.email ?? null,
+        });
+
+        posthog.capture("login_completed");
+      }
     } catch (e: any) {
       Alert.alert("Login Failed", e.message);
     } finally {
@@ -79,9 +92,7 @@ export default function AuthScreen() {
         onPress={signIn}
         disabled={loading}
       >
-        <Text style={styles.btnText}>
-          {loading ? "Loading..." : "Login"}
-        </Text>
+        <Text style={styles.btnText}>{loading ? "Loading..." : "Login"}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity

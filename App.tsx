@@ -10,6 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import type { Session } from "@supabase/supabase-js";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "./src/lib/analytics";
@@ -121,9 +122,7 @@ function AppShell() {
     try {
       const n = await getQueuedGigsCount();
       setQueuedCount(n);
-    } catch {
-      // Intentionally silent for now
-    }
+    } catch {}
   }, []);
 
   const checkOnline = React.useCallback(async () => {
@@ -196,9 +195,7 @@ function AppShell() {
 
       try {
         await Haptics.selectionAsync();
-      } catch {
-        // Intentionally silent for now
-      }
+      } catch {}
 
       if (isSameTab) {
         if (next === "gigs") {
@@ -332,6 +329,15 @@ export default function App() {
 
   React.useEffect(() => {
     configureNotificationBehaviour();
+
+    void Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+      shouldDuckAndroid: false,
+      playThroughEarpieceAndroid: false,
+    });
 
     let mounted = true;
 

@@ -73,8 +73,6 @@ function splitGigs(gigs: Gig[]) {
 function TicketStub({ count }: { count: number }) {
   return (
     <View style={styles.ticketStub}>
-      <View style={styles.ticketStubNotchLeft} />
-      <View style={styles.ticketStubNotchRight} />
       <Text style={styles.ticketStubText}>{count}</Text>
     </View>
   );
@@ -165,8 +163,7 @@ export function GigsScreen(props: {
 
     const artist =
       typeof prefill.artist === "string" ? prefill.artist.trim() : "";
-    const venue =
-      typeof prefill.venue === "string" ? prefill.venue.trim() : "";
+    const venue = typeof prefill.venue === "string" ? prefill.venue.trim() : "";
     const city = typeof prefill.city === "string" ? prefill.city.trim() : "";
     const date = typeof prefill.date === "string" ? prefill.date.trim() : "";
 
@@ -204,11 +201,7 @@ export function GigsScreen(props: {
 
   React.useEffect(() => {
     const uniqueArtists = Array.from(
-      new Set(
-        (data?.gigs ?? [])
-          .map((g) => g.artist?.trim())
-          .filter(Boolean),
-      ),
+      new Set((data?.gigs ?? []).map((g) => g.artist?.trim()).filter(Boolean)),
     ) as string[];
 
     const missingArtists = uniqueArtists.filter((artist) => {
@@ -253,7 +246,7 @@ export function GigsScreen(props: {
   const clearDiscoverPrefill = React.useCallback(() => {
     setDiscoverPrefill(null);
     props.onPrefillUsed?.();
-  }, [props.onPrefillUsed]);
+  }, [props]);
 
   const createGigFromDiscover = React.useCallback(async () => {
     if (!discoverPrefill) return;
@@ -285,13 +278,7 @@ export function GigsScreen(props: {
     } finally {
       setConfirmingSubmit(false);
     }
-  }, [
-    clearDiscoverPrefill,
-    discoverPrefill,
-    load,
-    loadPinnedGigIds,
-    props.onGigCreated,
-  ]);
+  }, [clearDiscoverPrefill, discoverPrefill, load, loadPinnedGigIds, props]);
 
   if (confirmingGig && discoverPrefill) {
     return (
@@ -439,6 +426,7 @@ export function GigsScreen(props: {
               data={pastGigs}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
               ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
               ListHeaderComponent={
@@ -577,46 +565,23 @@ const styles = {
     letterSpacing: -0.1,
   },
 
-ticketStub: {
-  minWidth: 42,
-  height: 26,
-  paddingHorizontal: 13,
-  borderRadius: 5,
-  backgroundColor: "rgba(119, 118, 214, 0.18)",
-  alignItems: "center" as const,
-  justifyContent: "center" as const,
-  position: "relative" as const,
-  overflow: "hidden" as const,
-  transform: [{ rotate: "-1deg" }],
-},
+  ticketStub: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 0,
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    alignItems: "flex-end" as const,
+    justifyContent: "center" as const,
+  },
 
- ticketStubNotchLeft: {
-  position: "absolute" as const,
-  left: -5,
-  top: "50%" as const,
-  marginTop: -5,
-  width: 10,
-  height: 10,
-  borderRadius: 5,
-  backgroundColor: Colours.background.app,
-},
-
-ticketStubNotchRight: {
-  position: "absolute" as const,
-  right: -5,
-  top: "50%" as const,
-  marginTop: -5,
-  width: 10,
-  height: 10,
-  borderRadius: 5,
-  backgroundColor: Colours.background.app,
-},
-
-ticketStubText: {
-  color: "#f1efeb",
-  fontWeight: "900" as const,
-  fontSize: 12,
-  lineHeight: 15,
-  letterSpacing: 0.8,
-},
+  ticketStubText: {
+    color: Colours.text.muted,
+    fontWeight: "800" as const,
+    fontSize: 13,
+    lineHeight: 17,
+    letterSpacing: 0.2,
+  },
 };
+
+

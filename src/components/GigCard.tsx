@@ -9,14 +9,13 @@ import {
   Modal,
   ScrollView,
   Image,
+  Animated,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { Colours } from "../theme/colours";
 import type { Gig } from "../shared/types/Gig";
 import { apiGet } from "../lib/api";
-import { AvatarStack } from "./AvatarStack";
-import { getGigSocialSignal } from "../lib/socialSignal";
 import { parseYmdToUtcDate } from "../lib/date";
 
 type TmEventByIdResponse = {
@@ -86,6 +85,49 @@ function isFutureGigDate(value?: string) {
 
 function formatConfidence(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function RatingStars({ value }: { value: number }) {
+  const scale = React.useRef(new Animated.Value(1)).current;
+  const fullStars = Math.floor(value);
+  const hasHalfStar = value % 1 >= 0.25 && value % 1 < 0.75;
+  const roundedStars = value % 1 >= 0.75 ? fullStars + 1 : fullStars;
+
+  const animate = () => {
+    Animated.sequence([
+      Animated.spring(scale, {
+        toValue: 1.12,
+        useNativeDriver: true,
+        speed: 22,
+        bounciness: 8,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        speed: 20,
+        bounciness: 6,
+      }),
+    ]).start();
+  };
+
+  return (
+    <Pressable onPress={animate} hitSlop={8}>
+      <Animated.View style={[styles.ratingStars, { transform: [{ scale }] }]}>
+        {Array.from({ length: 5 }).map((_, i) => {
+          const icon =
+            i < fullStars
+              ? "star"
+              : i === fullStars && hasHalfStar
+                ? "star-half"
+                : i < roundedStars
+                  ? "star"
+                  : "star-outline";
+
+          return <Ionicons key={i} name={icon} size={14} color="#FFD166" />;
+        })}
+      </Animated.View>
+    </Pressable>
+  );
 }
 
 function getGigImageUrl(gig: Gig) {
@@ -158,9 +200,7 @@ export function GigCard({
     setNotesOpen(true);
   };
 
-  const social = getGigSocialSignal(gig.id);
   const isFutureGig = isFutureGigDate(gig.date);
-  const socialText = isFutureGig ? "Also going" : "Also went";
 
   const canLookupSetlist = React.useMemo(() => {
     return Boolean(
@@ -209,48 +249,6 @@ export function GigCard({
     };
   }, [canLookupSetlist, gig.artist, gig.city, gig.date, gig.venue]);
 
-  const openTickets = async (e?: any) => {
-    try {
-      e?.stopPropagation?.();
-    } catch {}
-
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
-
-    const ticketUrl = (gig as any).ticketUrl as string | undefined;
-    if (ticketUrl && ticketUrl.trim()) {
-      try {
-        await Linking.openURL(ticketUrl.trim());
-        return;
-      } catch {
-        Alert.alert("Couldn’t open link", "That ticket link looks invalid.");
-        return;
-      }
-    }
-
-    const externalSource = (gig as any).externalSource as string | undefined;
-    const externalId = (gig as any).externalId as string | undefined;
-
-    if (externalSource === "Ticketmaster" && externalId) {
-      try {
-        const res = await apiGet<TmEventByIdResponse>(`/tm/events/${externalId}`);
-        if (res?.url) {
-          await Linking.openURL(res.url);
-          return;
-        }
-
-        Alert.alert("No ticket link", "Ticketmaster didn’t return a ticket URL.");
-        return;
-      } catch (e: any) {
-        Alert.alert("Tickets error", e?.message ?? "Couldn’t load tickets.");
-        return;
-      }
-    }
-
-    Alert.alert("No tickets", "No ticket link found for this gig yet.");
-  };
-
   const openSetlistUrl = async () => {
     const url = setlistMatch?.setlist?.url?.trim();
     if (!url) return;
@@ -281,21 +279,18 @@ export function GigCard({
     Alert.alert("No setlist yet", "No reliable setlist match was found for this gig.");
   };
 
-  const hasTickets =
-    Boolean(((gig as any).ticketUrl as string | undefined)?.trim()) ||
-    ((gig as any).externalSource === "Ticketmaster" &&
-      Boolean((gig as any).externalId));
-
   const hasSetlist = Boolean(setlistMatch?.matched && setlistMatch.setlist);
   const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
   const hasRating = typeof gig.rating === "number";
   const posterDate = formatPosterDate(gig.date);
 
-  const renderFallbackImage = (style: any, textStyle: any) => (
+  const renderFallbackImage = (style: any) => (
     <View style={[style, styles.imageFallback]}>
-      <Text style={textStyle}>
-        {String(gig.artist ?? "?").slice(0, 1).toUpperCase()}
-      </Text>
+      <Image
+        source={require("../../assets/logo-symbol.png")}
+        style={styles.fallbackLogo}
+        resizeMode="cover"
+      />
     </View>
   );
 
@@ -307,10 +302,7 @@ export function GigCard({
         animationType="fade"
         onRequestClose={() => setNotesOpen(false)}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setNotesOpen(false)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setNotesOpen(false)}>
           <Pressable
             style={styles.notesModalCard}
             onPress={(e) => e.stopPropagation()}
@@ -337,10 +329,7 @@ export function GigCard({
         animationType="fade"
         onRequestClose={() => setSetlistOpen(false)}
       >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setSetlistOpen(false)}
-        >
+        <Pressable style={styles.modalOverlay} onPress={() => setSetlistOpen(false)}>
           <Pressable
             style={styles.setlistModalCard}
             onPress={(e) => e.stopPropagation()}
@@ -367,10 +356,7 @@ export function GigCard({
                   showsVerticalScrollIndicator={false}
                 >
                   {setlistMatch.setlist.sets.map((set, setIndex) => (
-                    <View
-                      key={`${set.name}-${setIndex}`}
-                      style={styles.setBlock}
-                    >
+                    <View key={`${set.name}-${setIndex}`} style={styles.setBlock}>
                       <Text style={styles.setBlockTitle}>
                         {set.name ||
                           (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
@@ -380,10 +366,7 @@ export function GigCard({
 
                       {set.songs.length > 0 ? (
                         set.songs.map((song, songIndex) => (
-                          <Text
-                            key={`${song}-${songIndex}`}
-                            style={styles.songRow}
-                          >
+                          <Text key={`${song}-${songIndex}`} style={styles.songRow}>
                             {songIndex + 1}. {song}
                           </Text>
                         ))
@@ -457,7 +440,7 @@ export function GigCard({
             {imageUrl ? (
               <Image source={{ uri: imageUrl }} style={styles.posterImage} />
             ) : (
-              renderFallbackImage(styles.posterImage, styles.posterFallbackText)
+              renderFallbackImage(styles.posterImage)
             )}
 
             <View style={styles.posterGradient} />
@@ -503,7 +486,7 @@ export function GigCard({
         {imageUrl ? (
           <Image source={{ uri: imageUrl }} style={styles.rowImage} />
         ) : (
-          renderFallbackImage(styles.rowImage, styles.rowFallbackText)
+          renderFallbackImage(styles.rowImage)
         )}
 
         <View style={styles.rowBody}>
@@ -580,37 +563,12 @@ export function GigCard({
 
           <View style={styles.dateRatingRow}>
             <Text style={styles.date}>{formatGigDateUk(gig.date)}</Text>
-            {hasRating ? (
-              <Text style={styles.ratingInline}>★ {gig.rating}/5</Text>
-            ) : null}
+            {hasRating ? <RatingStars value={gig.rating as number} /> : null}
           </View>
 
-          <View style={styles.socialRow}>
-            <View style={styles.socialLeft}>
-              <AvatarStack avatars={social.avatars} extraCount={social.count} />
-              <Text style={styles.socialInlineText}>{socialText}</Text>
-            </View>
-
-            <View style={styles.socialRight}>
-              {hasTickets ? (
-                <Pressable
-                  onPress={openTickets}
-                  style={({ pressed }) => [
-                    styles.inlineAction,
-                    pressed ? styles.smallBtnPressed : null,
-                  ]}
-                  hitSlop={8}
-                >
-                  <Ionicons
-                    name="ticket-outline"
-                    size={12}
-                    color={Colours.text.muted}
-                  />
-                  <Text style={styles.inlineActionText}>Tickets</Text>
-                </Pressable>
-              ) : null}
-
-              {showSetlistChip ? (
+          {showSetlistChip ? (
+            <View style={styles.socialRow}>
+              <View style={styles.socialRight}>
                 <Pressable
                   onPress={handleOpenSetlist}
                   style={({ pressed }) => [
@@ -626,9 +584,9 @@ export function GigCard({
                   />
                   <Text style={styles.inlineActionText}>Setlist</Text>
                 </Pressable>
-              ) : null}
+              </View>
             </View>
-          </View>
+          ) : null}
         </View>
       </Pressable>
 
@@ -644,13 +602,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colours.background.card,
     borderRadius: 16,
     padding: 10,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
+    borderWidth: 0,
+  },
+
+  ratingStars: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+  },
+
+  fallbackLogo: {
+    width: "100%",
+    height: "100%",
+    opacity: 0.95,
   },
 
   favouriteGigCard: {
-    borderColor: "rgba(255,209,102,0.42)",
-    backgroundColor: "rgba(255,209,102,0.04)",
+    borderWidth: 0,
+    backgroundColor: Colours.background.card,
   },
 
   pressed: {
@@ -666,8 +635,7 @@ const styles = StyleSheet.create({
 
   imageFallback: {
     backgroundColor: "rgba(47,140,255,0.16)",
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.3)",
+    borderWidth: 0,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -696,8 +664,7 @@ const styles = StyleSheet.create({
 
   artistPressable: {
     alignSelf: "flex-start",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.12)",
+    borderBottomWidth: 0,
     paddingBottom: 1,
     maxWidth: "100%",
   },
@@ -762,13 +729,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  ratingInline: {
-    color: Colours.text.primary,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "600",
-  },
-
   socialRow: {
     marginTop: 8,
     flexDirection: "row",
@@ -806,8 +766,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingVertical: 3,
-    paddingHorizontal: 6,
-    borderRadius: 8,
+    paddingHorizontal: 0,
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    borderWidth: 0,
   },
 
   inlineActionText: {
@@ -823,8 +785,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
     backgroundColor: Colours.background.card,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
+    borderWidth: 0,
   },
 
   posterImageWrap: {
@@ -859,10 +820,9 @@ const styles = StyleSheet.create({
     top: 10,
     width: 48,
     height: 58,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.46)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.18)",
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -888,10 +848,9 @@ const styles = StyleSheet.create({
     top: 10,
     width: 28,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(0,0,0,0.44)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1036,3 +995,4 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 });
+

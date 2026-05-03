@@ -141,11 +141,7 @@ function ActionRow(props: {
         ) : null}
       </View>
 
-      <Ionicons
-        name="chevron-forward"
-        size={16}
-        color={Colours.text.muted}
-      />
+      <Ionicons name="chevron-forward" size={16} color={Colours.text.muted} />
     </Pressable>
   );
 }
@@ -715,12 +711,8 @@ export function ProfileScreen({
     }
   }, [displayName, sharingProfile]);
 
-  const handle = "@wegig";
-  const location = homeCity.trim() || stats?.topCity || "—";
   const totalGigs = stats?.total ?? 0;
-
   const selectedPreset = avatarPresets.find((p) => p.id === avatarPreset);
-  const metaLine = location !== "—" ? `${handle} · ${location}` : handle;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -765,8 +757,6 @@ export function ProfileScreen({
               </Pressable>
             </View>
 
-            <Text style={styles.metaLine}>{metaLine}</Text>
-
             <View
               style={[
                 styles.statusPill,
@@ -809,7 +799,7 @@ export function ProfileScreen({
             />
 
             <TextField
-              label="Town or City (optional)"
+              label="Town or City for discover personalisation"
               value={homeCity}
               onChangeText={(value) => {
                 setCityTouched(true);
@@ -862,10 +852,6 @@ export function ProfileScreen({
               </View>
             ) : null}
 
-            <Text style={styles.muted}>
-              Used to personalise Discover + “Next gig near you”.
-            </Text>
-
             <View style={styles.toggleGroup}>
               <View style={styles.toggleRowNoBorder}>
                 <View style={{ flex: 1 }}>
@@ -882,9 +868,7 @@ export function ProfileScreen({
                     false: "rgba(255,255,255,0.18)",
                     true: "rgba(47,140,255,0.35)",
                   }}
-                  thumbColor={
-                    hapticsEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
-                  }
+                  thumbColor="rgba(255,255,255,0.95)"
                   ios_backgroundColor="rgba(255,255,255,0.18)"
                 />
               </View>
@@ -904,9 +888,7 @@ export function ProfileScreen({
                     false: "rgba(255,255,255,0.18)",
                     true: "rgba(47,140,255,0.35)",
                   }}
-                  thumbColor={
-                    gigReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
-                  }
+                  thumbColor="rgba(255,255,255,0.95)"
                   ios_backgroundColor="rgba(255,255,255,0.18)"
                 />
               </View>
@@ -926,9 +908,7 @@ export function ProfileScreen({
                     false: "rgba(255,255,255,0.18)",
                     true: "rgba(47,140,255,0.35)",
                   }}
-                  thumbColor={
-                    rateReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
-                  }
+                  thumbColor="rgba(255,255,255,0.95)"
                   ios_backgroundColor="rgba(255,255,255,0.18)"
                 />
               </View>
@@ -1043,7 +1023,6 @@ export function ProfileScreen({
 
               <View style={{ flex: 1 }}>
                 <Text style={styles.shareCardName}>{displayName}</Text>
-                <Text style={styles.shareCardMeta}>{metaLine}</Text>
                 <Text
                   style={[
                     styles.shareCardStatus,
@@ -1471,3 +1450,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+

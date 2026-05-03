@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  FlatList,
   Image,
   Pressable,
   Linking,
@@ -102,6 +101,12 @@ function formatGigDateUk(value?: string) {
   return `${match[3]}-${match[2]}-${match[1]}`;
 }
 
+function ratingStars(value: number | undefined) {
+  if (typeof value !== "number") return "";
+  const rounded = Math.max(0, Math.min(5, Math.round(value)));
+  return "★".repeat(rounded);
+}
+
 function SectionCard(props: {
   title: string;
   subtitle?: string;
@@ -154,7 +159,9 @@ function ArtistGigRow(props: { gig: Gig; onPress?: () => void }) {
 
       <View style={styles.artistGigRight}>
         {hasRating ? (
-          <Text style={styles.artistGigRating}>★ {props.gig.rating}</Text>
+          <Text style={styles.artistGigRating}>
+            {ratingStars(props.gig.rating)}
+          </Text>
         ) : null}
 
         <Ionicons
@@ -408,218 +415,7 @@ export function ArtistScreen(props: {
   }, []);
 
   const showSpotifyFallback = !spotifyLoading && !spotifyArtist;
-  const showList = !loading && !error && sortedGigs.length > 0;
-
-  const renderHeader = () => (
-    <>
-      <View style={styles.artistHero}>
-        <View style={styles.artistHeroTop}>
-          {spotifyLoading ? (
-            <View
-              style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
-            >
-              <ActivityIndicator />
-            </View>
-          ) : spotifyArtist?.imageUrl ? (
-            <Image
-              source={{ uri: spotifyArtist.imageUrl }}
-              style={styles.artistImage}
-            />
-          ) : (
-            <View
-              style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
-            >
-              <Text style={styles.artistImageFallback}>
-                {props.artist.slice(0, 1).toUpperCase()}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.artistHeroText}>
-            <Text style={styles.artistName}>
-              {spotifyArtist?.name ?? props.artist}
-            </Text>
-
-            <View style={styles.metaRow}>
-              {spotifyArtist?.popularity != null ? (
-                <View style={styles.metaPill}>
-                  <Text style={styles.metaPillText}>
-                    Popularity {spotifyArtist.popularity}/100
-                  </Text>
-                </View>
-              ) : null}
-
-              {spotifyArtist?.followers != null ? (
-                <View style={styles.metaPill}>
-                  <Text style={styles.metaPillText}>
-                    {formatFollowers(spotifyArtist.followers)} followers
-                  </Text>
-                </View>
-              ) : null}
-            </View>
-
-            {spotifyArtist?.spotifyUrl ? (
-              <Pressable
-                onPress={() => void handleOpenUrl(spotifyArtist.spotifyUrl)}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.spotifyLinkBtn,
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <Text style={styles.spotifyLinkText}>Listen</Text>
-
-                <FontAwesome
-                  name="spotify"
-                  size={12}
-                  color="rgba(255,255,255,0.9)"
-                  style={styles.spotifyPillIcon}
-                />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-
-        <View style={styles.heroDivider} />
-
-        <View style={styles.heroHistoryRow}>
-          <View>
-            <Text style={styles.gigsHeaderEyebrow}>Live history</Text>
-            <Text style={styles.gigsHeaderTitle}>Your gigs</Text>
-          </View>
-
-          <TicketBadge count={sortedGigs.length} />
-        </View>
-
-        {spotifyError ? (
-          <View style={styles.spotifyFallbackBox}>
-            <Text style={styles.spotifyFallbackTitle}>Spotify lookup failed</Text>
-            <Text style={styles.spotifyFallbackText}>{spotifyError}</Text>
-          </View>
-        ) : null}
-
-        {showSpotifyFallback ? (
-          <View style={styles.spotifyFallbackBox}>
-            <Text style={styles.spotifyFallbackTitle}>
-              No Spotify profile found yet
-            </Text>
-            <Text style={styles.spotifyFallbackText}>
-              This artist may be local, emerging, or not matched yet.
-            </Text>
-          </View>
-        ) : null}
-      </View>
-
-      {loading ? (
-        <View style={styles.card}>
-          <View style={styles.inlineRow}>
-            <ActivityIndicator />
-            <Text style={styles.muted}>{UI_COPY.loading}</Text>
-          </View>
-        </View>
-      ) : error ? (
-        <View style={styles.card}>
-          <Text style={styles.error}>{error}</Text>
-          <View style={{ height: 10 }} />
-          <PrimaryButton title="Try again" onPress={load} />
-        </View>
-      ) : null}
-    </>
-  );
-
-  const renderFooter = () => (
-    <>
-      {!spotifyLoading && topTracks.length > 0 ? (
-        <SectionCard title="Popular on Spotify">
-          <View style={styles.spotifyList}>
-            {topTracks.map((track, index) => (
-              <SpotifyTrackRow
-                key={track.id}
-                index={index}
-                track={track}
-                onPress={handleOpenUrl}
-              />
-            ))}
-          </View>
-        </SectionCard>
-      ) : null}
-
-      {!spotifyLoading && releases.length > 0 ? (
-        <SectionCard title="Releases">
-          <View style={styles.spotifyList}>
-            {releases.slice(0, 5).map((item) => (
-              <ReleaseCard
-                key={item.id}
-                item={item}
-                onPress={handleOpenUrl}
-              />
-            ))}
-          </View>
-        </SectionCard>
-      ) : null}
-
-      {!setlistLoading && setlists.length > 0 ? (
-        <SectionCard title="Recent setlists">
-          <View style={styles.spotifyList}>
-            {setlists.slice(0, 3).map((item) => (
-              <SetlistRow
-                key={item.id}
-                item={item}
-                onPress={(next) => {
-                  posthog.capture("setlist_opened", {
-                    artist: props.artist,
-                    venue: next.venueName,
-                    date: next.eventDate,
-                  });
-
-                  void posthog.flush();
-                  setSelectedSetlist(next);
-                }}
-              />
-            ))}
-          </View>
-        </SectionCard>
-      ) : null}
-
-      {!setlistLoading && setlists.length === 0 ? (
-        <View style={styles.card}>
-          <Text style={styles.spotifyFallbackText}>{UI_COPY.noSetlist}</Text>
-        </View>
-      ) : null}
-
-      {!similarArtistsLoading && similarArtists.length > 0 ? (
-        <SectionCard title="Fans also like">
-          <View style={styles.similarArtistsWrap}>
-            {similarArtists.slice(0, 8).map((artist) => (
-              <Pressable
-                key={artist.name}
-                onPress={() => {
-                  if (props.onPressSimilarArtist) {
-                    props.onPressSimilarArtist(artist.name);
-                    return;
-                  }
-
-                  void handleOpenUrl(artist.url);
-                }}
-                style={({ pressed }) => [
-                  styles.similarArtistChip,
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <Text style={styles.similarArtistChipText}>{artist.name}</Text>
-              </Pressable>
-            ))}
-          </View>
-        </SectionCard>
-      ) : null}
-
-      {similarArtistsError ? (
-        <View style={styles.card}>
-          <Text style={styles.spotifyFallbackText}>{similarArtistsError}</Text>
-        </View>
-      ) : null}
-    </>
-  );
+  const showGigs = !loading && !error && sortedGigs.length > 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -629,27 +425,224 @@ export function ArtistScreen(props: {
         backLabel="Back"
       />
 
-      <FlatList
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-        data={showList ? sortedGigs : []}
-        keyExtractor={(g) => g.id}
-        ListHeaderComponent={renderHeader}
-        ListFooterComponent={renderFooter}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-        ListEmptyComponent={
-          !loading && !error && sortedGigs.length === 0 ? (
-            <View style={styles.card}>
-              <Text style={styles.muted}>{UI_COPY.empty}</Text>
-            </View>
-          ) : null
-        }
-        renderItem={({ item }) => (
-          <ArtistGigRow gig={item} onPress={() => props.onEditGig?.(item)} />
-        )}
+      <ScrollView
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
-      />
+      >
+        <View style={styles.artistHero}>
+          <View style={styles.artistHeroTop}>
+            {spotifyLoading ? (
+              <View
+                style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
+              >
+                <ActivityIndicator />
+              </View>
+            ) : spotifyArtist?.imageUrl ? (
+              <Image
+                source={{ uri: spotifyArtist.imageUrl }}
+                style={styles.artistImage}
+              />
+            ) : (
+              <View
+                style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
+              >
+                <Text style={styles.artistImageFallback}>
+                  {props.artist.slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.artistHeroText}>
+              <Text style={styles.artistName}>
+                {spotifyArtist?.name ?? props.artist}
+              </Text>
+
+              <View style={styles.metaRow}>
+                {spotifyArtist?.popularity != null ? (
+                  <View style={styles.metaPill}>
+                    <Text style={styles.metaPillText}>
+                      Popularity {spotifyArtist.popularity}/100
+                    </Text>
+                  </View>
+                ) : null}
+
+                {spotifyArtist?.followers != null ? (
+                  <View style={styles.metaPill}>
+                    <Text style={styles.metaPillText}>
+                      {formatFollowers(spotifyArtist.followers)} followers
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {spotifyArtist?.spotifyUrl ? (
+                <Pressable
+                  onPress={() => void handleOpenUrl(spotifyArtist.spotifyUrl)}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.spotifyLinkBtn,
+                    pressed ? styles.pressed : null,
+                  ]}
+                >
+                  <Text style={styles.spotifyLinkText}>Listen</Text>
+
+                  <FontAwesome
+                    name="spotify"
+                    size={12}
+                    color="rgba(255,255,255,0.9)"
+                    style={styles.spotifyPillIcon}
+                  />
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.heroDivider} />
+
+          <View style={styles.heroHistoryRow}>
+            <Text style={styles.gigsHeaderTitle}>Your gigs</Text>
+            <TicketBadge count={sortedGigs.length} />
+          </View>
+
+          {showGigs ? (
+            <View style={styles.heroGigList}>
+              {sortedGigs.map((gig) => (
+                <ArtistGigRow
+                  key={gig.id}
+                  gig={gig}
+                  onPress={() => props.onEditGig?.(gig)}
+                />
+              ))}
+            </View>
+          ) : !loading && !error ? (
+            <Text style={styles.muted}>{UI_COPY.empty}</Text>
+          ) : null}
+
+          {spotifyError ? (
+            <View style={styles.spotifyFallbackBox}>
+              <Text style={styles.spotifyFallbackTitle}>Spotify lookup failed</Text>
+              <Text style={styles.spotifyFallbackText}>{spotifyError}</Text>
+            </View>
+          ) : null}
+
+          {showSpotifyFallback ? (
+            <View style={styles.spotifyFallbackBox}>
+              <Text style={styles.spotifyFallbackTitle}>
+                No Spotify profile found yet
+              </Text>
+              <Text style={styles.spotifyFallbackText}>
+                This artist may be local, emerging, or not matched yet.
+              </Text>
+            </View>
+          ) : null}
+        </View>
+
+        {loading ? (
+          <View style={styles.card}>
+            <View style={styles.inlineRow}>
+              <ActivityIndicator />
+              <Text style={styles.muted}>{UI_COPY.loading}</Text>
+            </View>
+          </View>
+        ) : error ? (
+          <View style={styles.card}>
+            <Text style={styles.error}>{error}</Text>
+            <View style={{ height: 10 }} />
+            <PrimaryButton title="Try again" onPress={load} />
+          </View>
+        ) : null}
+
+        {!spotifyLoading && topTracks.length > 0 ? (
+          <SectionCard title="Popular on Spotify">
+            <View style={styles.spotifyList}>
+              {topTracks.map((track, index) => (
+                <SpotifyTrackRow
+                  key={track.id}
+                  index={index}
+                  track={track}
+                  onPress={handleOpenUrl}
+                />
+              ))}
+            </View>
+          </SectionCard>
+        ) : null}
+
+        {!spotifyLoading && releases.length > 0 ? (
+          <SectionCard title="Releases">
+            <View style={styles.spotifyList}>
+              {releases.slice(0, 5).map((item) => (
+                <ReleaseCard
+                  key={item.id}
+                  item={item}
+                  onPress={handleOpenUrl}
+                />
+              ))}
+            </View>
+          </SectionCard>
+        ) : null}
+
+        {!setlistLoading && setlists.length > 0 ? (
+          <SectionCard title="Recent setlists">
+            <View style={styles.spotifyList}>
+              {setlists.slice(0, 3).map((item) => (
+                <SetlistRow
+                  key={item.id}
+                  item={item}
+                  onPress={(next) => {
+                    posthog.capture("setlist_opened", {
+                      artist: props.artist,
+                      venue: next.venueName,
+                      date: next.eventDate,
+                    });
+
+                    void posthog.flush();
+                    setSelectedSetlist(next);
+                  }}
+                />
+              ))}
+            </View>
+          </SectionCard>
+        ) : null}
+
+        {!setlistLoading && setlists.length === 0 ? (
+          <View style={styles.card}>
+            <Text style={styles.spotifyFallbackText}>{UI_COPY.noSetlist}</Text>
+          </View>
+        ) : null}
+
+        {!similarArtistsLoading && similarArtists.length > 0 ? (
+          <SectionCard title="Fans also like">
+            <View style={styles.similarArtistsWrap}>
+              {similarArtists.slice(0, 5).map((artist) => (
+                <Pressable
+                  key={artist.name}
+                  onPress={() => {
+                    if (props.onPressSimilarArtist) {
+                      props.onPressSimilarArtist(artist.name);
+                      return;
+                    }
+
+                    void handleOpenUrl(artist.url);
+                  }}
+                  style={({ pressed }) => [
+                    styles.similarArtistChip,
+                    pressed ? styles.pressed : null,
+                  ]}
+                >
+                  <Text style={styles.similarArtistChipText}>{artist.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </SectionCard>
+        ) : null}
+
+        {similarArtistsError ? (
+          <View style={styles.card}>
+            <Text style={styles.spotifyFallbackText}>{similarArtistsError}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
 
       <Modal
         visible={!!selectedSetlist}
@@ -752,11 +745,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colours.background.app,
   },
 
-  list: {
-    flex: 1,
-  },
-
-  listContent: {
+  content: {
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 120,
@@ -871,12 +860,118 @@ const styles = StyleSheet.create({
   heroDivider: {
     height: 1,
     backgroundColor: "rgba(255,255,255,0.07)",
+    marginTop: 4,
   },
 
   heroHistoryRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "space-between",
+    paddingTop: 2,
+  },
+
+  heroGigList: {
+    gap: 8,
+  },
+
+  gigsHeaderTitle: {
+    color: Colours.text.secondary,
+    fontWeight: "800",
+    fontSize: 13,
+    lineHeight: 17,
+    letterSpacing: 0.2,
+    textTransform: "uppercase",
+  },
+
+  ticketBadge: {
+    minWidth: 42,
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "rgba(47,140,255,0.14)",
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.34)",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    overflow: "hidden",
+  },
+
+  ticketNotchLeft: {
+    position: "absolute",
+    left: -5,
+    top: "50%",
+    marginTop: -5,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colours.background.app,
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.18)",
+  },
+
+  ticketNotchRight: {
+    position: "absolute",
+    right: -5,
+    top: "50%",
+    marginTop: -5,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colours.background.app,
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.18)",
+  },
+
+  ticketBadgeText: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 12,
+    lineHeight: 14,
+  },
+
+  artistGigRow: {
+    backgroundColor: "rgba(255,255,255,0.035)",
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  artistGigBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  artistGigTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 15,
+    lineHeight: 19,
+  },
+
+  artistGigMeta: {
+    marginTop: 3,
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  artistGigRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  artistGigRating: {
+    color: "#FFD166",
+    fontWeight: "800",
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.5,
   },
 
   spotifyFallbackBox: {
@@ -928,116 +1023,6 @@ const styles = StyleSheet.create({
     color: Colours.text.muted,
     fontWeight: "600",
     fontSize: 11,
-  },
-
-  gigsHeaderEyebrow: {
-    color: Colours.text.muted,
-    fontWeight: "800",
-    fontSize: 10,
-    lineHeight: 13,
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    marginBottom: 2,
-  },
-
-  gigsHeaderTitle: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 16,
-    lineHeight: 20,
-    letterSpacing: -0.1,
-  },
-
-  ticketBadge: {
-    minWidth: 42,
-    height: 28,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: "rgba(47,140,255,0.14)",
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.34)",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-    overflow: "hidden",
-  },
-
-  ticketNotchLeft: {
-    position: "absolute",
-    left: -5,
-    top: "50%",
-    marginTop: -5,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colours.background.app,
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.18)",
-  },
-
-  ticketNotchRight: {
-    position: "absolute",
-    right: -5,
-    top: "50%",
-    marginTop: -5,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: Colours.background.app,
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.18)",
-  },
-
-  ticketBadgeText: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 12,
-    lineHeight: 14,
-  },
-
-  artistGigRow: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-
-  artistGigBody: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  artistGigTitle: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 15,
-    lineHeight: 19,
-  },
-
-  artistGigMeta: {
-    marginTop: 3,
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  artistGigRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  artistGigRating: {
-    color: Colours.text.muted,
-    fontWeight: "800",
-    fontSize: 12,
-    lineHeight: 16,
   },
 
   inlineRow: {

@@ -341,18 +341,34 @@ export default function App() {
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session ?? null);
-      setAuthLoading(false);
-    });
+   supabase.auth.getSession().then(({ data }) => {
+  if (!mounted) return;
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-      setAuthLoading(false);
+  const nextSession = data.session ?? null;
+  setSession(nextSession);
+  setAuthLoading(false);
+
+  if (nextSession?.user) {
+    posthog.identify(nextSession.user.id, {
+      email: nextSession.user.email ?? null,
     });
+  }
+});
+
+const {
+  data: { subscription },
+} = supabase.auth.onAuthStateChange((_event, nextSession) => {
+  setSession(nextSession ?? null);
+  setAuthLoading(false);
+
+  if (nextSession?.user) {
+    posthog.identify(nextSession.user.id, {
+      email: nextSession.user.email ?? null,
+    });
+  } else {
+    posthog.reset();
+  }
+});
 
     return () => {
       mounted = false;
@@ -370,14 +386,20 @@ export default function App() {
 
   if (!session) {
     return (
-      <PostHogProvider client={posthog}>
+      <PostHogProvider
+  client={posthog}
+  autocapture={false}
+>
         <AuthScreen />
       </PostHogProvider>
     );
   }
 
   return (
-    <PostHogProvider client={posthog}>
+    <PostHogProvider
+  client={posthog}
+  autocapture={false}
+>
       <ToastProvider>
         <AppShell />
       </ToastProvider>

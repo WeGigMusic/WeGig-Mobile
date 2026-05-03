@@ -1,17 +1,74 @@
-import React, { useState } from "react";
+import React, { ReactNode, useRef, useState } from "react";
 import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   Alert,
   StyleSheet,
   Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
+  Animated,
 } from "react-native";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+import * as Haptics from "expo-haptics";
+import { AntDesign, Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import { posthog } from "../lib/analytics";
+
+WebBrowser.maybeCompleteAuthSession();
+
+type SocialProvider = "google" | "apple";
+
+const APPLE_LOGIN_ENABLED = false;
+
+type PremiumButtonProps = {
+  children: ReactNode;
+  onPress: () => void | Promise<void>;
+  disabled?: boolean;
+  style?: object;
+};
+
+function PremiumButton({
+  children,
+  onPress,
+  disabled,
+  style,
+}: PremiumButtonProps) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  function animateTo(value: number) {
+    Animated.spring(scale, {
+      toValue: value,
+      useNativeDriver: true,
+      speed: 40,
+      bounciness: 4,
+    }).start();
+  }
+
+  async function handlePress() {
+    if (disabled) return;
+
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await onPress();
+  }
+
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable
+        onPress={handlePress}
+        onPressIn={() => animateTo(0.975)}
+        onPressOut={() => animateTo(1)}
+        disabled={disabled}
+        style={[style, disabled ? styles.disabledBtn : null]}
+      >
+        {children}
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 export default function AuthScreen() {
   const [email, setEmail] = useState("");
@@ -61,7 +118,71 @@ export default function AuthScreen() {
           email: user.email ?? null,
         });
 
-        posthog.capture("login_completed");
+        posthog.capture("login_completed", {
+          method: "email",
+        });
+
+        void posthog.flush();
+      }
+    } catch (e: any) {
+      Alert.alert("Login Failed", e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function signInWithProvider(provider: SocialProvider) {
+    if (provider === "apple" && !APPLE_LOGIN_ENABLED) {
+      Alert.alert("Coming soon", "Apple login will be enabled before launch.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      posthog.capture("login_method_selected", {
+        provider,
+      });
+
+      const redirectTo = Linking.createURL("auth-callback");
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+        },
+      });
+
+      if (error) throw error;
+
+      if (!data.url) {
+        throw new Error("No OAuth URL returned.");
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        redirectTo
+      );
+
+      if (result.type === "success") {
+        const { data: sessionData, error: sessionError } =
+          await supabase.auth.exchangeCodeForSession(result.url);
+
+        if (sessionError) throw sessionError;
+
+        const user = sessionData.session?.user;
+
+        if (user) {
+          posthog.identify(user.id, {
+            email: user.email ?? null,
+          });
+        }
+
+        posthog.capture("login_completed", {
+          method: provider,
+        });
+
         void posthog.flush();
       }
     } catch (e: any) {
@@ -117,25 +238,47 @@ export default function AuthScreen() {
             ]}
           />
 
-          <TouchableOpacity
-            style={[styles.primaryBtn, loading ? styles.disabledBtn : null]}
+          <PremiumButton
+            style={styles.primaryBtn}
             onPress={signIn}
             disabled={loading}
-            activeOpacity={0.88}
           >
             <Text style={styles.primaryBtnText}>
               {loading ? "Loading..." : "Continue"}
             </Text>
-          </TouchableOpacity>
+          </PremiumButton>
 
-          <TouchableOpacity
-            style={[styles.secondaryBtn, loading ? styles.disabledBtn : null]}
+          <PremiumButton
+            style={styles.secondaryBtn}
             onPress={signUp}
             disabled={loading}
-            activeOpacity={0.88}
           >
             <Text style={styles.secondaryBtnText}>Create account</Text>
-          </TouchableOpacity>
+          </PremiumButton>
+
+          <View style={styles.dividerWrap}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <PremiumButton
+            style={styles.providerBtnLight}
+            onPress={() => signInWithProvider("google")}
+            disabled={loading}
+          >
+            <AntDesign name="google" size={18} color="#111111" />
+            <Text style={styles.providerTextDark}>Continue with Google</Text>
+          </PremiumButton>
+
+          <PremiumButton
+            style={styles.providerBtnDark}
+            onPress={() => signInWithProvider("apple")}
+            disabled={loading || !APPLE_LOGIN_ENABLED}
+          >
+            <Ionicons name="logo-apple" size={21} color="#FFFFFF" />
+            <Text style={styles.providerTextLight}>Continue with Apple</Text>
+          </PremiumButton>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -147,7 +290,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0B0B0F",
     justifyContent: "center",
-    padding: 24,
+    paddingHorizontal: 24,
   },
 
   card: {
@@ -156,62 +299,90 @@ const styles = StyleSheet.create({
 
   logoWrap: {
     alignItems: "center",
-    marginBottom: 28,
+    marginBottom: 24,
   },
 
   logoImage: {
-    width: 110,
-    height: 110,
+    width: 94,
+    height: 94,
   },
 
   form: {
-    gap: 12,
+    gap: 10,
   },
 
   input: {
-    backgroundColor: "#16161C",
+    height: 52,
+    backgroundColor: "#15151B",
     color: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 15,
+    borderRadius: 15,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: "#2A2A32",
+    borderColor: "#2A2A34",
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 
   inputFocused: {
     borderColor: "#2F8CFF",
     shadowColor: "#2F8CFF",
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
+    shadowOpacity: 0.18,
+    shadowRadius: 7,
     shadowOffset: { width: 0, height: 0 },
   },
 
   primaryBtn: {
+    height: 52,
     backgroundColor: "#2F8CFF",
-    padding: 15,
-    borderRadius: 16,
-    marginTop: 6,
+    borderRadius: 15,
+    marginTop: 4,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(126,182,255,0.45)",
+    borderColor: "rgba(255,255,255,0.22)",
     shadowColor: "#2F8CFF",
-    shadowOpacity: 0.32,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    shadowOpacity: 0.28,
+    shadowRadius: 13,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 5,
   },
 
   secondaryBtn: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    padding: 15,
-    borderRadius: 16,
+    height: 52,
+    backgroundColor: "#15151B",
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+
+  providerBtnLight: {
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: "#F7F7F8",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.12)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+
+  providerBtnDark: {
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: "#000000",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.16)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
   },
 
   disabledBtn: {
-    opacity: 0.65,
+    opacity: 0.5,
   },
 
   primaryBtnText: {
@@ -219,7 +390,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#FFFFFF",
     fontSize: 15,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
 
   secondaryBtnText: {
@@ -227,6 +398,39 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#FFFFFF",
     fontSize: 15,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
+  },
+
+  providerTextDark: {
+    color: "#050507",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.05,
+  },
+
+  providerTextLight: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.05,
+  },
+
+  dividerWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginVertical: 7,
+  },
+
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+
+  dividerText: {
+    color: "#8E8E98",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

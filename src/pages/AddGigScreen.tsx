@@ -3,18 +3,18 @@ import {
   SafeAreaView,
   Text,
   Alert,
-  ScrollView,
   View,
   ActivityIndicator,
   StyleSheet,
   Pressable,
   Platform,
   KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
-import { PrimaryButton } from "../components/PrimaryButton";
 import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
 import { AppHeader } from "../components/AppHeader";
@@ -122,6 +122,7 @@ export function AddGigScreen(props: {
   onBack?: () => void;
 }) {
   const { showToast } = useToast();
+  const scrollRef = React.useRef<any>(null);
 
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
@@ -129,9 +130,7 @@ export function AddGigScreen(props: {
   const [date, setDate] = React.useState("");
   const [rating, setRating] = React.useState<number | undefined>(undefined);
 
-  const [artistMbid, setArtistMbid] = React.useState<string | undefined>(
-    undefined,
-  );
+  const [artistMbid, setArtistMbid] = React.useState<string | undefined>();
   const [mbLoading, setMbLoading] = React.useState(false);
   const [mbResults, setMbResults] = React.useState<MbArtist[]>([]);
   const [mbError, setMbError] = React.useState("");
@@ -150,31 +149,27 @@ export function AddGigScreen(props: {
         longitude: number;
       }
     | undefined
-  >(undefined);
+  >();
 
   const [selectedVenueLat, setSelectedVenueLat] = React.useState<
     number | undefined
-  >(undefined);
+  >();
   const [selectedVenueLng, setSelectedVenueLng] = React.useState<
     number | undefined
-  >(undefined);
+  >();
   const [selectedVenuePlaceName, setSelectedVenuePlaceName] = React.useState<
     string | undefined
-  >(undefined);
+  >();
   const [selectedVenuePlaceId, setSelectedVenuePlaceId] = React.useState<
     string | undefined
-  >(undefined);
+  >();
 
   const [notes, setNotes] = React.useState("");
   const [externalSource, setExternalSource] = React.useState<
     string | undefined
-  >(undefined);
-  const [externalId, setExternalId] = React.useState<string | undefined>(
-    undefined,
-  );
-  const [ticketUrl, setTicketUrl] = React.useState<string | undefined>(
-    undefined,
-  );
+  >();
+  const [externalId, setExternalId] = React.useState<string | undefined>();
+  const [ticketUrl, setTicketUrl] = React.useState<string | undefined>();
 
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
@@ -187,10 +182,12 @@ export function AddGigScreen(props: {
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
     if (!d) return false;
+
     const today = new Date();
     const todayUtc = new Date(
       Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
     );
+
     return d.getTime() > todayUtc.getTime();
   }, [date]);
 
@@ -207,6 +204,7 @@ export function AddGigScreen(props: {
     if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
     if (props.prefill.city != null) setCity(String(props.prefill.city));
     if (props.prefill.date != null) setDate(String(props.prefill.date));
+
     if (typeof props.prefill.rating === "number") {
       setRating(props.prefill.rating);
     }
@@ -214,29 +212,36 @@ export function AddGigScreen(props: {
     if ((props.prefill as any).artistMbid != null) {
       setArtistMbid(String((props.prefill as any).artistMbid));
     }
+
     if ((props.prefill as any).notes != null) {
       setNotes(String((props.prefill as any).notes));
     }
+
     if ((props.prefill as any).externalSource != null) {
       setExternalSource(String((props.prefill as any).externalSource));
     }
+
     if ((props.prefill as any).externalId != null) {
       setExternalId(String((props.prefill as any).externalId));
     }
+
     if ((props.prefill as any).ticketUrl != null) {
       setTicketUrl(String((props.prefill as any).ticketUrl));
     }
 
     setAutoCreateAttempted(false);
     setJustPrefilled(true);
+
     const t = setTimeout(() => setJustPrefilled(false), 2500);
 
     props.onPrefillUsed?.();
+
     return () => clearTimeout(t);
   }, [props.prefill, props.onPrefillUsed]);
 
   const runMbSearch = React.useCallback(async (q: string) => {
     const query = q.trim();
+
     if (query.length < 2) {
       setMbResults([]);
       setMbError("");
@@ -246,6 +251,7 @@ export function AddGigScreen(props: {
 
     setMbLoading(true);
     setMbError("");
+
     try {
       const res = await apiGet<MbArtistSearchResponse>(
         `/mb/artists/search?q=${encodeURIComponent(query)}`,
@@ -271,6 +277,7 @@ export function AddGigScreen(props: {
     setArtistMbid(undefined);
 
     const q = artist.trim();
+
     if (q.length < 2) {
       setMbResults([]);
       setMbOpen(false);
@@ -292,10 +299,7 @@ export function AddGigScreen(props: {
     if (loading) return;
 
     const hasRequired =
-      artist.trim() &&
-      venue.trim() &&
-      city.trim() &&
-      date.trim();
+      artist.trim() && venue.trim() && city.trim() && date.trim();
 
     if (!hasRequired) return;
 
@@ -407,6 +411,7 @@ export function AddGigScreen(props: {
       setVenue(details.venueName);
 
       const placeCity = details.city.trim();
+
       if (placeCity) {
         setCity(placeCity);
         setJustAutoCity(true);
@@ -417,15 +422,13 @@ export function AddGigScreen(props: {
       setVenueOpen(false);
       setVenueError("");
       setVenueLoading(false);
-
       setVenueSessionToken(createSessionToken());
     } catch (e: any) {
       setVenueError(e?.message ?? "Failed to load venue details");
       setVenueLoading(false);
     }
   };
-
-  async function getExistingGigsBestEffort(): Promise<Gig[]> {
+    async function getExistingGigsBestEffort(): Promise<Gig[]> {
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const gigs = res?.gigs ?? [];
@@ -495,20 +498,27 @@ export function AddGigScreen(props: {
     if (scanPrefill.venue != null) setVenue(String(scanPrefill.venue));
     if (scanPrefill.city != null) setCity(String(scanPrefill.city));
     if (scanPrefill.date != null) setDate(String(scanPrefill.date));
-    if (typeof scanPrefill.rating === "number") setRating(scanPrefill.rating);
+
+    if (typeof scanPrefill.rating === "number") {
+      setRating(scanPrefill.rating);
+    }
 
     if ((scanPrefill as any).artistMbid != null) {
       setArtistMbid(String((scanPrefill as any).artistMbid));
     }
+
     if ((scanPrefill as any).notes != null) {
       setNotes(String((scanPrefill as any).notes));
     }
+
     if ((scanPrefill as any).externalSource != null) {
       setExternalSource(String((scanPrefill as any).externalSource));
     }
+
     if ((scanPrefill as any).externalId != null) {
       setExternalId(String((scanPrefill as any).externalId));
     }
+
     if ((scanPrefill as any).ticketUrl != null) {
       setTicketUrl(String((scanPrefill as any).ticketUrl));
     }
@@ -583,6 +593,7 @@ export function AddGigScreen(props: {
     try {
       const existing = await getExistingGigsBestEffort();
       const dup = findDuplicate(existing, payload);
+
       if (dup) {
         Alert.alert(
           "Already logged",
@@ -593,6 +604,7 @@ export function AddGigScreen(props: {
     } catch {}
 
     setLoading(true);
+
     try {
       const created = await apiPost<Gig>("/gigs", payload);
 
@@ -606,10 +618,10 @@ export function AddGigScreen(props: {
       if (addToCalendar && canAddToCalendar) {
         try {
           await addGigToCalendar({
-  title: `${payload.artist} @ ${payload.venue}`,
-  location: `${payload.venue}, ${payload.city}`,
-  date: payload.date,
-});
+            title: `${payload.artist} @ ${payload.venue}`,
+            location: `${payload.venue}, ${payload.city}`,
+            date: payload.date,
+          });
         } catch (e: any) {
           Alert.alert("Calendar", e?.message ?? "Couldn’t add to calendar");
         }
@@ -622,10 +634,11 @@ export function AddGigScreen(props: {
         try {
           const existing = await getCachedGigs();
           const dup = findDuplicate(existing, payload);
+
           if (dup) {
             Alert.alert(
               "Already logged",
-              "This gig already exists (from your last sync).",
+              "This gig already exists from your last sync.",
             );
             return;
           }
@@ -633,10 +646,12 @@ export function AddGigScreen(props: {
 
         try {
           await enqueueGig(payload);
+
           Alert.alert(
             "Saved offline",
             "You’re offline. This gig was queued and will sync when you’re back online.",
           );
+
           props.onCreated?.({} as any);
           resetForm();
           return;
@@ -650,6 +665,7 @@ export function AddGigScreen(props: {
       }
 
       const msg = String(e?.message ?? "");
+
       if (msg.includes("409")) {
         Alert.alert("Already logged", "You’ve already logged this gig.");
         return;
@@ -674,9 +690,9 @@ export function AddGigScreen(props: {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
+        style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={8}
+        keyboardVerticalOffset={20}
       >
         <AppHeader
           onPressLogo={props.onPressLogo}
@@ -684,38 +700,35 @@ export function AddGigScreen(props: {
           backLabel="Gigs"
         />
 
-        <ScrollView
+        <KeyboardAwareScrollView
+          ref={scrollRef}
           contentContainerStyle={styles.body}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
+          enableOnAndroid
+          enableAutomaticScroll
+          extraScrollHeight={130}
         >
-          <View style={styles.card}>
+          <View style={styles.hero}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>Log a gig</Text>
 
               <Pressable
                 onPress={() => setScanningTicket(true)}
-                hitSlop={8}
+                hitSlop={10}
                 style={({ pressed }) => [
                   styles.scanHeaderBtn,
-                  pressed
-                    ? { opacity: 0.9, transform: [{ scale: 0.97 }] }
-                    : null,
+                  pressed ? styles.pressedSmall : null,
                 ]}
               >
                 <Ionicons
                   name="scan-outline"
-                  size={18}
+                  size={20}
                   color={Colours.text.primary}
                 />
               </Pressable>
             </View>
-
-            <Text style={styles.subtitle}>
-              Use <Text style={styles.bold}>Discover</Text> to prefill shows
-              faster, or scan a ticket photo to auto-fill what we can.
-            </Text>
 
             {justPrefilled ? (
               <Text style={styles.ok}>{UI_COPY.prefilled}</Text>
@@ -726,7 +739,7 @@ export function AddGigScreen(props: {
             ) : null}
           </View>
 
-          <View style={[styles.card, styles.formCard]}>
+          <View style={styles.form}>
             <TextField
               label="Artist"
               value={artist}
@@ -753,16 +766,17 @@ export function AddGigScreen(props: {
                   const meta = [a.country, a.disambiguation]
                     .filter(Boolean)
                     .join(" • ");
+
                   return (
                     <Pressable
                       key={a.id}
                       onPress={() => chooseArtist(a)}
                       style={({ pressed }) => [
                         styles.suggestRow,
-                        pressed ? { opacity: 0.9 } : null,
+                        pressed ? styles.rowPressed : null,
                       ]}
                     >
-                      <View style={{ flex: 1 }}>
+                      <View style={styles.flex}>
                         <Text style={styles.suggestTitle}>{a.name}</Text>
                         {meta ? (
                           <Text style={styles.suggestMeta}>{meta}</Text>
@@ -790,7 +804,7 @@ export function AddGigScreen(props: {
                 setSelectedVenuePlaceName(undefined);
                 setSelectedVenuePlaceId(undefined);
               }}
-              placeholder="Start typing a venue (e.g. Wembley Stadium)…"
+              placeholder="Start typing a venue..."
               autoCapitalize="words"
             />
 
@@ -813,13 +827,15 @@ export function AddGigScreen(props: {
                     onPress={() => void chooseGoogleVenue(place)}
                     style={({ pressed }) => [
                       styles.suggestRow,
-                      pressed ? { opacity: 0.9 } : null,
+                      pressed ? styles.rowPressed : null,
                     ]}
                   >
-                    <View style={{ flex: 1 }}>
+                    <View style={styles.flex}>
                       <Text style={styles.suggestTitle}>{place.title}</Text>
                       {place.subtitle ? (
-                        <Text style={styles.suggestMeta}>{place.subtitle}</Text>
+                        <Text style={styles.suggestMeta}>
+                          {place.subtitle}
+                        </Text>
                       ) : null}
                     </View>
                   </Pressable>
@@ -837,10 +853,15 @@ export function AddGigScreen(props: {
               onPress={handleUseMyLocation}
               style={({ pressed }) => [
                 styles.locationBtn,
-                pressed ? { opacity: 0.9 } : null,
+                pressed ? styles.rowPressed : null,
               ]}
             >
-              <Text style={styles.locationBtnText}>Use my current location</Text>
+              <Ionicons
+                name="location-outline"
+                size={16}
+                color={Colours.text.primary}
+              />
+              <Text style={styles.locationBtnText}>Use my location</Text>
             </Pressable>
 
             <DateField
@@ -887,14 +908,12 @@ export function AddGigScreen(props: {
                       />
                     </View>
 
-                    <View style={{ flex: 1 }}>
+                    <View style={styles.flex}>
                       <Text style={styles.highlightTitle}>
-                        {addToCalendar
-                          ? "Will open calendar after save"
-                          : "Add to calendar"}
+                        {addToCalendar ? "Calendar ready" : "Add to calendar"}
                       </Text>
                       <Text style={styles.highlightText}>
-                        Create a calendar event for this gig.
+                        Create an event after saving.
                       </Text>
                     </View>
                   </View>
@@ -906,16 +925,34 @@ export function AddGigScreen(props: {
               label="Notes (optional)"
               value={notes}
               onChangeText={setNotes}
-              placeholder="Who you went with, favourite moment, support act…"
+              placeholder="Who you went with, favourite moment…"
               autoCapitalize="sentences"
               multiline
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={() => Keyboard.dismiss()}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollRef.current?.scrollToEnd?.({ animated: true });
+                }, 180);
+              }}
+              style={{ minHeight: 100 }}
             />
 
-            <PrimaryButton
-              title={loading ? "Saving…" : "Save"}
+            <Pressable
               onPress={submit}
               disabled={loading}
-            />
+              style={({ pressed }) => [
+                styles.actionBtn,
+                styles.saveActionBtn,
+                loading ? styles.saveBtnDisabled : null,
+                pressed && !loading ? styles.saveBtnPressed : null,
+              ]}
+            >
+              <Text style={styles.saveBtnText}>
+                {loading ? "Saving…" : "Save"}
+              </Text>
+            </Pressable>
 
             {loading ? (
               <View style={styles.inlineRow}>
@@ -924,7 +961,7 @@ export function AddGigScreen(props: {
               </View>
             ) : null}
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -936,51 +973,37 @@ const styles = StyleSheet.create({
     backgroundColor: Colours.background.app,
   },
 
+  flex: {
+    flex: 1,
+  },
+
   body: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 12,
-    paddingBottom: 140,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 180,
   },
 
-  card: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
+  hero: {
+    marginBottom: 22,
   },
 
-  formCard: {
-    gap: 12,
+  form: {
+    gap: 16,
   },
 
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 16,
   },
 
   title: {
     color: Colours.text.primary,
-    fontSize: 22,
-    lineHeight: 27,
+    fontSize: 18,
+    lineHeight: 24,
     fontWeight: "900",
     letterSpacing: -0.2,
-  },
-
-  subtitle: {
-    marginTop: 8,
-    color: Colours.text.muted,
-    fontSize: 13,
-    lineHeight: 20,
-    fontWeight: "700",
-  },
-
-  bold: {
-    color: Colours.text.primary,
-    fontWeight: "900",
   },
 
   ok: {
@@ -993,9 +1016,9 @@ const styles = StyleSheet.create({
 
   label: {
     color: Colours.text.secondary,
-    fontWeight: "800",
+    fontWeight: "600",
     fontSize: 13,
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
 
   muted: {
@@ -1020,10 +1043,8 @@ const styles = StyleSheet.create({
   },
 
   suggestCard: {
-    backgroundColor: Colours.background.card,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
     overflow: "hidden",
   },
 
@@ -1031,7 +1052,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colours.ui.border,
+    borderBottomColor: "rgba(255,255,255,0.06)",
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -1053,38 +1074,37 @@ const styles = StyleSheet.create({
   },
 
   scanHeaderBtn: {
-    minWidth: 42,
-    height: 28,
-    paddingHorizontal: 10,
-    borderRadius: 3,
-    backgroundColor: "rgba(47,140,255,0.12)",
-    borderWidth: 0,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(47,140,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
-    position: "relative",
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
-    transform: [{ rotate: "-0.6deg" }],
+  },
+
+  pressedSmall: {
+    opacity: 0.85,
+    transform: [{ scale: 0.96 }],
+  },
+
+  rowPressed: {
+    opacity: 0.9,
   },
 
   locationBtn: {
-    marginTop: 4,
-    paddingVertical: 10,
+    height: 46,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
+    backgroundColor: "rgba(255,255,255,0.05)",
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
 
   locationBtnText: {
     color: Colours.text.primary,
     fontWeight: "800",
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 14,
   },
 
   ratingBlock: {
@@ -1092,7 +1112,7 @@ const styles = StyleSheet.create({
   },
 
   highlightSection: {
-    marginTop: 6,
+    marginTop: 2,
   },
 
   sectionTitle: {
@@ -1107,9 +1127,7 @@ const styles = StyleSheet.create({
   highlightRow: {
     padding: 12,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.05)",
   },
 
   highlightPressed: {
@@ -1133,9 +1151,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: "rgba(255,255,255,0.07)",
   },
 
   highlightIconBlue: {
@@ -1154,5 +1170,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     marginTop: 2,
+  },
+
+  actionBtn: {
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+
+  saveActionBtn: {
+    backgroundColor: "#2F8CFF",
+  },
+
+  saveBtnDisabled: {
+    opacity: 0.65,
+  },
+
+  saveBtnPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.99 }],
+  },
+
+  saveBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

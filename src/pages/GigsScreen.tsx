@@ -9,7 +9,6 @@ import {
   Animated,
   Pressable,
   Alert,
-  Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,98 +33,11 @@ const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Gig>);
 
-type BadgeChip = {
-  title: string;
-  icon: string;
-  unlocked: boolean;
+type SpotifyArtistPageResponse = {
+  artist: {
+    imageUrl: string | null;
+  } | null;
 };
-
-type BadgeInfo = {
-  title: string;
-  description: string;
-};
-
-const BADGE_INFO: Record<string, BadgeInfo> = {
-  "First Gig": {
-    title: "First Gig",
-    description: "Logged your first gig on WeGig.",
-  },
-  "Scene Regular": {
-    title: "Scene Regular",
-    description: "Logged 5 gigs.",
-  },
-  "Venue Hopper": {
-    title: "Venue Hopper",
-    description: "Visited 3 different venues.",
-  },
-  "City Explorer": {
-    title: "City Explorer",
-    description: "Logged gigs in 3 different cities.",
-  },
-  Superfan: {
-    title: "Superfan",
-    description: "Saw the same artist 3 times.",
-  },
-  "Perfect Set": {
-    title: "Perfect Set",
-    description: "Gave a gig a 5-star rating.",
-  },
-  "Sharp Ears": {
-    title: "Sharp Ears",
-    description: "Rated 5 gigs.",
-  },
-  "First Review": {
-    title: "First Review",
-    description: "Rated your first gig.",
-  },
-};
-
-function computeGigBadges(gigs: Gig[]) {
-  const total = gigs.length;
-
-  const rated = gigs.filter((g) => typeof g.rating === "number") as Array<
-    Gig & { rating: number }
-  >;
-
-  const cities = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.city ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
-  const cityCount = Object.keys(cities).length;
-
-  const venues = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.venue ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
-  const venueCount = Object.keys(venues).length;
-
-  const artists = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.artist ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
-  const topArtistCount =
-    Object.values(artists).sort((a, b) => b - a)[0] ?? 0;
-
-  const badges: BadgeChip[] = [
-    { title: "First Gig", icon: "🎟️", unlocked: total >= 1 },
-    { title: "First Review", icon: "✨", unlocked: rated.length >= 1 },
-    { title: "Scene Regular", icon: "🔥", unlocked: total >= 5 },
-    { title: "Venue Hopper", icon: "🏟️", unlocked: venueCount >= 3 },
-    { title: "City Explorer", icon: "🌍", unlocked: cityCount >= 3 },
-    { title: "Superfan", icon: "⭐", unlocked: topArtistCount >= 3 },
-    {
-      title: "Perfect Set",
-      icon: "🌟",
-      unlocked: gigs.some((g) => g.rating === 5),
-    },
-    { title: "Sharp Ears", icon: "📝", unlocked: rated.length >= 5 },
-  ];
-
-  return badges.filter((b) => b.unlocked);
-}
 
 function splitGigs(gigs: Gig[]) {
   const today = new Date();
@@ -158,121 +70,13 @@ function splitGigs(gigs: Gig[]) {
   return { comingUpGigs, pastGigs };
 }
 
-function BadgeShowcaseChip(props: {
-  title: string;
-  icon: string;
-  onLongPress?: () => void;
-}) {
+function TicketStub({ count }: { count: number }) {
   return (
-    <Pressable
-      onLongPress={props.onLongPress}
-      delayLongPress={320}
-      style={({ pressed }) => [
-        {
-          flexDirection: "row",
-          alignItems: "center",
-          paddingVertical: 8,
-          paddingHorizontal: 12,
-          borderRadius: 999,
-          marginRight: 8,
-          borderWidth: 1,
-          backgroundColor: "rgba(47,140,255,0.16)",
-          borderColor: "rgba(47,140,255,0.38)",
-        },
-        pressed ? { opacity: 0.92 } : null,
-      ]}
-    >
-      <Text style={{ marginRight: 6, fontSize: 13 }}>{props.icon}</Text>
-      <Text
-        style={{
-          color: Colours.text.primary,
-          fontWeight: "700",
-          fontSize: 12,
-          lineHeight: 16,
-        }}
-      >
-        {props.title}
-      </Text>
-    </Pressable>
-  );
-}
-
-function BadgeInfoModal(props: {
-  visible: boolean;
-  title: string;
-  description: string;
-  onClose: () => void;
-}) {
-  return (
-    <Modal
-      visible={props.visible}
-      transparent
-      animationType="fade"
-      onRequestClose={props.onClose}
-      statusBarTranslucent
-    >
-      <Pressable
-        onPress={props.onClose}
-        style={{
-          flex: 1,
-          backgroundColor: "rgba(0,0,0,0.78)",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          paddingHorizontal: 16,
-          paddingTop: 120,
-        }}
-      >
-        <Pressable
-          onPress={(e) => e.stopPropagation()}
-          style={{
-            width: "100%",
-            maxWidth: 360,
-            borderRadius: 18,
-            padding: 18,
-            backgroundColor: "#17191C",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.14)",
-            shadowColor: "#000",
-            shadowOpacity: 0.35,
-            shadowRadius: 18,
-            shadowOffset: { width: 0, height: 8 },
-            elevation: 12,
-          }}
-        >
-          <Text
-            style={{
-              color: Colours.text.primary,
-              fontSize: 18,
-              fontWeight: "700",
-              marginBottom: 8,
-            }}
-          >
-            {props.title}
-          </Text>
-
-          <Text
-            style={{
-              color: Colours.text.secondary,
-              fontSize: 14,
-              lineHeight: 20,
-            }}
-          >
-            {props.description}
-          </Text>
-
-          <Text
-            style={{
-              marginTop: 14,
-              color: Colours.text.muted,
-              fontSize: 12,
-              fontWeight: "600",
-            }}
-          >
-            Tap outside to close
-          </Text>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <View style={styles.ticketStub}>
+      <View style={styles.ticketStubNotchLeft} />
+      <View style={styles.ticketStubNotchRight} />
+      <Text style={styles.ticketStubText}>{count}</Text>
+    </View>
   );
 }
 
@@ -303,8 +107,9 @@ export function GigsScreen(props: {
 
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
 
-  const [selectedBadgeInfo, setSelectedBadgeInfo] =
-    React.useState<BadgeInfo | null>(null);
+  const [artistImageByName, setArtistImageByName] = React.useState<
+    Record<string, string | null>
+  >({});
 
   const loadPinnedGigIds = React.useCallback(async () => {
     try {
@@ -314,21 +119,6 @@ export function GigsScreen(props: {
       setFavouriteGigId("");
     }
   }, []);
-
-  const toggleFavouriteGig = React.useCallback(
-    async (gigId: string) => {
-      try {
-        if (favouriteGigId === gigId) {
-          await AsyncStorage.removeItem(FAVOURITE_GIG_ID_KEY);
-          setFavouriteGigId("");
-        } else {
-          await AsyncStorage.setItem(FAVOURITE_GIG_ID_KEY, gigId);
-          setFavouriteGigId(gigId);
-        }
-      } catch {}
-    },
-    [favouriteGigId],
-  );
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -357,7 +147,6 @@ export function GigsScreen(props: {
     setConfirmingSubmit(false);
     setEditingGig(null);
     setArtistView(null);
-    setSelectedBadgeInfo(null);
     setDiscoverPrefill(null);
   }, [props.resetSignal]);
 
@@ -412,6 +201,54 @@ export function GigsScreen(props: {
     setConfirmingGig(true);
     setAddingGig(false);
   }, [props.prefill, props.autoCreatePrefill]);
+
+  React.useEffect(() => {
+    const uniqueArtists = Array.from(
+      new Set(
+        (data?.gigs ?? [])
+          .map((g) => g.artist?.trim())
+          .filter(Boolean),
+      ),
+    ) as string[];
+
+    const missingArtists = uniqueArtists.filter((artist) => {
+      const key = artist.toLowerCase();
+      return !(key in artistImageByName);
+    });
+
+    if (missingArtists.length === 0) return;
+
+    let cancelled = false;
+
+    const loadImages = async () => {
+      const entries = await Promise.all(
+        missingArtists.map(async (artist) => {
+          try {
+            const res = await apiGet<SpotifyArtistPageResponse>(
+              `/spotify/artist-page?name=${encodeURIComponent(artist)}`,
+            );
+
+            return [artist.toLowerCase(), res.artist?.imageUrl ?? null] as const;
+          } catch {
+            return [artist.toLowerCase(), null] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setArtistImageByName((prev) => ({
+          ...prev,
+          ...Object.fromEntries(entries),
+        }));
+      }
+    };
+
+    void loadImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [data?.gigs, artistImageByName]);
 
   const clearDiscoverPrefill = React.useCallback(() => {
     setDiscoverPrefill(null);
@@ -537,10 +374,18 @@ export function GigsScreen(props: {
     );
   }
 
-  const gigs = data?.gigs ?? [];
+  const gigs = (data?.gigs ?? []).map((gig) => {
+    const artistKey = String(gig.artist ?? "").trim().toLowerCase();
+
+    return {
+      ...gig,
+      artistImageUrl:
+        (gig as any).artistImageUrl ?? artistImageByName[artistKey] ?? null,
+    };
+  });
+
   const { comingUpGigs, pastGigs } = splitGigs(gigs);
   const isEmpty = !loading && !error && gigs.length === 0;
-  const showcaseBadges = computeGigBadges(gigs).slice(0, 6);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
@@ -598,62 +443,11 @@ export function GigsScreen(props: {
               ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
               ListHeaderComponent={
                 <View style={{ marginBottom: 14 }}>
-                  <View style={{ marginBottom: 18, gap: 8 }}>
-                    <Text
-                      style={{
-                        color: Colours.text.primary,
-                        fontWeight: "700",
-                        fontSize: 14,
-                        lineHeight: 18,
-                      }}
-                    >
-                      My badges
-                    </Text>
-
-                    {showcaseBadges.length > 0 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={{ paddingRight: 8 }}
-                      >
-                        {showcaseBadges.map((badge) => (
-                          <BadgeShowcaseChip
-                            key={badge.title}
-                            title={badge.title}
-                            icon={badge.icon}
-                            onLongPress={() =>
-                              setSelectedBadgeInfo(
-                                BADGE_INFO[badge.title] ?? {
-                                  title: badge.title,
-                                  description:
-                                    "Badge unlocked in your gig history.",
-                                },
-                              )
-                            }
-                          />
-                        ))}
-                      </ScrollView>
-                    ) : (
-                      <Text
-                        style={{
-                          color: Colours.text.muted,
-                          fontWeight: "500",
-                          fontSize: 13,
-                          lineHeight: 18,
-                        }}
-                      >
-                        Log your first gig to start earning badges.
-                      </Text>
-                    )}
-                  </View>
-
                   {comingUpGigs.length > 0 ? (
                     <View style={{ marginBottom: 22 }}>
                       <View style={styles.sectionHeaderRow}>
                         <Text style={styles.bigSectionTitle}>Coming up</Text>
-                        <Text style={styles.sectionCount}>
-                          {comingUpGigs.length}
-                        </Text>
+                        <TicketStub count={comingUpGigs.length} />
                       </View>
 
                       <ScrollView
@@ -682,7 +476,7 @@ export function GigsScreen(props: {
 
                   <View style={styles.sectionHeaderRow}>
                     <Text style={styles.bigSectionTitle}>Past gigs</Text>
-                    <Text style={styles.sectionCount}>{pastGigs.length}</Text>
+                    <TicketStub count={pastGigs.length} />
                   </View>
                 </View>
               }
@@ -760,13 +554,6 @@ export function GigsScreen(props: {
             >
               <Ionicons name="add" size={28} color={Colours.text.primary} />
             </Pressable>
-
-            <BadgeInfoModal
-              visible={!!selectedBadgeInfo}
-              title={selectedBadgeInfo?.title ?? ""}
-              description={selectedBadgeInfo?.description ?? ""}
-              onClose={() => setSelectedBadgeInfo(null)}
-            />
           </>
         )}
       </View>
@@ -782,18 +569,54 @@ const styles = {
     marginBottom: 12,
   },
 
- bigSectionTitle: {
-  color: Colours.text.primary,
-  fontWeight: "800" as const,
-  fontSize: 17,
-  lineHeight: 22,
-  letterSpacing: -0.1,
+  bigSectionTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800" as const,
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.1,
+  },
+
+ticketStub: {
+  minWidth: 42,
+  height: 26,
+  paddingHorizontal: 13,
+  borderRadius: 5,
+  backgroundColor: "rgba(119, 118, 214, 0.18)",
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  position: "relative" as const,
+  overflow: "hidden" as const,
+  transform: [{ rotate: "-1deg" }],
 },
 
-sectionCount: {
-  color: Colours.text.muted,
-  fontWeight: "700" as const,
-  fontSize: 13,
-  lineHeight: 18,
+ ticketStubNotchLeft: {
+  position: "absolute" as const,
+  left: -5,
+  top: "50%" as const,
+  marginTop: -5,
+  width: 10,
+  height: 10,
+  borderRadius: 5,
+  backgroundColor: Colours.background.app,
+},
+
+ticketStubNotchRight: {
+  position: "absolute" as const,
+  right: -5,
+  top: "50%" as const,
+  marginTop: -5,
+  width: 10,
+  height: 10,
+  borderRadius: 5,
+  backgroundColor: Colours.background.app,
+},
+
+ticketStubText: {
+  color: "#f1efeb",
+  fontWeight: "900" as const,
+  fontSize: 12,
+  lineHeight: 15,
+  letterSpacing: 0.8,
 },
 };

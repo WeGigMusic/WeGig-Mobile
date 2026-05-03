@@ -12,11 +12,10 @@ import {
   Modal,
   ScrollView,
 } from "react-native";
-import { Ionicons, FontAwesome } from "@expo/vector-icons";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
 
 import { AppHeader } from "../components/AppHeader";
 import { PrimaryButton } from "../components/PrimaryButton";
-import { GigCard } from "../components/GigCard";
 import { apiGet } from "../lib/api";
 import { posthog } from "../lib/analytics";
 import { Colours } from "../theme/colours";
@@ -76,37 +75,6 @@ const UI_COPY = {
   noSetlist: "No setlist currently available.",
 };
 
-function computeArtistStats(gigs: Gig[]) {
-  const total = gigs.length;
-
-  const rated = gigs.filter((g) => typeof g.rating === "number") as Array<
-    Gig & { rating: number }
-  >;
-
-  const avgRating =
-    rated.length === 0
-      ? null
-      : Math.round(
-          (rated.reduce((sum, g) => sum + g.rating, 0) / rated.length) * 10,
-        ) / 10;
-
-  const venues = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.venue ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
-  const topVenue = Object.entries(venues).sort((a, b) => b[1] - a[1])[0]?.[0];
-
-  const cities = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.city ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
-    return acc;
-  }, {});
-  const topCity = Object.entries(cities).sort((a, b) => b[1] - a[1])[0]?.[0];
-
-  return { total, avgRating, topVenue, topCity, ratedCount: rated.length };
-}
-
 function formatFollowers(value: number | null | undefined) {
   if (value == null) return "—";
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
@@ -127,15 +95,11 @@ function formatReleaseDate(value: string | null | undefined) {
   return value;
 }
 
-function StatTile(props: { label: string; value: string }) {
-  return (
-    <View style={styles.tile}>
-      <Text style={styles.tileLabel}>{props.label}</Text>
-      <Text style={styles.tileValue} numberOfLines={1}>
-        {props.value}
-      </Text>
-    </View>
-  );
+function formatGigDateUk(value?: string) {
+  const raw = String(value ?? "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return raw;
+  return `${match[3]}-${match[2]}-${match[1]}`;
 }
 
 function SectionCard(props: {
@@ -151,10 +115,55 @@ function SectionCard(props: {
           <Text style={styles.sectionSubtitle}>{props.subtitle}</Text>
         ) : null}
       </View>
-      {props.subtitle ? <View style={{ height: 8 }} /> : null}
-      {!props.subtitle ? <View style={{ height: 4 }} /> : null}
+      <View style={{ height: props.subtitle ? 8 : 4 }} />
       {props.children}
     </View>
+  );
+}
+
+function TicketBadge(props: { count: number }) {
+  return (
+    <View style={styles.ticketBadge}>
+      <View style={styles.ticketNotchLeft} />
+      <View style={styles.ticketNotchRight} />
+      <Text style={styles.ticketBadgeText}>{props.count}</Text>
+    </View>
+  );
+}
+
+function ArtistGigRow(props: { gig: Gig; onPress?: () => void }) {
+  const hasRating = typeof props.gig.rating === "number";
+
+  return (
+    <Pressable
+      onPress={props.onPress}
+      style={({ pressed }) => [
+        styles.artistGigRow,
+        pressed ? styles.pressed : null,
+      ]}
+    >
+      <View style={styles.artistGigBody}>
+        <Text style={styles.artistGigTitle} numberOfLines={1}>
+          {props.gig.venue}
+        </Text>
+
+        <Text style={styles.artistGigMeta} numberOfLines={1}>
+          {props.gig.city} • {formatGigDateUk(props.gig.date)}
+        </Text>
+      </View>
+
+      <View style={styles.artistGigRight}>
+        {hasRating ? (
+          <Text style={styles.artistGigRating}>★ {props.gig.rating}</Text>
+        ) : null}
+
+        <Ionicons
+          name="chevron-forward"
+          size={17}
+          color="rgba(255,255,255,0.44)"
+        />
+      </View>
+    </Pressable>
   );
 }
 
@@ -236,26 +245,10 @@ function SetlistRow(props: {
     <Pressable
       onPress={() => props.onPress(props.item)}
       style={({ pressed }) => [
-        styles.releaseCard,
+        styles.setlistTextRow,
         pressed ? styles.pressed : null,
       ]}
     >
-      <View style={styles.setlistPoster}>
-        <View style={styles.setlistPosterGlow} />
-        <Ionicons
-          name="flash-outline"
-          size={16}
-          color={Colours.text.primary}
-          style={styles.setlistPosterIconTop}
-        />
-        <Ionicons
-          name="musical-notes"
-          size={22}
-          color={Colours.text.primary}
-        />
-        <Text style={styles.setlistPosterText}>LIVE</Text>
-      </View>
-
       <View style={styles.releaseBody}>
         <Text style={styles.spotifyRowTitle} numberOfLines={1}>
           {props.item.venueName}
@@ -391,10 +384,19 @@ export function ArtistScreen(props: {
     void loadSimilarArtists();
   }, [load, loadSpotifyArtistPage, loadSetlists, loadSimilarArtists]);
 
-  const stats = computeArtistStats(gigs);
   const spotifyArtist = spotifyData?.artist ?? null;
   const topTracks = spotifyData?.topTracks ?? [];
   const releases = spotifyData?.releases ?? [];
+
+  const sortedGigs = React.useMemo(
+    () =>
+      [...gigs].sort((a, b) => {
+        const ad = String(a.date ?? "");
+        const bd = String(b.date ?? "");
+        return bd.localeCompare(ad);
+      }),
+    [gigs],
+  );
 
   const handleOpenUrl = React.useCallback(async (url: string | null) => {
     const nextUrl = url?.trim();
@@ -406,7 +408,7 @@ export function ArtistScreen(props: {
   }, []);
 
   const showSpotifyFallback = !spotifyLoading && !spotifyArtist;
-  const showList = !loading && !error && gigs.length > 0;
+  const showList = !loading && !error && sortedGigs.length > 0;
 
   const renderHeader = () => (
     <>
@@ -478,6 +480,17 @@ export function ArtistScreen(props: {
           </View>
         </View>
 
+        <View style={styles.heroDivider} />
+
+        <View style={styles.heroHistoryRow}>
+          <View>
+            <Text style={styles.gigsHeaderEyebrow}>Live history</Text>
+            <Text style={styles.gigsHeaderTitle}>Your gigs</Text>
+          </View>
+
+          <TicketBadge count={sortedGigs.length} />
+        </View>
+
         {spotifyError ? (
           <View style={styles.spotifyFallbackBox}>
             <Text style={styles.spotifyFallbackTitle}>Spotify lookup failed</Text>
@@ -497,6 +510,25 @@ export function ArtistScreen(props: {
         ) : null}
       </View>
 
+      {loading ? (
+        <View style={styles.card}>
+          <View style={styles.inlineRow}>
+            <ActivityIndicator />
+            <Text style={styles.muted}>{UI_COPY.loading}</Text>
+          </View>
+        </View>
+      ) : error ? (
+        <View style={styles.card}>
+          <Text style={styles.error}>{error}</Text>
+          <View style={{ height: 10 }} />
+          <PrimaryButton title="Try again" onPress={load} />
+        </View>
+      ) : null}
+    </>
+  );
+
+  const renderFooter = () => (
+    <>
       {!spotifyLoading && topTracks.length > 0 ? (
         <SectionCard title="Popular on Spotify">
           <View style={styles.spotifyList}>
@@ -527,10 +559,7 @@ export function ArtistScreen(props: {
       ) : null}
 
       {!setlistLoading && setlists.length > 0 ? (
-        <SectionCard
-          title="Recent setlists"
-          subtitle={`${Math.min(setlists.length, 3)} shown`}
-        >
+        <SectionCard title="Recent setlists">
           <View style={styles.spotifyList}>
             {setlists.slice(0, 3).map((item) => (
               <SetlistRow
@@ -559,7 +588,7 @@ export function ArtistScreen(props: {
       ) : null}
 
       {!similarArtistsLoading && similarArtists.length > 0 ? (
-        <SectionCard title="Fans also like" subtitle="From Last.fm">
+        <SectionCard title="Fans also like">
           <View style={styles.similarArtistsWrap}>
             {similarArtists.slice(0, 8).map((artist) => (
               <Pressable
@@ -589,57 +618,6 @@ export function ArtistScreen(props: {
           <Text style={styles.spotifyFallbackText}>{similarArtistsError}</Text>
         </View>
       ) : null}
-
-      {loading ? (
-        <View style={styles.card}>
-          <View style={styles.inlineRow}>
-            <ActivityIndicator />
-            <Text style={styles.muted}>{UI_COPY.loading}</Text>
-          </View>
-        </View>
-      ) : error ? (
-        <View style={styles.card}>
-          <Text style={styles.error}>{error}</Text>
-          <View style={{ height: 10 }} />
-          <PrimaryButton title="Try again" onPress={load} />
-        </View>
-      ) : (
-        <>
-          <SectionCard title="Your WeGig stats">
-            <View style={styles.grid}>
-              <StatTile label="Total gigs" value={String(stats.total)} />
-              <StatTile label="Rated" value={String(stats.ratedCount)} />
-              <StatTile
-                label="Avg rating"
-                value={stats.avgRating == null ? "—" : String(stats.avgRating)}
-              />
-              <StatTile label="Top city" value={stats.topCity ?? "—"} />
-            </View>
-
-            <View style={styles.divider} />
-
-            <Text style={styles.metaLine}>
-              Top venue:{" "}
-              <Text style={styles.metaLineStrong}>{stats.topVenue ?? "—"}</Text>
-            </Text>
-          </SectionCard>
-
-          <View style={styles.sectionDivider} />
-
-          <View style={styles.gigsHeaderRow}>
-            <View>
-              <Text style={styles.gigsHeaderEyebrow}>Live history</Text>
-              <Text style={styles.gigsHeaderTitle}>Your gigs</Text>
-            </View>
-
-            <View style={styles.ticketBadge}>
-              <View style={styles.ticketNotchLeft} />
-              <View style={styles.ticketNotchRight} />
-              <Text style={styles.ticketBadgeText}>{gigs.length}</Text>
-            </View>
-          </View>
-        </>
-      )}
     </>
   );
 
@@ -654,19 +632,20 @@ export function ArtistScreen(props: {
       <FlatList
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        data={showList ? gigs : []}
+        data={showList ? sortedGigs : []}
         keyExtractor={(g) => g.id}
         ListHeaderComponent={renderHeader}
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ListFooterComponent={renderFooter}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListEmptyComponent={
-          !loading && !error && gigs.length === 0 ? (
+          !loading && !error && sortedGigs.length === 0 ? (
             <View style={styles.card}>
               <Text style={styles.muted}>{UI_COPY.empty}</Text>
             </View>
           ) : null
         }
         renderItem={({ item }) => (
-          <GigCard gig={item} onPress={() => props.onEditGig?.(item)} />
+          <ArtistGigRow gig={item} onPress={() => props.onEditGig?.(item)} />
         )}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -789,8 +768,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
     padding: 14,
-    gap: 8,
-    marginBottom: 8,
+    gap: 10,
+    marginBottom: 10,
   },
 
   artistHeroTop: {
@@ -889,6 +868,17 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
+  heroDivider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.07)",
+  },
+
+  heroHistoryRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+  },
+
   spotifyFallbackBox: {
     backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
@@ -940,26 +930,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 
-  sectionDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    marginTop: 0,
-    marginBottom: 12,
-  },
-
-  gigsHeaderRow: {
-    marginBottom: 10,
-    paddingHorizontal: 2,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-  },
-
   gigsHeaderEyebrow: {
     color: Colours.text.muted,
     fontWeight: "800",
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 10,
+    lineHeight: 13,
     letterSpacing: 0.5,
     textTransform: "uppercase",
     marginBottom: 2,
@@ -968,9 +943,9 @@ const styles = StyleSheet.create({
   gigsHeaderTitle: {
     color: Colours.text.primary,
     fontWeight: "900",
-    fontSize: 20,
-    lineHeight: 24,
-    letterSpacing: -0.2,
+    fontSize: 16,
+    lineHeight: 20,
+    letterSpacing: -0.1,
   },
 
   ticketBadge: {
@@ -1020,6 +995,51 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
 
+  artistGigRow: {
+    backgroundColor: Colours.background.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+
+  artistGigBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  artistGigTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 15,
+    lineHeight: 19,
+  },
+
+  artistGigMeta: {
+    marginTop: 3,
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  artistGigRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  artistGigRating: {
+    color: Colours.text.muted,
+    fontWeight: "800",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
   inlineRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1032,62 +1052,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  metaLine: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-
-  metaLineStrong: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-  },
-
   error: {
     color: Colours.text.danger,
     fontWeight: "900",
-  },
-
-  grid: {
-    marginTop: 2,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-
-  tile: {
-    width: "48%",
-    backgroundColor: "rgba(0,0,0,0.16)",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-    paddingVertical: 9,
-    paddingHorizontal: 10,
-    minHeight: 70,
-    justifyContent: "center",
-  },
-
-  tileLabel: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 11,
-    letterSpacing: 0.1,
-  },
-
-  tileValue: {
-    marginTop: 4,
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 17,
-    letterSpacing: -0.1,
-  },
-
-  divider: {
-    marginTop: 12,
-    marginBottom: 10,
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.08)",
   },
 
   spotifyList: {
@@ -1149,6 +1116,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
 
+  setlistTextRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 8,
+  },
+
   releaseImage: {
     width: 56,
     height: 56,
@@ -1157,44 +1131,6 @@ const styles = StyleSheet.create({
 
   releaseBody: {
     flex: 1,
-  },
-
-  setlistPoster: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#1A1026",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "relative",
-  },
-
-  setlistPosterGlow: {
-    position: "absolute",
-    top: -8,
-    left: -6,
-    right: -6,
-    height: 24,
-    backgroundColor: "rgba(255,80,80,0.22)",
-    borderRadius: 999,
-  },
-
-  setlistPosterIconTop: {
-    position: "absolute",
-    top: 7,
-    right: 7,
-    opacity: 0.9,
-  },
-
-  setlistPosterText: {
-    marginTop: 2,
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 9,
-    letterSpacing: 1,
   },
 
   similarArtistsWrap: {

@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
 
  logoBtn: {
   justifyContent: "center",
-  marginLeft: -6, // 👈 tweak between -4 and -8
+  marginLeft: -40, // 👈 tweak between -4 and -8
 },
 
   backBtn: {

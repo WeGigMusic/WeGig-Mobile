@@ -31,13 +31,23 @@ import { Colours } from "../theme/colours";
 
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 
-const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<Gig>);
-
 type SpotifyArtistPageResponse = {
   artist: {
     imageUrl: string | null;
   } | null;
 };
+
+type PastGigListItem =
+  | { type: "year"; year: string; count: number }
+  | { type: "gig"; year: string; gig: Gig };
+
+const AnimatedFlatList =
+  Animated.createAnimatedComponent(FlatList<PastGigListItem>);
+
+function getGigYear(gig: Gig) {
+  const d = parseYmdToUtcDate(gig.date);
+  return d ? String(d.getUTCFullYear()) : "Unknown";
+}
 
 function splitGigs(gigs: Gig[]) {
   const today = new Date();
@@ -70,9 +80,49 @@ function splitGigs(gigs: Gig[]) {
   return { comingUpGigs, pastGigs };
 }
 
+function buildPastGigItems(
+  pastGigs: Gig[],
+  collapsed: Record<string, boolean>,
+): PastGigListItem[] {
+  const grouped = pastGigs.reduce<Record<string, Gig[]>>((acc, gig) => {
+    const year = getGigYear(gig);
+    acc[year] = acc[year] ?? [];
+    acc[year].push(gig);
+    return acc;
+  }, {});
+
+  const years = Object.keys(grouped).sort((a, b) => {
+    if (a === "Unknown") return 1;
+    if (b === "Unknown") return -1;
+    return Number(b) - Number(a);
+  });
+
+  return years.flatMap((year): PastGigListItem[] => {
+    const gigs = grouped[year];
+
+    const header: PastGigListItem = {
+      type: "year",
+      year,
+      count: gigs.length,
+    };
+
+    if (collapsed[year]) return [header];
+
+    const gigItems: PastGigListItem[] = gigs.map((gig) => ({
+      type: "gig" as const,
+      year,
+      gig,
+    }));
+
+    return [header, ...gigItems];
+  });
+}
+
 function TicketStub({ count }: { count: number }) {
   return (
     <View style={styles.ticketStub}>
+      <View style={styles.ticketStubNotchLeft} />
+      <View style={styles.ticketStubNotchRight} />
       <Text style={styles.ticketStubText}>{count}</Text>
     </View>
   );
@@ -88,7 +138,7 @@ export function GigsScreen(props: {
   onGigCreated?: () => void;
 }) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
-  const listRef = React.useRef<FlatList<Gig>>(null);
+  const listRef = React.useRef<FlatList<PastGigListItem>>(null);
 
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
@@ -107,6 +157,10 @@ export function GigsScreen(props: {
 
   const [artistImageByName, setArtistImageByName] = React.useState<
     Record<string, string | null>
+  >({});
+
+  const [collapsedYears, setCollapsedYears] = React.useState<
+    Record<string, boolean>
   >({});
 
   const loadPinnedGigIds = React.useCallback(async () => {
@@ -248,6 +302,13 @@ export function GigsScreen(props: {
     props.onPrefillUsed?.();
   }, [props]);
 
+  const toggleYear = React.useCallback((year: string) => {
+    setCollapsedYears((prev) => ({
+      ...prev,
+      [year]: !prev[year],
+    }));
+  }, []);
+
   const createGigFromDiscover = React.useCallback(async () => {
     if (!discoverPrefill) return;
 
@@ -336,7 +397,7 @@ export function GigsScreen(props: {
         gig={editingGig}
         onPressLogo={props.onPressLogo}
         onBack={() => setEditingGig(null)}
-        onPressArtist={(artist) => {
+        onPressArtist={(artist: string) => {
           setEditingGig(null);
           setArtistView(artist);
         }}
@@ -355,8 +416,8 @@ export function GigsScreen(props: {
         artist={artistView}
         onPressLogo={props.onPressLogo}
         onBack={() => setArtistView(null)}
-        onEditGig={(g) => setEditingGig(g)}
-        onPressSimilarArtist={(artist) => setArtistView(artist)}
+        onEditGig={(g: Gig) => setEditingGig(g)}
+        onPressSimilarArtist={(artist: string) => setArtistView(artist)}
       />
     );
   }
@@ -372,6 +433,7 @@ export function GigsScreen(props: {
   });
 
   const { comingUpGigs, pastGigs } = splitGigs(gigs);
+  const pastGigItems = buildPastGigItems(pastGigs, collapsedYears);
   const isEmpty = !loading && !error && gigs.length === 0;
 
   return (
@@ -423,8 +485,10 @@ export function GigsScreen(props: {
           <>
             <AnimatedFlatList
               ref={listRef}
-              data={pastGigs}
-              keyExtractor={(item) => item.id}
+              data={pastGigItems}
+              keyExtractor={(item) =>
+                item.type === "year" ? `year-${item.year}` : item.gig.id
+              }
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
@@ -451,7 +515,7 @@ export function GigsScreen(props: {
                             key={gig.id}
                             gig={gig}
                             variant="poster"
-                            onPress={() => setEditingGig(gig)}
+                            onPress={() => setArtistView(gig.artist)}
                             onPressArtist={(artist: string) =>
                               setArtistView(artist)
                             }
@@ -492,15 +556,41 @@ export function GigsScreen(props: {
                   </View>
                 ) : null
               }
-              renderItem={({ item }) => (
-                <GigCard
-                  gig={item}
-                  variant="row"
-                  onPress={() => setEditingGig(item)}
-                  onPressArtist={(artist: string) => setArtistView(artist)}
-                  isFavouriteGig={item.id === favouriteGigId}
-                />
-              )}
+              renderItem={({ item }) => {
+                if (item.type === "year") {
+                  const isCollapsed = !!collapsedYears[item.year];
+
+                  return (
+                    <Pressable
+                      onPress={() => toggleYear(item.year)}
+                      style={({ pressed }) => [
+                        styles.yearHeader,
+                        pressed ? styles.yearHeaderPressed : null,
+                      ]}
+                      hitSlop={8}
+                    >
+                      <View style={styles.yearTitleRow}>
+  <Ionicons
+    name={isCollapsed ? "chevron-forward" : "chevron-down"}
+    size={16}
+    color={Colours.text.muted}
+  />
+  <Text style={styles.yearTitle}>{item.year}</Text>
+</View>
+                    </Pressable>
+                  );
+                }
+
+                return (
+                  <GigCard
+                    gig={item.gig}
+                    variant="row"
+                    onPress={() => setArtistView(item.gig.artist)}
+                    onPressArtist={(artist: string) => setArtistView(artist)}
+                    isFavouriteGig={item.gig.id === favouriteGigId}
+                  />
+                );
+              }}
               refreshing={loading}
               onRefresh={() => {
                 void load();
@@ -566,22 +656,80 @@ const styles = {
   },
 
   ticketStub: {
-    minWidth: 24,
-    height: 24,
-    paddingHorizontal: 0,
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    alignItems: "flex-end" as const,
+    minWidth: 34,
+    height: 20,
+    paddingHorizontal: 10,
+    borderRadius: 3,
+    backgroundColor: "rgba(47,140,255,0.12)",
+    alignItems: "center" as const,
     justifyContent: "center" as const,
+    position: "relative" as const,
+    overflow: "hidden" as const,
+    borderWidth: 0,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    transform: [{ rotate: "-0.6deg" }],
+  },
+
+  ticketStubNotchLeft: {
+    position: "absolute" as const,
+    left: -4,
+    top: "50%" as const,
+    marginTop: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colours.background.app,
+    opacity: 0.9,
+  },
+
+  ticketStubNotchRight: {
+    position: "absolute" as const,
+    right: -4,
+    top: "50%" as const,
+    marginTop: -4,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colours.background.app,
+    opacity: 0.9,
   },
 
   ticketStubText: {
-    color: Colours.text.muted,
+    color: Colours.text.primary,
     fontWeight: "800" as const,
-    fontSize: 13,
-    lineHeight: 17,
-    letterSpacing: 0.2,
+    fontSize: 11,
+    lineHeight: 13,
+    letterSpacing: 0.4,
+  },
+
+  yearHeader: {
+    marginTop: 8,
+    marginBottom: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 2,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+  },
+
+  yearHeaderPressed: {
+    opacity: 0.78,
+  },
+
+  yearTitleRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 6,
+  },
+
+  yearTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800" as const,
+    fontSize: 16,
+    lineHeight: 21,
   },
 };
-
 

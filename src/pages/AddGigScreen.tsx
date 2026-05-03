@@ -937,7 +937,8 @@ const styles = StyleSheet.create({
   },
 
   body: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
     gap: 12,
     paddingBottom: 140,
   },
@@ -947,7 +948,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: Colours.ui.border,
-    padding: 13,
+    padding: 14,
   },
 
   formCard: {
@@ -963,49 +964,50 @@ const styles = StyleSheet.create({
 
   title: {
     color: Colours.text.primary,
-    fontSize: 20,
-    lineHeight: 24,
-    fontWeight: "700",
+    fontSize: 22,
+    lineHeight: 27,
+    fontWeight: "900",
+    letterSpacing: -0.2,
   },
 
   subtitle: {
+    marginTop: 8,
     color: Colours.text.muted,
-    marginTop: 6,
     fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "500",
+    lineHeight: 20,
+    fontWeight: "700",
   },
 
   bold: {
     color: Colours.text.primary,
-    fontWeight: "700",
+    fontWeight: "900",
   },
 
   ok: {
     marginTop: 10,
     color: "#2EE59D",
-    fontWeight: "600",
+    fontWeight: "800",
     fontSize: 13,
     lineHeight: 18,
   },
 
   label: {
     color: Colours.text.secondary,
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 16,
+    fontWeight: "800",
+    fontSize: 13,
+    letterSpacing: 0.2,
   },
 
   muted: {
     color: Colours.text.muted,
-    fontWeight: "500",
+    fontWeight: "800",
     fontSize: 13,
     lineHeight: 18,
   },
 
   errorText: {
     color: Colours.text.danger,
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 13,
     lineHeight: 17,
   },
@@ -1014,6 +1016,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
+    marginTop: 2,
   },
 
   suggestCard: {
@@ -1036,7 +1039,7 @@ const styles = StyleSheet.create({
 
   suggestTitle: {
     color: Colours.text.primary,
-    fontWeight: "700",
+    fontWeight: "900",
     fontSize: 14,
     lineHeight: 18,
   },
@@ -1044,28 +1047,34 @@ const styles = StyleSheet.create({
   suggestMeta: {
     marginTop: 2,
     color: Colours.text.muted,
-    fontWeight: "500",
+    fontWeight: "700",
     fontSize: 12,
     lineHeight: 16,
   },
 
   scanHeaderBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    minWidth: 42,
+    height: 28,
+    paddingHorizontal: 10,
+    borderRadius: 3,
     backgroundColor: "rgba(47,140,255,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.35)",
+    borderWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
+    position: "relative",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    transform: [{ rotate: "-0.6deg" }],
   },
 
   locationBtn: {
-    marginTop: 8,
+    marginTop: 4,
     paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: Colours.background.card,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
     borderWidth: 1,
     borderColor: Colours.ui.border,
     alignItems: "center",
@@ -1073,7 +1082,7 @@ const styles = StyleSheet.create({
 
   locationBtnText: {
     color: Colours.text.primary,
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 13,
     lineHeight: 17,
   },
@@ -1089,8 +1098,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     color: Colours.text.muted,
     fontSize: 12,
-    fontWeight: "700",
+    fontWeight: "800",
     marginBottom: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.2,
   },
 
   highlightRow: {
@@ -1134,13 +1145,14 @@ const styles = StyleSheet.create({
 
   highlightTitle: {
     color: Colours.text.primary,
-    fontWeight: "700",
+    fontWeight: "800",
     fontSize: 14,
   },
 
   highlightText: {
     color: Colours.text.muted,
     fontSize: 12,
+    fontWeight: "600",
     marginTop: 2,
   },
 });

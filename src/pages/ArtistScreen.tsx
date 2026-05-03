@@ -432,26 +432,24 @@ export function ArtistScreen(props: {
       >
         <View style={styles.artistHero}>
           <View style={styles.artistHeroTop}>
-            {spotifyLoading ? (
-              <View
-                style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
-              >
-                <ActivityIndicator />
-              </View>
-            ) : spotifyArtist?.imageUrl ? (
-              <Image
-                source={{ uri: spotifyArtist.imageUrl }}
-                style={styles.artistImage}
-              />
-            ) : (
-              <View
-                style={[styles.artistImageWrap, styles.artistImagePlaceholder]}
-              >
-                <Text style={styles.artistImageFallback}>
-                  {props.artist.slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-            )}
+           {spotifyLoading ? (
+  <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
+    <ActivityIndicator />
+  </View>
+) : spotifyArtist?.imageUrl ? (
+  <Image
+    source={{ uri: spotifyArtist.imageUrl }}
+    style={styles.artistImage}
+  />
+) : (
+  <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
+    <Image
+      source={require("../../assets/logo-symbol.png")}
+      style={styles.artistImageFallbackLogo}
+      resizeMode="cover"
+    />
+  </View>
+)}
 
             <View style={styles.artistHeroText}>
               <Text style={styles.artistName}>
@@ -527,15 +525,12 @@ export function ArtistScreen(props: {
           ) : null}
 
           {showSpotifyFallback ? (
-            <View style={styles.spotifyFallbackBox}>
-              <Text style={styles.spotifyFallbackTitle}>
-                No Spotify profile found yet
-              </Text>
-              <Text style={styles.spotifyFallbackText}>
-                This artist may be local, emerging, or not matched yet.
-              </Text>
-            </View>
-          ) : null}
+  <View style={styles.spotifyFallbackBox}>
+    <Text style={styles.spotifyFallbackText}>
+      No current profile for this artist can be matched.
+    </Text>
+  </View>
+) : null}
         </View>
 
         {loading ? (
@@ -611,7 +606,7 @@ export function ArtistScreen(props: {
           </View>
         ) : null}
 
-        {!similarArtistsLoading && similarArtists.length > 0 ? (
+        {spotifyArtist && !similarArtistsLoading && similarArtists.length > 0 ? (
           <SectionCard title="Fans also like">
             <View style={styles.similarArtistsWrap}>
               {similarArtists.slice(0, 5).map((artist) => (
@@ -797,6 +792,11 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 32,
   },
+  
+  artistImageFallbackLogo: {
+  width: "100%",
+  height: "100%",
+},
 
   artistName: {
     color: Colours.text.primary,

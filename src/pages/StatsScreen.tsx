@@ -9,13 +9,19 @@ import {
   Animated,
   Modal,
   Pressable,
+  Dimensions,
+  ImageBackground,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_WIDTH = Math.min(190, SCREEN_WIDTH * 0.52);
 
 type BadgeDef = {
   title: string;
@@ -27,6 +33,12 @@ type BadgeDef = {
 type BadgeInfo = {
   title: string;
   description: string;
+};
+
+type SpotifyArtistPageResponse = {
+  artist: {
+    imageUrl: string | null;
+  } | null;
 };
 
 const BADGE_INFO: Record<string, BadgeInfo> = {
@@ -83,6 +95,22 @@ function parseGigYear(value?: string) {
 function clampProgress(value: number, max: number) {
   if (max <= 0) return 0;
   return Math.max(0, Math.min(1, value / max));
+}
+
+function getGigImageUrl(gig: Gig | null | undefined) {
+  if (!gig) return null;
+
+  const candidate =
+    (gig as any).artistImageUrl ??
+    (gig as any).spotifyArtistImageUrl ??
+    (gig as any).spotifyImageUrl ??
+    (gig as any).imageUrl ??
+    (gig as any).artist?.imageUrl ??
+    (gig as any).artist?.images?.[0]?.url ??
+    null;
+
+  const value = String(candidate ?? "").trim();
+  return value.length > 0 ? value : null;
 }
 
 function buildStats(gigs: Gig[]) {
@@ -150,12 +178,6 @@ function buildStats(gigs: Gig[]) {
     statusColor = "#2F8CFF";
     statusIcon = "🎟️";
   }
-
-  const bestNight =
-    [...rated].sort((a, b) => {
-      if (b.rating !== a.rating) return b.rating - a.rating;
-      return String(b.date).localeCompare(String(a.date));
-    })[0] ?? null;
 
   const years = gigs.reduce<Record<string, number>>((acc, g) => {
     const year = parseGigYear(g.date);
@@ -225,8 +247,6 @@ function buildStats(gigs: Gig[]) {
     },
   ];
 
-  const nextBadge = badges.find((b) => !b.unlocked) ?? null;
-
   return {
     total,
     ratedCount: rated.length,
@@ -237,10 +257,8 @@ function buildStats(gigs: Gig[]) {
     topVenue,
     topArtist,
     topArtistCount,
-    bestNight,
     timeline,
     badges,
-    nextBadge,
     statusLabel,
     statusColor,
     statusIcon,
@@ -251,58 +269,81 @@ function buildStats(gigs: Gig[]) {
   };
 }
 
-function SectionTitle(props: { title: string }) {
-  return <Text style={styles.sectionTitle}>{props.title}</Text>;
+function SectionHeader(props: { title: string }) {
+  return (
+    <View style={styles.sectionHeaderRow}>
+      <Text style={styles.bigSectionTitle}>{props.title}</Text>
+    </View>
+  );
 }
 
-function StatCard(props: { label: string; value: string; subtitle?: string }) {
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statCardLabel}>{props.label}</Text>
-      <Text style={styles.statCardValue} numberOfLines={2}>
+function KeyStatCard(props: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  subtitle?: string;
+  imageUrl?: string | null;
+  tone?: "default" | "gold" | "blue" | "purple";
+}) {
+  const content = (
+    <View style={styles.keyStatInner}>
+      <View style={styles.keyStatHeader}>
+        <Ionicons name={props.icon} size={14} color={Colours.text.primary} />
+        <Text style={styles.keyStatLabel}>{props.label}</Text>
+      </View>
+
+      <View style={{ flex: 1 }} />
+
+      <Text style={styles.keyStatValue} numberOfLines={2}>
         {props.value}
       </Text>
+
       {props.subtitle ? (
-        <Text style={styles.statCardSubtitle} numberOfLines={2}>
+        <Text style={styles.keyStatSubtitle} numberOfLines={2}>
           {props.subtitle}
         </Text>
       ) : null}
     </View>
   );
-}
 
-function ProgressRow(props: {
-  label: string;
-  valueText: string;
-  progress: number;
-  tint: string;
-}) {
+  if (props.imageUrl) {
+    return (
+      <ImageBackground
+        source={{ uri: props.imageUrl }}
+        style={styles.keyStatCard}
+        imageStyle={styles.keyStatImage}
+      >
+        <View style={styles.imageOverlay} />
+        {content}
+      </ImageBackground>
+    );
+  }
+
   return (
-    <View style={styles.progressRow}>
-      <View style={styles.progressRowHeader}>
-        <Text style={styles.progressLabel}>{props.label}</Text>
-        <Text style={styles.progressValue}>{props.valueText}</Text>
-      </View>
-
-      <View style={styles.progressTrack}>
-        <View
-          style={[
-            styles.progressFill,
-            {
-              width:
-                props.progress <= 0
-                  ? "0%"
-                  : `${Math.max(8, props.progress * 100)}%`,
-              backgroundColor: props.tint,
-            },
-          ]}
-        />
-      </View>
+    <View style={[styles.keyStatCard, styles[`tone_${props.tone ?? "default"}`]]}>
+      {content}
     </View>
   );
 }
 
-function AchievementPill(
+function LiveStatCard(props: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.liveStatCard}>
+      <View style={styles.keyStatHeader}>
+        <Ionicons name={props.icon} size={14} color={Colours.text.primary} />
+        <Text style={styles.keyStatLabel}>{props.label}</Text>
+      </View>
+
+      <Text style={styles.liveStatValue}>{props.value}</Text>
+    </View>
+  );
+}
+
+function BadgeCard(
   props: BadgeDef & {
     onLongPress?: () => void;
   },
@@ -312,15 +353,41 @@ function AchievementPill(
       onLongPress={props.onLongPress}
       delayLongPress={320}
       style={({ pressed }) => [
-        styles.badgePill,
-        props.unlocked ? styles.badgePillOn : styles.badgePillOff,
-        pressed ? { opacity: 0.9 } : null,
+        styles.badgeCard,
+        props.unlocked ? styles.badgeCardOn : styles.badgeCardOff,
+        pressed ? { opacity: 0.88 } : null,
       ]}
     >
-      <Text style={styles.badgePillText}>
-        {props.icon} {props.title}
+      <Text style={styles.badgeIcon}>{props.icon}</Text>
+      <Text style={styles.badgeTitle} numberOfLines={2}>
+        {props.title}
       </Text>
+      {!props.unlocked && props.progressLabel ? (
+        <Text style={styles.badgeProgress}>{props.progressLabel}</Text>
+      ) : (
+        <Text style={styles.badgeProgress}>Unlocked</Text>
+      )}
     </Pressable>
+  );
+}
+
+function TimelineTicketCard(props: {
+  year: string;
+  count: number;
+}) {
+  return (
+    <View style={styles.timelineTicketCard}>
+      <View>
+        <Text style={styles.timelineTicketYear}>{props.year}</Text>
+        <Text style={styles.timelineTicketLabel}>
+          {props.count} {props.count === 1 ? "gig" : "gigs"}
+        </Text>
+      </View>
+
+      <View style={styles.timelineTicketStub}>
+        <Ionicons name="ticket-outline" size={16} color={Colours.brand.primary} />
+      </View>
+    </View>
   );
 }
 
@@ -364,10 +431,14 @@ export function StatsScreen(props: {
   const [gigs, setGigs] = React.useState<Gig[]>([]);
   const [selectedBadgeInfo, setSelectedBadgeInfo] =
     React.useState<BadgeInfo | null>(null);
+  const [artistImageByName, setArtistImageByName] = React.useState<
+    Record<string, string | null>
+  >({});
 
   const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       setGigs(res.gigs ?? []);
@@ -392,7 +463,80 @@ export function StatsScreen(props: {
     });
   }, [props.scrollToTopSignal]);
 
-  const stats = React.useMemo(() => buildStats(gigs), [gigs]);
+  React.useEffect(() => {
+    const uniqueArtists = Array.from(
+      new Set(gigs.map((g) => g.artist?.trim()).filter(Boolean)),
+    ) as string[];
+
+    const missingArtists = uniqueArtists.filter((artist) => {
+      const key = artist.toLowerCase();
+      return !(key in artistImageByName);
+    });
+
+    if (missingArtists.length === 0) return;
+
+    let cancelled = false;
+
+    const loadImages = async () => {
+      const entries = await Promise.all(
+        missingArtists.map(async (artist) => {
+          try {
+            const res = await apiGet<SpotifyArtistPageResponse>(
+              `/spotify/artist-page?name=${encodeURIComponent(artist)}`,
+            );
+
+            return [artist.toLowerCase(), res.artist?.imageUrl ?? null] as const;
+          } catch {
+            return [artist.toLowerCase(), null] as const;
+          }
+        }),
+      );
+
+      if (!cancelled) {
+        setArtistImageByName((prev) => ({
+          ...prev,
+          ...Object.fromEntries(entries),
+        }));
+      }
+    };
+
+    void loadImages();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [gigs, artistImageByName]);
+
+  const enrichedGigs = React.useMemo(
+    () =>
+      gigs.map((gig) => {
+        const artistKey = String(gig.artist ?? "").trim().toLowerCase();
+
+        return {
+          ...gig,
+          artistImageUrl:
+            (gig as any).artistImageUrl ?? artistImageByName[artistKey] ?? null,
+        };
+      }),
+    [artistImageByName, gigs],
+  );
+
+  const stats = React.useMemo(() => buildStats(enrichedGigs), [enrichedGigs]);
+
+  const topArtistImageUrl = React.useMemo(() => {
+    const topArtistName = stats.topArtist?.[0]?.trim().toLowerCase();
+    if (!topArtistName) return null;
+
+    const gig = enrichedGigs.find(
+      (g) => String(g.artist ?? "").trim().toLowerCase() === topArtistName,
+    );
+
+    return getGigImageUrl(gig);
+  }, [enrichedGigs, stats.topArtist]);
+
+  const unlockedBadges = stats.badges.filter((badge) => badge.unlocked);
+  const lockedBadges = stats.badges.filter((badge) => !badge.unlocked);
+  const sortedBadges = [...unlockedBadges, ...lockedBadges];
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -415,7 +559,7 @@ export function StatsScreen(props: {
           </View>
         ) : error ? (
           <Text style={styles.error}>{error}</Text>
-        ) : gigs.length === 0 ? (
+        ) : enrichedGigs.length === 0 ? (
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyTitle}>No stats yet</Text>
             <Text style={styles.emptyText}>
@@ -424,20 +568,18 @@ export function StatsScreen(props: {
           </View>
         ) : (
           <>
-            <View style={styles.heroCard}>
-              <Text style={styles.heroKicker}>Your journey</Text>
-              <Text style={styles.heroTitle}>
-                {stats.statusIcon} {stats.statusLabel}
-              </Text>
-              <Text style={styles.heroSubtitle}>
-                {stats.total} gigs attended
-                {stats.topCity ? ` • ${stats.topCity[0]}` : ""}
-              </Text>
-            </View>
+            <Text style={styles.statusText}>
+              {stats.statusIcon} {stats.statusLabel}
+            </Text>
 
-            <SectionTitle title="Key stats" />
-            <View style={styles.statsGrid}>
-              <StatCard
+            <SectionHeader title="Key stats" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRail}
+            >
+              <KeyStatCard
+                icon="musical-notes-outline"
                 label="Top artist"
                 value={stats.topArtist ? stats.topArtist[0] : "—"}
                 subtitle={
@@ -447,8 +589,11 @@ export function StatsScreen(props: {
                       }`
                     : "Log more gigs"
                 }
+                imageUrl={topArtistImageUrl}
               />
-              <StatCard
+
+              <KeyStatCard
+                icon="business-outline"
                 label="Favourite venue"
                 value={stats.topVenue ? stats.topVenue[0] : "—"}
                 subtitle={
@@ -456,8 +601,11 @@ export function StatsScreen(props: {
                     ? `${stats.topVenue[1]} visits`
                     : "No favourite yet"
                 }
+                tone="blue"
               />
-              <StatCard
+
+              <KeyStatCard
+                icon="location-outline"
                 label="Main scene"
                 value={stats.topCity ? stats.topCity[0] : "—"}
                 subtitle={
@@ -465,91 +613,18 @@ export function StatsScreen(props: {
                     ? `${stats.topCity[1]} gigs there`
                     : "Your city story starts here"
                 }
+                tone="purple"
               />
-              <StatCard
-                label="Best night"
-                value={stats.bestNight ? stats.bestNight.artist : "—"}
-                subtitle={
-                  stats.bestNight
-                    ? `★ ${stats.bestNight.rating}/5 • ${stats.bestNight.venue}`
-                    : "Rate a gig to unlock this"
-                }
-              />
-            </View>
+            </ScrollView>
 
-            <SectionTitle title="Progress" />
-            <View style={styles.card}>
-              <ProgressRow
-                label="Headliner"
-                valueText={`${Math.min(stats.total, 20)}/20 gigs`}
-                progress={stats.headlinerProgress}
-                tint="#FFB703"
-              />
-              <ProgressRow
-                label="On Tour"
-                valueText={`${Math.min(stats.cityCount, 5)}/5 cities`}
-                progress={stats.onTourProgress}
-                tint="#C0C4CC"
-              />
-              <ProgressRow
-                label="Die Hard"
-                valueText={`${Math.min(stats.topArtistCount, 5)}/5 same artist`}
-                progress={stats.dieHardProgress}
-                tint="#FFD166"
-              />
-              <ProgressRow
-                label="Touring the Scene"
-                valueText={`${Math.min(stats.venueCount, 7)}/7 venues`}
-                progress={stats.touringProgress}
-                tint="#2F8CFF"
-              />
-            </View>
-
-            <SectionTitle title="By the numbers" />
-            <View style={styles.statsGrid}>
-              <StatCard label="Total gigs" value={String(stats.total)} />
-              <StatCard label="Rated gigs" value={String(stats.ratedCount)} />
-              <StatCard
-                label="Avg rating"
-                value={stats.avgRating == null ? "—" : String(stats.avgRating)}
-              />
-              <StatCard label="Cities visited" value={String(stats.cityCount)} />
-            </View>
-
-            {stats.timeline.length > 0 ? (
-              <>
-                <SectionTitle title="Timeline" />
-                <View style={styles.card}>
-                  {stats.timeline.map((item) => {
-                    const maxCount = Math.max(
-                      ...stats.timeline.map((entry) => entry.count),
-                    );
-                    const width =
-                      maxCount > 0 ? (item.count / maxCount) * 100 : 0;
-
-                    return (
-                      <View key={item.year} style={styles.timelineRow}>
-                        <Text style={styles.timelineYear}>{item.year}</Text>
-                        <View style={styles.timelineBarTrack}>
-                          <View
-                            style={[
-                              styles.timelineBarFill,
-                              { width: `${Math.max(width, 8)}%` },
-                            ]}
-                          />
-                        </View>
-                        <Text style={styles.timelineCount}>{item.count}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </>
-            ) : null}
-
-            <SectionTitle title="Achievements" />
-            <View style={styles.badgesWrap}>
-              {stats.badges.map((badge) => (
-                <AchievementPill
+            <SectionHeader title="Badges" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRail}
+            >
+              {sortedBadges.map((badge) => (
+                <BadgeCard
                   key={badge.title}
                   title={badge.title}
                   icon={badge.icon}
@@ -565,19 +640,53 @@ export function StatsScreen(props: {
                   }
                 />
               ))}
-            </View>
+            </ScrollView>
 
-            {stats.nextBadge ? (
-              <View style={styles.nextUnlockCard}>
-                <Text style={styles.nextUnlockKicker}>Next unlock</Text>
-                <Text style={styles.nextUnlockTitle}>
-                  {stats.nextBadge.icon} {stats.nextBadge.title}
-                </Text>
-                <Text style={styles.nextUnlockText}>
-                  {stats.nextBadge.progressLabel ??
-                    "Keep logging gigs to unlock this."}
-                </Text>
-              </View>
+            <SectionHeader title="Live stats" />
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRail}
+            >
+              <LiveStatCard
+                icon="ticket-outline"
+                label="Total gigs"
+                value={String(stats.total)}
+              />
+              <LiveStatCard
+                icon="create-outline"
+                label="Rated gigs"
+                value={String(stats.ratedCount)}
+              />
+              <LiveStatCard
+                icon="star-half-outline"
+                label="Avg rating"
+                value={stats.avgRating == null ? "—" : String(stats.avgRating)}
+              />
+              <LiveStatCard
+                icon="map-outline"
+                label="Cities"
+                value={String(stats.cityCount)}
+              />
+            </ScrollView>
+
+            {stats.timeline.length > 0 ? (
+              <>
+                <SectionHeader title="Timeline" />
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.horizontalRail}
+                >
+                  {stats.timeline.map((item) => (
+                    <TimelineTicketCard
+                      key={item.year}
+                      year={item.year}
+                      count={item.count}
+                    />
+                  ))}
+                </ScrollView>
+              </>
             ) : null}
           </>
         )}
@@ -602,8 +711,9 @@ const styles = StyleSheet.create({
   },
 
   body: {
-    padding: 16,
+    paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 120,
     gap: 10,
   },
 
@@ -651,229 +761,198 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  heroCard: {
+  statusText: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 18,
+    lineHeight: 23,
+    letterSpacing: -0.15,
+    marginBottom: 2,
+  },
+
+  sectionHeaderRow: {
+    marginTop: 8,
+    marginBottom: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  bigSectionTitle: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.1,
+  },
+
+  horizontalRail: {
+    gap: 10,
+    paddingRight: 16,
+  },
+
+  keyStatCard: {
+    width: CARD_WIDTH,
+    minHeight: 124,
     backgroundColor: Colours.background.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+
+  keyStatImage: {
+    borderRadius: 16,
+  },
+
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.48)",
+  },
+
+  keyStatInner: {
+    flex: 1,
     padding: 12,
   },
 
-  heroKicker: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 0.15,
+  keyStatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
 
-  heroTitle: {
+  keyStatLabel: {
+    color: Colours.text.secondary,
+    fontWeight: "800",
+    fontSize: 10,
+    lineHeight: 13,
+    textTransform: "uppercase",
+    letterSpacing: 0.2,
+  },
+
+  keyStatValue: {
+    marginTop: 6,
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 17,
+    lineHeight: 21,
+    letterSpacing: -0.15,
+  },
+
+  keyStatSubtitle: {
     marginTop: 4,
+    color: Colours.text.secondary,
+    fontWeight: "600",
+    fontSize: 12,
+    lineHeight: 16,
+  },
+
+  tone_default: {
+    backgroundColor: Colours.background.card,
+  },
+
+  tone_gold: {
+    backgroundColor: "rgba(255,209,102,0.10)",
+  },
+
+  tone_blue: {
+    backgroundColor: "rgba(47,140,255,0.12)",
+  },
+
+  tone_purple: {
+    backgroundColor: "rgba(138,91,255,0.12)",
+  },
+
+  liveStatCard: {
+    width: 104,
+    minHeight: 72,
+    backgroundColor: Colours.background.card,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+
+  liveStatValue: {
+    marginTop: 10,
     color: Colours.text.primary,
     fontWeight: "800",
     fontSize: 18,
     lineHeight: 22,
+    letterSpacing: -0.15,
   },
 
-  heroSubtitle: {
-    marginTop: 2,
-    color: Colours.text.secondary,
-    fontWeight: "500",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-
-  sectionTitle: {
-    marginTop: 6,
-    color: Colours.text.secondary,
-    fontWeight: "700",
-    fontSize: 14,
-    lineHeight: 18,
-  },
-
-  card: {
-    backgroundColor: Colours.background.card,
+  badgeCard: {
+    width: 146,
+    minHeight: 86,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-    padding: 14,
-  },
-
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
-
-  statCard: {
-    width: "48%",
+    padding: 11,
     backgroundColor: Colours.background.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-    padding: 10,
-    minHeight: 110,
   },
 
-  statCardLabel: {
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.1,
+  badgeCardOn: {
+    opacity: 1,
   },
 
-  statCardValue: {
+  badgeCardOff: {
+    opacity: 0.45,
+  },
+
+  badgeIcon: {
+    fontSize: 18,
+    lineHeight: 22,
+  },
+
+  badgeTitle: {
     marginTop: 6,
     color: Colours.text.primary,
     fontWeight: "800",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
+  badgeProgress: {
+    marginTop: 5,
+    color: Colours.text.muted,
+    fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
+  timelineTicketCard: {
+    width: 116,
+    minHeight: 74,
+    backgroundColor: Colours.background.card,
+    borderRadius: 16,
+    padding: 11,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+
+  timelineTicketYear: {
+    color: Colours.text.primary,
+    fontWeight: "900",
     fontSize: 16,
     lineHeight: 20,
   },
 
-  statCardSubtitle: {
+  timelineTicketLabel: {
     marginTop: 4,
-    color: Colours.text.secondary,
-    fontWeight: "500",
-    fontSize: 12,
-    lineHeight: 15,
-  },
-
-  progressRow: {
-    gap: 8,
-    marginBottom: 12,
-  },
-
-  progressRowHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-
-  progressLabel: {
-    color: Colours.text.primary,
-    fontWeight: "700",
-    fontSize: 13,
-    lineHeight: 17,
-  },
-
-  progressValue: {
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  progressTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    overflow: "hidden",
-  },
-
-  progressFill: {
-    height: "100%",
-    borderRadius: 999,
-  },
-
-  timelineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  timelineYear: {
-    width: 42,
-    color: Colours.text.primary,
-    fontWeight: "700",
-    fontSize: 13,
-    lineHeight: 17,
-  },
-
-  timelineBarTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    overflow: "hidden",
-  },
-
-  timelineBarFill: {
-    height: "100%",
-    borderRadius: 999,
-    backgroundColor: Colours.brand.primary,
-  },
-
-  timelineCount: {
-    width: 20,
-    textAlign: "right",
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  badgesWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-
-  badgePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-
-  badgePillOn: {
-    backgroundColor: "rgba(47,140,255,0.12)",
-    borderColor: "rgba(47,140,255,0.22)",
-  },
-
-  badgePillOff: {
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderColor: "rgba(255,255,255,0.06)",
-    opacity: 0.72,
-  },
-
-  badgePillText: {
-    color: Colours.text.primary,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  nextUnlockCard: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-    padding: 12,
-  },
-
-  nextUnlockKicker: {
     color: Colours.text.muted,
     fontWeight: "700",
     fontSize: 11,
     lineHeight: 14,
   },
 
-  nextUnlockTitle: {
-    marginTop: 6,
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 15,
-    lineHeight: 18,
-  },
-
-  nextUnlockText: {
-    marginTop: 4,
-    color: Colours.text.secondary,
-    fontWeight: "500",
-    fontSize: 12,
-    lineHeight: 17,
+  timelineTicketStub: {
+    width: 30,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(255,255,255,0.10)",
   },
 
   badgeModalOverlay: {
@@ -893,11 +972,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#17191C",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
-    shadowColor: "#000",
-    shadowOpacity: 0.35,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
   },
 
   badgeModalTitle: {

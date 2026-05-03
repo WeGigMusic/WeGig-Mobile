@@ -18,6 +18,7 @@ import { setCachedGigs } from "../lib/gigsCache";
 import { apiGet, apiPost, ApiError } from "../lib/api";
 import { syncGigReminderNotifications } from "../lib/notifications";
 import type { Gig, GigsResponse, CreateGigInput } from "../shared/types/Gig";
+import { parseYmdToUtcDate } from "../lib/date";
 
 import { AddGigScreen } from "./AddGigScreen";
 import { EditGigScreen } from "./EditGigScreen";
@@ -124,6 +125,37 @@ function computeGigBadges(gigs: Gig[]) {
   ];
 
   return badges.filter((b) => b.unlocked);
+}
+
+function splitGigs(gigs: Gig[]) {
+  const today = new Date();
+  const todayUtc = new Date(
+    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
+  );
+
+  const comingUpGigs = gigs
+    .filter((gig) => {
+      const d = parseYmdToUtcDate(gig.date);
+      return d ? d.getTime() >= todayUtc.getTime() : false;
+    })
+    .sort((a, b) => {
+      const ad = parseYmdToUtcDate(a.date)?.getTime() ?? 0;
+      const bd = parseYmdToUtcDate(b.date)?.getTime() ?? 0;
+      return ad - bd;
+    });
+
+  const pastGigs = gigs
+    .filter((gig) => {
+      const d = parseYmdToUtcDate(gig.date);
+      return d ? d.getTime() < todayUtc.getTime() : true;
+    })
+    .sort((a, b) => {
+      const ad = parseYmdToUtcDate(a.date)?.getTime() ?? 0;
+      const bd = parseYmdToUtcDate(b.date)?.getTime() ?? 0;
+      return bd - ad;
+    });
+
+  return { comingUpGigs, pastGigs };
 }
 
 function BadgeShowcaseChip(props: {
@@ -480,12 +512,15 @@ export function GigsScreen(props: {
         gig={editingGig}
         onPressLogo={props.onPressLogo}
         onBack={() => setEditingGig(null)}
+        onPressArtist={(artist) => {
+          setEditingGig(null);
+          setArtistView(artist);
+        }}
         onDone={() => {
           setEditingGig(null);
           void load();
           void loadPinnedGigIds();
         }}
-
       />
     );
   }
@@ -503,8 +538,8 @@ export function GigsScreen(props: {
   }
 
   const gigs = data?.gigs ?? [];
+  const { comingUpGigs, pastGigs } = splitGigs(gigs);
   const isEmpty = !loading && !error && gigs.length === 0;
-
   const showcaseBadges = computeGigBadges(gigs).slice(0, 6);
 
   return (
@@ -556,64 +591,129 @@ export function GigsScreen(props: {
           <>
             <AnimatedFlatList
               ref={listRef}
-              data={gigs}
+              data={pastGigs}
               keyExtractor={(item) => item.id}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
               ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
               ListHeaderComponent={
-                <View style={{ marginBottom: 14, gap: 8 }}>
-                  <Text
+                <View style={{ marginBottom: 14 }}>
+                  <View style={{ marginBottom: 18, gap: 8 }}>
+                    <Text
+                      style={{
+                        color: Colours.text.primary,
+                        fontWeight: "700",
+                        fontSize: 14,
+                        lineHeight: 18,
+                      }}
+                    >
+                      My badges
+                    </Text>
+
+                    {showcaseBadges.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{ paddingRight: 8 }}
+                      >
+                        {showcaseBadges.map((badge) => (
+                          <BadgeShowcaseChip
+                            key={badge.title}
+                            title={badge.title}
+                            icon={badge.icon}
+                            onLongPress={() =>
+                              setSelectedBadgeInfo(
+                                BADGE_INFO[badge.title] ?? {
+                                  title: badge.title,
+                                  description:
+                                    "Badge unlocked in your gig history.",
+                                },
+                              )
+                            }
+                          />
+                        ))}
+                      </ScrollView>
+                    ) : (
+                      <Text
+                        style={{
+                          color: Colours.text.muted,
+                          fontWeight: "500",
+                          fontSize: 13,
+                          lineHeight: 18,
+                        }}
+                      >
+                        Log your first gig to start earning badges.
+                      </Text>
+                    )}
+                  </View>
+
+                  {comingUpGigs.length > 0 ? (
+                    <View style={{ marginBottom: 22 }}>
+                      <View style={styles.sectionHeaderRow}>
+                        <Text style={styles.bigSectionTitle}>Coming up</Text>
+                        <Text style={styles.sectionCount}>
+                          {comingUpGigs.length}
+                        </Text>
+                      </View>
+
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={{
+                          gap: 12,
+                          paddingRight: 16,
+                        }}
+                      >
+                        {comingUpGigs.map((gig) => (
+                          <GigCard
+                            key={gig.id}
+                            gig={gig}
+                            variant="poster"
+                            onPress={() => setEditingGig(gig)}
+                            onPressArtist={(artist: string) =>
+                              setArtistView(artist)
+                            }
+                            isFavouriteGig={gig.id === favouriteGigId}
+                          />
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.sectionHeaderRow}>
+                    <Text style={styles.bigSectionTitle}>Past gigs</Text>
+                    <Text style={styles.sectionCount}>{pastGigs.length}</Text>
+                  </View>
+                </View>
+              }
+              ListEmptyComponent={
+                pastGigs.length === 0 ? (
+                  <View
                     style={{
-                      color: Colours.text.primary,
-                      fontWeight: "700",
-                      fontSize: 14,
-                      lineHeight: 18,
+                      backgroundColor: Colours.background.card,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: Colours.ui.border,
+                      padding: 14,
                     }}
                   >
-                    My badges
-                  </Text>
-
-                  {showcaseBadges.length > 0 ? (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ paddingRight: 8 }}
-                    >
-                      {showcaseBadges.map((badge) => (
-                        <BadgeShowcaseChip
-                          key={badge.title}
-                          title={badge.title}
-                          icon={badge.icon}
-                          onLongPress={() =>
-                            setSelectedBadgeInfo(
-                              BADGE_INFO[badge.title] ?? {
-                                title: badge.title,
-                                description:
-                                  "Badge unlocked in your gig history.",
-                              },
-                            )
-                          }
-                        />
-                      ))}
-                    </ScrollView>
-                  ) : (
                     <Text
                       style={{
                         color: Colours.text.muted,
-                        fontWeight: "500",
+                        fontWeight: "700",
                         fontSize: 13,
                         lineHeight: 18,
                       }}
                     >
-                      Log your first gig to start earning badges.
+                      No past gigs yet.
                     </Text>
-                  )}
-                </View>
+                  </View>
+                ) : null
               }
               renderItem={({ item }) => (
                 <GigCard
                   gig={item}
+                  variant="row"
                   onPress={() => setEditingGig(item)}
                   onPressArtist={(artist: string) => setArtistView(artist)}
                   isFavouriteGig={item.id === favouriteGigId}
@@ -652,7 +752,9 @@ export function GigsScreen(props: {
                   shadowOffset: { width: 0, height: 6 },
                   elevation: 8,
                 },
-                pressed ? { transform: [{ scale: 0.97 }], opacity: 0.92 } : null,
+                pressed
+                  ? { transform: [{ scale: 0.97 }], opacity: 0.92 }
+                  : null,
               ]}
               hitSlop={10}
             >
@@ -671,3 +773,27 @@ export function GigsScreen(props: {
     </SafeAreaView>
   );
 }
+
+const styles = {
+  sectionHeaderRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "space-between" as const,
+    marginBottom: 12,
+  },
+
+ bigSectionTitle: {
+  color: Colours.text.primary,
+  fontWeight: "800" as const,
+  fontSize: 17,
+  lineHeight: 22,
+  letterSpacing: -0.1,
+},
+
+sectionCount: {
+  color: Colours.text.muted,
+  fontWeight: "700" as const,
+  fontSize: 13,
+  lineHeight: 18,
+},
+};

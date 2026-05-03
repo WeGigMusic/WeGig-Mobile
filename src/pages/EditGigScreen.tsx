@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   Linking,
+  Image,
 } from "react-native";
 
 import { Ionicons } from "@expo/vector-icons";
@@ -75,11 +76,29 @@ function formatConfidence(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function getGigImageUrl(gig: Gig) {
+  return (
+    ((gig as any).imageUrl as string | undefined)?.trim() ||
+    ((gig as any).artistImageUrl as string | undefined)?.trim() ||
+    ((gig as any).spotifyImageUrl as string | undefined)?.trim() ||
+    ((gig as any).spotifyArtistImageUrl as string | undefined)?.trim() ||
+    null
+  );
+}
+
+function formatGigDateUk(value?: string) {
+  const raw = String(value ?? "").trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return raw;
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
 export function EditGigScreen(props: {
   gig: Gig;
   onDone: () => void;
   onPressLogo?: () => void;
   onBack?: () => void;
+  onPressArtist?: (artist: string) => void;
 }) {
   const { showToast } = useToast();
 
@@ -139,6 +158,8 @@ export function EditGigScreen(props: {
   const [setlistMatch, setSetlistMatch] =
     React.useState<GigSetlistMatchResponse | null>(null);
   const [setlistModalOpen, setSetlistModalOpen] = React.useState(false);
+
+  const artistImageUrl = getGigImageUrl(props.gig);
 
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
@@ -309,7 +330,7 @@ export function EditGigScreen(props: {
     return () => clearTimeout(t);
   }, [loadSetlistMatch, canLookupSetlist]);
 
-      const save = async () => {
+  const save = async () => {
     const payload: Partial<CreateGigInput> = {
       artist: artist.trim(),
       venue: venue.trim(),
@@ -492,6 +513,46 @@ export function EditGigScreen(props: {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.heroCard}>
+            {artistImageUrl ? (
+              <Image source={{ uri: artistImageUrl }} style={styles.heroImage} />
+            ) : (
+              <View style={styles.heroImageFallback}>
+                <Text style={styles.heroImageFallbackText}>
+                  {artist.slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+            )}
+
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Pressable
+                onPress={() => props.onPressArtist?.(artist)}
+                disabled={!props.onPressArtist}
+                style={({ pressed }) => [pressed ? { opacity: 0.82 } : null]}
+              >
+                <View style={styles.heroArtistRow}>
+                  <Text style={styles.heroArtist} numberOfLines={1}>
+                    {artist}
+                  </Text>
+
+                  {props.onPressArtist ? (
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color={Colours.text.muted}
+                    />
+                  ) : null}
+                </View>
+              </Pressable>
+
+              <Text style={styles.heroMeta} numberOfLines={2}>
+                {venue} • {city}
+              </Text>
+
+              <Text style={styles.heroDate}>{formatGigDateUk(date)}</Text>
+            </View>
+          </View>
+
           <View style={styles.card}>
             <Text style={styles.title}>Update details</Text>
             <Text style={styles.subtitle}>
@@ -756,7 +817,8 @@ export function EditGigScreen(props: {
             {setlistMatch?.setlist ? (
               <>
                 <Text style={styles.modalSubtitle}>
-                  {setlistMatch.setlist.venueName} • {setlistMatch.setlist.cityName}
+                  {setlistMatch.setlist.venueName} •{" "}
+                  {setlistMatch.setlist.cityName}
                 </Text>
                 <Text style={styles.modalSubmeta}>
                   {setlistMatch.setlist.eventDate}
@@ -769,7 +831,8 @@ export function EditGigScreen(props: {
                   {setlistMatch.setlist.sets.map((set, setIndex) => (
                     <View key={`${set.name}-${setIndex}`} style={styles.setBlock}>
                       <Text style={styles.setBlockTitle}>
-                        {set.name || (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
+                        {set.name ||
+                          (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
                       </Text>
 
                       <View style={{ height: 8 }} />
@@ -799,7 +862,9 @@ export function EditGigScreen(props: {
                         pressed ? { opacity: 0.88 } : null,
                       ]}
                     >
-                      <Text style={styles.openLinkBtnText}>Open on Setlist.fm</Text>
+                      <Text style={styles.openLinkBtnText}>
+                        Open on Setlist.fm
+                      </Text>
                     </Pressable>
                   ) : null}
 
@@ -828,6 +893,61 @@ export function EditGigScreen(props: {
 }
 
 const styles = {
+  heroCard: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 14,
+    backgroundColor: Colours.background.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+    padding: 14,
+  },
+  heroImage: {
+    width: 82,
+    height: 82,
+    borderRadius: 18,
+  },
+  heroImageFallback: {
+    width: 82,
+    height: 82,
+    borderRadius: 18,
+    backgroundColor: "rgba(47,140,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.3)",
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+  },
+  heroImageFallbackText: {
+    color: Colours.text.primary,
+    fontWeight: "900" as const,
+    fontSize: 30,
+  },
+  heroArtistRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 4,
+  },
+  heroArtist: {
+    color: Colours.text.primary,
+    fontWeight: "900" as const,
+    fontSize: 24,
+    lineHeight: 29,
+    flexShrink: 1,
+  },
+  heroMeta: {
+    marginTop: 5,
+    color: Colours.text.secondary,
+    fontWeight: "700" as const,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  heroDate: {
+    marginTop: 5,
+    color: Colours.text.muted,
+    fontWeight: "700" as const,
+    fontSize: 12,
+  },
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 18,

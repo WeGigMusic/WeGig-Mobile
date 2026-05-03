@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   ScrollView,
+  Image,
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
@@ -43,11 +44,32 @@ type GigSetlistMatchResponse = {
   setlist: GigSetlistItem | null;
 };
 
+type GigCardVariant = "row" | "poster";
+
 function formatGigDateUk(value?: string) {
   const raw = String(value ?? "").trim();
   const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return raw;
   return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function formatPosterDate(value?: string) {
+  const raw = String(value ?? "").trim();
+  const d = parseYmdToUtcDate(raw);
+  if (!d) return { day: "--", month: "---", label: formatGigDateUk(raw) };
+
+  return {
+    day: String(d.getUTCDate()).padStart(2, "0"),
+    month: d
+      .toLocaleDateString("en-GB", { month: "short", timeZone: "UTC" })
+      .toUpperCase(),
+    label: d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }),
+  };
 }
 
 function isFutureGigDate(value?: string) {
@@ -66,16 +88,32 @@ function formatConfidence(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function getGigImageUrl(gig: Gig) {
+  const candidate =
+    (gig as any).artistImageUrl ??
+    (gig as any).spotifyArtistImageUrl ??
+    (gig as any).spotifyImageUrl ??
+    (gig as any).imageUrl ??
+    (gig as any).artist?.imageUrl ??
+    (gig as any).artist?.images?.[0]?.url ??
+    null;
+
+  const value = String(candidate ?? "").trim();
+  return value.length > 0 ? value : null;
+}
+
 export function GigCard({
   gig,
   onPress,
   onPressArtist,
   isFavouriteGig,
+  variant = "row",
 }: {
   gig: Gig;
   onPress?: () => void;
   onPressArtist?: (artist: string) => void;
   isFavouriteGig?: boolean;
+  variant?: GigCardVariant;
 }) {
   const [notesOpen, setNotesOpen] = React.useState(false);
   const [setlistOpen, setSetlistOpen] = React.useState(false);
@@ -85,6 +123,7 @@ export function GigCard({
 
   const noteText = String(gig.notes ?? "").trim();
   const hasNotes = noteText.length > 0;
+  const imageUrl = getGigImageUrl(gig);
 
   const handlePress = async () => {
     try {
@@ -155,17 +194,11 @@ export function GigCard({
           `/setlist/gig-match?${qs.toString()}`,
         );
 
-        if (!cancelled) {
-          setSetlistMatch(res);
-        }
+        if (!cancelled) setSetlistMatch(res);
       } catch {
-        if (!cancelled) {
-          setSetlistMatch(null);
-        }
+        if (!cancelled) setSetlistMatch(null);
       } finally {
-        if (!cancelled) {
-          setSetlistLoading(false);
-        }
+        if (!cancelled) setSetlistLoading(false);
       }
     };
 
@@ -206,6 +239,7 @@ export function GigCard({
           await Linking.openURL(res.url);
           return;
         }
+
         Alert.alert("No ticket link", "Ticketmaster didn’t return a ticket URL.");
         return;
       } catch (e: any) {
@@ -242,9 +276,7 @@ export function GigCard({
       return;
     }
 
-    if (setlistLoading) {
-      return;
-    }
+    if (setlistLoading) return;
 
     Alert.alert("No setlist yet", "No reliable setlist match was found for this gig.");
   };
@@ -257,137 +289,18 @@ export function GigCard({
   const hasSetlist = Boolean(setlistMatch?.matched && setlistMatch.setlist);
   const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
   const hasRating = typeof gig.rating === "number";
+  const posterDate = formatPosterDate(gig.date);
 
-  return (
+  const renderFallbackImage = (style: any, textStyle: any) => (
+    <View style={[style, styles.imageFallback]}>
+      <Text style={textStyle}>
+        {String(gig.artist ?? "?").slice(0, 1).toUpperCase()}
+      </Text>
+    </View>
+  );
+
+  const modalContent = (
     <>
-      <Pressable
-        onPress={handlePress}
-        style={({ pressed }) => [
-          styles.card,
-          isFavouriteGig ? styles.favouriteGigCard : null,
-          pressed ? styles.pressed : null,
-        ]}
-      >
-        <View style={styles.topRow}>
-          <View style={styles.titleWrap}>
-            {onPressArtist ? (
-              <Pressable
-                onPress={handlePressArtist}
-                hitSlop={6}
-                style={({ pressed }) => [
-                  styles.artistPressable,
-                  pressed ? styles.artistPressablePressed : null,
-                ]}
-              >
-                <View style={styles.artistRow}>
-                  <Text style={styles.artist}>{gig.artist}</Text>
-                  {isFavouriteGig ? (
-                    <Ionicons name="star" size={13} color="#FFD166" />
-                  ) : null}
-                </View>
-              </Pressable>
-            ) : (
-              <View style={styles.artistRow}>
-                <Text style={styles.artist}>{gig.artist}</Text>
-                {isFavouriteGig ? (
-                  <Ionicons name="star" size={13} color="#FFD166" />
-                ) : null}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.topRightActions}>
-            {hasNotes ? (
-              <Pressable
-                onPress={handleOpenNotes}
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.topIconBtn,
-                  pressed ? styles.topIconBtnPressed : null,
-                ]}
-              >
-                <Ionicons
-                  name="document-text-outline"
-                  size={13}
-                  color="rgba(255,255,255,0.54)"
-                />
-              </Pressable>
-            ) : null}
-
-            <Pressable
-              onPress={handlePress}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.topIconBtn,
-                pressed ? styles.topIconBtnPressed : null,
-              ]}
-            >
-              <Ionicons
-                name="create-outline"
-                size={14}
-                color="rgba(255,255,255,0.64)"
-              />
-            </Pressable>
-          </View>
-        </View>
-
-        <Text style={styles.meta}>
-          {gig.venue} • {gig.city}
-        </Text>
-
-        <View style={styles.dateRatingRow}>
-          <Text style={styles.date}>{formatGigDateUk(gig.date)}</Text>
-          {hasRating ? (
-            <Text style={styles.ratingInline}>★ {gig.rating}/5</Text>
-          ) : null}
-        </View>
-
-        <View style={styles.socialRow}>
-          <View style={styles.socialLeft}>
-            <AvatarStack avatars={social.avatars} extraCount={social.count} />
-            <Text style={styles.socialInlineText}>{socialText}</Text>
-          </View>
-
-          <View style={styles.socialRight}>
-            {hasTickets ? (
-              <Pressable
-                onPress={openTickets}
-                style={({ pressed }) => [
-                  styles.inlineAction,
-                  pressed ? styles.smallBtnPressed : null,
-                ]}
-                hitSlop={8}
-              >
-                <Ionicons
-                  name="ticket-outline"
-                  size={12}
-                  color={Colours.text.muted}
-                />
-                <Text style={styles.inlineActionText}>Tickets</Text>
-              </Pressable>
-            ) : null}
-
-            {showSetlistChip ? (
-              <Pressable
-                onPress={handleOpenSetlist}
-                style={({ pressed }) => [
-                  styles.inlineAction,
-                  pressed ? styles.smallBtnPressed : null,
-                ]}
-                hitSlop={8}
-              >
-                <Ionicons
-                  name="musical-notes-outline"
-                  size={12}
-                  color={Colours.text.muted}
-                />
-                <Text style={styles.inlineActionText}>Setlist</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      </Pressable>
-
       <Modal
         visible={notesOpen}
         transparent
@@ -459,7 +372,8 @@ export function GigCard({
                       style={styles.setBlock}
                     >
                       <Text style={styles.setBlockTitle}>
-                        {set.name || (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
+                        {set.name ||
+                          (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
                       </Text>
 
                       <View style={{ height: 8 }} />
@@ -527,10 +441,206 @@ export function GigCard({
       </Modal>
     </>
   );
+
+  if (variant === "poster") {
+    return (
+      <>
+        <Pressable
+          onPress={handlePress}
+          style={({ pressed }) => [
+            styles.posterCard,
+            isFavouriteGig ? styles.favouriteGigCard : null,
+            pressed ? styles.pressed : null,
+          ]}
+        >
+          <View style={styles.posterImageWrap}>
+            {imageUrl ? (
+              <Image source={{ uri: imageUrl }} style={styles.posterImage} />
+            ) : (
+              renderFallbackImage(styles.posterImage, styles.posterFallbackText)
+            )}
+
+            <View style={styles.posterGradient} />
+
+            <View style={styles.posterDatePill}>
+              <Text style={styles.posterMonth}>{posterDate.month}</Text>
+              <Text style={styles.posterDay}>{posterDate.day}</Text>
+            </View>
+
+            {isFavouriteGig ? (
+              <View style={styles.posterFavourite}>
+                <Ionicons name="star" size={13} color="#FFD166" />
+              </View>
+            ) : null}
+
+            <View style={styles.posterTextWrap}>
+              <Text style={styles.posterArtist} numberOfLines={2}>
+                {gig.artist}
+              </Text>
+              <Text style={styles.posterMeta} numberOfLines={1}>
+                {gig.city || gig.venue}
+              </Text>
+              <Text style={styles.posterDateText}>{posterDate.label}</Text>
+            </View>
+          </View>
+        </Pressable>
+
+        {modalContent}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Pressable
+        onPress={handlePress}
+        style={({ pressed }) => [
+          styles.rowCard,
+          isFavouriteGig ? styles.favouriteGigCard : null,
+          pressed ? styles.pressed : null,
+        ]}
+      >
+        {imageUrl ? (
+          <Image source={{ uri: imageUrl }} style={styles.rowImage} />
+        ) : (
+          renderFallbackImage(styles.rowImage, styles.rowFallbackText)
+        )}
+
+        <View style={styles.rowBody}>
+          <View style={styles.topRow}>
+            <View style={styles.titleWrap}>
+              {onPressArtist ? (
+                <Pressable
+                  onPress={handlePressArtist}
+                  hitSlop={6}
+                  style={({ pressed }) => [
+                    styles.artistPressable,
+                    pressed ? styles.artistPressablePressed : null,
+                  ]}
+                >
+                  <View style={styles.artistRow}>
+                    <Text style={styles.artist} numberOfLines={1}>
+                      {gig.artist}
+                    </Text>
+                    {isFavouriteGig ? (
+                      <Ionicons name="star" size={13} color="#FFD166" />
+                    ) : null}
+                  </View>
+                </Pressable>
+              ) : (
+                <View style={styles.artistRow}>
+                  <Text style={styles.artist} numberOfLines={1}>
+                    {gig.artist}
+                  </Text>
+                  {isFavouriteGig ? (
+                    <Ionicons name="star" size={13} color="#FFD166" />
+                  ) : null}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.topRightActions}>
+              {hasNotes ? (
+                <Pressable
+                  onPress={handleOpenNotes}
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.topIconBtn,
+                    pressed ? styles.topIconBtnPressed : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="document-text-outline"
+                    size={13}
+                    color="rgba(255,255,255,0.54)"
+                  />
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                onPress={handlePress}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.topIconBtn,
+                  pressed ? styles.topIconBtnPressed : null,
+                ]}
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={17}
+                  color="rgba(255,255,255,0.44)"
+                />
+              </Pressable>
+            </View>
+          </View>
+
+          <Text style={styles.meta} numberOfLines={1}>
+            {gig.venue} • {gig.city}
+          </Text>
+
+          <View style={styles.dateRatingRow}>
+            <Text style={styles.date}>{formatGigDateUk(gig.date)}</Text>
+            {hasRating ? (
+              <Text style={styles.ratingInline}>★ {gig.rating}/5</Text>
+            ) : null}
+          </View>
+
+          <View style={styles.socialRow}>
+            <View style={styles.socialLeft}>
+              <AvatarStack avatars={social.avatars} extraCount={social.count} />
+              <Text style={styles.socialInlineText}>{socialText}</Text>
+            </View>
+
+            <View style={styles.socialRight}>
+              {hasTickets ? (
+                <Pressable
+                  onPress={openTickets}
+                  style={({ pressed }) => [
+                    styles.inlineAction,
+                    pressed ? styles.smallBtnPressed : null,
+                  ]}
+                  hitSlop={8}
+                >
+                  <Ionicons
+                    name="ticket-outline"
+                    size={12}
+                    color={Colours.text.muted}
+                  />
+                  <Text style={styles.inlineActionText}>Tickets</Text>
+                </Pressable>
+              ) : null}
+
+              {showSetlistChip ? (
+                <Pressable
+                  onPress={handleOpenSetlist}
+                  style={({ pressed }) => [
+                    styles.inlineAction,
+                    pressed ? styles.smallBtnPressed : null,
+                  ]}
+                  hitSlop={8}
+                >
+                  <Ionicons
+                    name="musical-notes-outline"
+                    size={12}
+                    color={Colours.text.muted}
+                  />
+                  <Text style={styles.inlineActionText}>Setlist</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        </View>
+      </Pressable>
+
+      {modalContent}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  rowCard: {
+    flexDirection: "row",
+    gap: 12,
     backgroundColor: Colours.background.card,
     borderRadius: 16,
     padding: 10,
@@ -547,6 +657,32 @@ const styles = StyleSheet.create({
     opacity: 0.92,
   },
 
+  rowImage: {
+    width: 68,
+    height: 68,
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+
+  imageFallback: {
+    backgroundColor: "rgba(47,140,255,0.16)",
+    borderWidth: 1,
+    borderColor: "rgba(47,140,255,0.3)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  rowFallbackText: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 24,
+  },
+
+  rowBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+
   topRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -555,6 +691,7 @@ const styles = StyleSheet.create({
   titleWrap: {
     flex: 1,
     paddingRight: 10,
+    minWidth: 0,
   },
 
   artistPressable: {
@@ -562,6 +699,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.12)",
     paddingBottom: 1,
+    maxWidth: "100%",
   },
 
   artistPressablePressed: {
@@ -572,13 +710,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
+    maxWidth: "100%",
   },
 
   artist: {
     color: Colours.text.primary,
     fontSize: 16,
     lineHeight: 20,
-    fontWeight: "700",
+    fontWeight: "800",
+    flexShrink: 1,
   },
 
   topRightActions: {
@@ -602,8 +742,8 @@ const styles = StyleSheet.create({
   meta: {
     marginTop: 3,
     color: Colours.text.secondary,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: "600",
   },
 
@@ -673,6 +813,116 @@ const styles = StyleSheet.create({
   inlineActionText: {
     color: Colours.text.muted,
     fontWeight: "600",
+    fontSize: 11,
+    lineHeight: 14,
+  },
+
+  posterCard: {
+    width: 150,
+    height: 190,
+    borderRadius: 20,
+    overflow: "hidden",
+    backgroundColor: Colours.background.card,
+    borderWidth: 1,
+    borderColor: Colours.ui.border,
+  },
+
+  posterImageWrap: {
+    flex: 1,
+    position: "relative",
+    overflow: "hidden",
+  },
+
+  posterImage: {
+    width: "100%",
+    height: "100%",
+  },
+
+  posterFallbackText: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 42,
+  },
+
+  posterGradient: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.22)",
+  },
+
+  posterDatePill: {
+    position: "absolute",
+    left: 10,
+    top: 10,
+    width: 48,
+    height: 58,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.46)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  posterMonth: {
+    color: Colours.text.secondary,
+    fontWeight: "900",
+    fontSize: 10,
+    lineHeight: 13,
+    letterSpacing: 0.8,
+  },
+
+  posterDay: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 24,
+    lineHeight: 27,
+  },
+
+  posterFavourite: {
+    position: "absolute",
+    right: 10,
+    top: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(0,0,0,0.44)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  posterTextWrap: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+  },
+
+  posterArtist: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 20,
+    lineHeight: 23,
+    letterSpacing: -0.2,
+  },
+
+  posterMeta: {
+    marginTop: 5,
+    color: Colours.text.secondary,
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 15,
+  },
+
+  posterDateText: {
+    marginTop: 2,
+    color: Colours.text.muted,
+    fontWeight: "700",
     fontSize: 11,
     lineHeight: 14,
   },

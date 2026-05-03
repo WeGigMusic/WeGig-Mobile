@@ -280,17 +280,9 @@ export function ProfileScreen({
       if (preset && preset.trim()) setAvatarPreset(preset.trim());
       if (uri && uri.trim()) setAvatarUri(uri.trim());
 
-      if (hap != null) {
-        setHapticsEnabled(hap === "1");
-      }
-
-      if (notifyGig != null) {
-        setGigReminderEnabled(notifyGig === "1");
-      }
-
-      if (notifyRate != null) {
-        setRateReminderEnabled(notifyRate === "1");
-      }
+      if (hap != null) setHapticsEnabled(hap === "1");
+      if (notifyGig != null) setGigReminderEnabled(notifyGig === "1");
+      if (notifyRate != null) setRateReminderEnabled(notifyRate === "1");
     } catch {}
   }, []);
 
@@ -371,10 +363,7 @@ export function ProfileScreen({
     setGigReminderEnabled(next);
 
     try {
-      await AsyncStorage.setItem(
-        NOTIFY_GIG_REMINDER_KEY,
-        next ? "1" : "0",
-      );
+      await AsyncStorage.setItem(NOTIFY_GIG_REMINDER_KEY, next ? "1" : "0");
     } catch {}
 
     if (hapticsEnabled) {
@@ -389,10 +378,7 @@ export function ProfileScreen({
     setRateReminderEnabled(next);
 
     try {
-      await AsyncStorage.setItem(
-        NOTIFY_RATE_REMINDER_KEY,
-        next ? "1" : "0",
-      );
+      await AsyncStorage.setItem(NOTIFY_RATE_REMINDER_KEY, next ? "1" : "0");
     } catch {}
 
     if (hapticsEnabled) {
@@ -490,8 +476,7 @@ export function ProfileScreen({
   }, [homeCity, cityTouched, runCitySearch]);
 
   const chooseCity = React.useCallback((place: MapboxPlace) => {
-    const best =
-      place.city?.trim() || place.region?.trim() || place.name.trim();
+    const best = place.city?.trim() || place.region?.trim() || place.name.trim();
 
     setHomeCity(best);
     setCityOpen(false);
@@ -578,31 +563,27 @@ export function ProfileScreen({
     );
   }, []);
 
-    const handleLogout = React.useCallback(() => {
-    Alert.alert(
-      "Log out",
-      "Are you sure you want to log out?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Log out",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await supabase.auth.signOut();
+  const handleLogout = React.useCallback(() => {
+    Alert.alert("Log out", "Are you sure you want to log out?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Log out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await supabase.auth.signOut();
 
-              posthog.capture("logout_completed");
-              posthog.reset();
-            } catch (e: any) {
-              Alert.alert("Logout failed", e?.message ?? "Please try again.");
-            }
-          },
+            posthog.capture("logout_completed");
+            posthog.reset();
+          } catch (e: any) {
+            Alert.alert("Logout failed", e?.message ?? "Please try again.");
+          }
         },
-      ],
-    );
+      },
+    ]);
   }, []);
 
   const handleSignIn = React.useCallback(() => {
@@ -885,79 +866,78 @@ export function ProfileScreen({
               Used to personalise Discover + “Next gig near you”.
             </Text>
 
-            <View style={styles.toggleRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.toggleTitle}>Haptics</Text>
-                <Text style={styles.toggleSubtitle}>
-                  Vibrate on badge unlocks
-                </Text>
+            <View style={styles.toggleGroup}>
+              <View style={styles.toggleRowNoBorder}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.toggleTitle}>Haptics</Text>
+                  <Text style={styles.toggleSubtitle}>
+                    Vibrate on badge unlocks
+                  </Text>
+                </View>
+
+                <Switch
+                  value={hapticsEnabled}
+                  onValueChange={() => void toggleHaptics()}
+                  trackColor={{
+                    false: "rgba(255,255,255,0.18)",
+                    true: "rgba(47,140,255,0.35)",
+                  }}
+                  thumbColor={
+                    hapticsEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
+                  }
+                  ios_backgroundColor="rgba(255,255,255,0.18)"
+                />
               </View>
 
-              <Switch
-  value={hapticsEnabled}
-  onValueChange={() => void toggleHaptics()}
-  trackColor={{
-    false: "rgba(255,255,255,0.18)",
-    true: "rgba(47,140,255,0.35)",
-  }}
-  thumbColor={
-    hapticsEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
-  }
-  ios_backgroundColor="rgba(255,255,255,0.18)"
-/>
+              <View style={styles.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.toggleTitle}>Gig reminders</Text>
+                  <Text style={styles.toggleSubtitle}>
+                    Get a reminder the day before gigs you’ve logged
+                  </Text>
+                </View>
+
+                <Switch
+                  value={gigReminderEnabled}
+                  onValueChange={() => void toggleGigReminder()}
+                  trackColor={{
+                    false: "rgba(255,255,255,0.18)",
+                    true: "rgba(47,140,255,0.35)",
+                  }}
+                  thumbColor={
+                    gigReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
+                  }
+                  ios_backgroundColor="rgba(255,255,255,0.18)"
+                />
+              </View>
+
+              <View style={styles.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.toggleTitle}>Rate your gigs</Text>
+                  <Text style={styles.toggleSubtitle}>
+                    Get a reminder the day after to log your rating
+                  </Text>
+                </View>
+
+                <Switch
+                  value={rateReminderEnabled}
+                  onValueChange={() => void toggleRateReminder()}
+                  trackColor={{
+                    false: "rgba(255,255,255,0.18)",
+                    true: "rgba(47,140,255,0.35)",
+                  }}
+                  thumbColor={
+                    rateReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
+                  }
+                  ios_backgroundColor="rgba(255,255,255,0.18)"
+                />
+              </View>
             </View>
 
             <PrimaryButton
               title={savingPrefs ? "Saving…" : "Save preferences"}
               onPress={savePrefs}
               disabled={savingPrefs}
-            />
-          </View>
-        </View>
-
-        <SectionTitle title="Notifications" />
-        <View style={styles.card}>
-          <View style={styles.toggleRowNoBorder}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.toggleTitle}>Gig reminders</Text>
-              <Text style={styles.toggleSubtitle}>
-                Get a reminder the day before gigs you’ve logged
-              </Text>
-            </View>
-
-            <Switch
-              value={gigReminderEnabled}
-              onValueChange={() => void toggleGigReminder()}
-              trackColor={{
-                false: "rgba(255,255,255,0.18)",
-                true: "rgba(47,140,255,0.35)",
-              }}
-              thumbColor={
-                gigReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
-              }
-              ios_backgroundColor="rgba(255,255,255,0.18)"
-            />
-          </View>
-
-          <View style={styles.toggleRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.toggleTitle}>Rate your gigs</Text>
-              <Text style={styles.toggleSubtitle}>
-                Get a reminder the day after to log your rating
-              </Text>
-            </View>
-
-            <Switch
-              value={rateReminderEnabled}
-              onValueChange={() => void toggleRateReminder()}
-              trackColor={{
-                false: "rgba(255,255,255,0.18)",
-                true: "rgba(47,140,255,0.35)",
-              }}
-              thumbColor={
-                rateReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.75)"
-              }
-              ios_backgroundColor="rgba(255,255,255,0.18)"
             />
           </View>
         </View>
@@ -974,7 +954,7 @@ export function ProfileScreen({
             subtitle="Email login only (coming soon)"
             onPress={handleChangePassword}
           />
-                 <ActionRow
+          <ActionRow
             title="Log out"
             subtitle="Sign out of this device"
             onPress={handleLogout}
@@ -1264,6 +1244,10 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 13,
     lineHeight: 17,
+  },
+
+  toggleGroup: {
+    marginTop: 4,
   },
 
   toggleRow: {

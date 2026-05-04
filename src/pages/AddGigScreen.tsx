@@ -11,7 +11,6 @@ import {
   KeyboardAvoidingView,
   Keyboard,
 } from "react-native";
-import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 
@@ -23,11 +22,10 @@ import { useToast } from "../components/ToastProvider";
 import { apiPost, apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput, Gig, GigsResponse } from "../shared/types/Gig";
-
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getCachedGigs, setCachedGigs } from "../lib/gigsCache";
 import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
 import { parseYmdToUtcDate } from "../lib/date";
-import { reverseGeocodeCity } from "../lib/mapbox";
 import { addGigToCalendar } from "../lib/calendar";
 import {
   searchArtistSetlists,
@@ -64,6 +62,8 @@ const UI_COPY = {
   autoCity: "City found ✓",
   saving: "Locking it in…",
 };
+
+const INCLUDE_TRIBUTE_ACTS_KEY = "wegig.includeTributeActs";
 
 function norm(s: any) {
   return String(s ?? "")
@@ -126,10 +126,9 @@ export function AddGigScreen(props: {
   onPressLogo?: () => void;
   onBack?: () => void;
 }) {
-  
-const { showToast } = useToast();
-const scrollRef = React.useRef<any>(null);
-const suppressNextArtistSearchRef = React.useRef(false);
+  const { showToast } = useToast();
+  const scrollRef = React.useRef<any>(null);
+  const suppressNextArtistSearchRef = React.useRef(false);
 
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
@@ -150,13 +149,6 @@ const suppressNextArtistSearchRef = React.useRef(false);
   const [venueSessionToken, setVenueSessionToken] = React.useState(
     createSessionToken(),
   );
-  const [locationBias, setLocationBias] = React.useState<
-    | {
-        latitude: number;
-        longitude: number;
-      }
-    | undefined
-  >();
 
   const [selectedVenueLat, setSelectedVenueLat] = React.useState<
     number | undefined
@@ -184,7 +176,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
   const [gigSearchResults, setGigSearchResults] = React.useState<SetlistItem[]>(
     [],
   );
-
+ 
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
   const [justScanned, setJustScanned] = React.useState(false);
@@ -287,29 +279,29 @@ const suppressNextArtistSearchRef = React.useRef(false);
     }
   }, []);
 
-React.useEffect(() => {
-  if (suppressNextArtistSearchRef.current) {
-    suppressNextArtistSearchRef.current = false;
-    return;
-  }
+  React.useEffect(() => {
+    if (suppressNextArtistSearchRef.current) {
+      suppressNextArtistSearchRef.current = false;
+      return;
+    }
 
-  setArtistMbid(undefined);
+    setArtistMbid(undefined);
 
-  const q = artist.trim();
+    const q = artist.trim();
 
-  if (q.length < 2) {
-    setMbResults([]);
-    setMbOpen(false);
-    setMbError("");
-    return;
-  }
+    if (q.length < 2) {
+      setMbResults([]);
+      setMbOpen(false);
+      setMbError("");
+      return;
+    }
 
-  const t = setTimeout(() => {
-    void runMbSearch(q);
-  }, 320);
+    const t = setTimeout(() => {
+      void runMbSearch(q);
+    }, 320);
 
-  return () => clearTimeout(t);
-}, [artist, runMbSearch]);
+    return () => clearTimeout(t);
+  }, [artist, runMbSearch]);
 
   React.useEffect(() => {
     if (!props.autoCreate) return;
@@ -340,14 +332,14 @@ React.useEffect(() => {
     date,
   ]);
 
-const chooseArtist = (a: MbArtist) => {
-  suppressNextArtistSearchRef.current = true;
-  setArtist(a.name);
-  setArtistMbid(a.id);
-  setMbOpen(false);
-  setMbResults([]);
-  setMbError("");
-};
+  const chooseArtist = (a: MbArtist) => {
+    suppressNextArtistSearchRef.current = true;
+    setArtist(a.name);
+    setArtistMbid(a.id);
+    setMbOpen(false);
+    setMbResults([]);
+    setMbError("");
+  };
 
   const runVenueSearch = React.useCallback(
     async (q: string) => {
@@ -366,13 +358,6 @@ const chooseArtist = (a: MbArtist) => {
       try {
         const results = await searchVenues(query, venueSessionToken, {
           cityHint: city.trim() || undefined,
-          locationBias: locationBias
-            ? {
-                latitude: locationBias.latitude,
-                longitude: locationBias.longitude,
-                radiusMeters: 50000,
-              }
-            : undefined,
         });
 
         setVenueResults(results.slice(0, 8));
@@ -385,7 +370,7 @@ const chooseArtist = (a: MbArtist) => {
         setVenueLoading(false);
       }
     },
-    [venueSessionToken, city, locationBias],
+    [venueSessionToken, city],
   );
 
   React.useEffect(() => {
@@ -460,60 +445,6 @@ const chooseArtist = (a: MbArtist) => {
     }
   }
 
-  const handleUseMyLocation = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission denied",
-          "Location access is needed to auto-fill your city.",
-        );
-        return;
-      }
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const coords = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      };
-
-      setLocationBias(coords);
-
-      try {
-        const resolvedCity = await reverseGeocodeCity(coords);
-
-        if (resolvedCity.trim()) {
-          setCity(resolvedCity.trim());
-          setJustAutoCity(true);
-          setTimeout(() => setJustAutoCity(false), 2200);
-          return;
-        }
-      } catch {}
-
-      const places = await Location.reverseGeocodeAsync(coords);
-      const place = places?.[0];
-      const inferredCity =
-        place?.city || place?.subregion || place?.region || "";
-
-      if (inferredCity) {
-        setCity(inferredCity);
-        setJustAutoCity(true);
-        setTimeout(() => setJustAutoCity(false), 2200);
-      } else {
-        Alert.alert(
-          "Location detected",
-          "Could not determine city automatically.",
-        );
-      }
-    } catch {
-      Alert.alert("Location error", "Could not detect your current location.");
-    }
-  };
-
   const runGigSearch = async () => {
     const q = artist.trim();
 
@@ -527,9 +458,12 @@ const chooseArtist = (a: MbArtist) => {
     setGigSearchOpen(false);
 
     try {
-      const results = await searchArtistSetlists({
+      const includeTributeActs =
+  (await AsyncStorage.getItem(INCLUDE_TRIBUTE_ACTS_KEY)) === "1";
+
+const results = await searchArtistSetlists({
   artist: q,
-  artistMbid,
+  artistMbid: includeTributeActs ? undefined : artistMbid,
   city,
   venue,
 });
@@ -637,7 +571,6 @@ const chooseArtist = (a: MbArtist) => {
     setSelectedVenueLng(undefined);
     setSelectedVenuePlaceName(undefined);
     setSelectedVenuePlaceId(undefined);
-    setLocationBias(undefined);
 
     setMbResults([]);
     setMbOpen(false);
@@ -653,7 +586,7 @@ const chooseArtist = (a: MbArtist) => {
     setGigSearchOpen(false);
     setGigSearchError("");
     setGigSearchLoading(false);
-
+  
     setJustAutoCity(false);
     setAutoCreateAttempted(false);
     setAddToCalendar(false);
@@ -890,6 +823,18 @@ const chooseArtist = (a: MbArtist) => {
             ) : null}
 
             <TextField
+              label="City"
+              value={city}
+              onChangeText={setCity}
+              placeholder="e.g. London"
+              autoCapitalize="words"
+            />
+
+            {justAutoCity ? (
+              <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
+            ) : null}
+
+            <TextField
               label="Venue"
               value={venue}
               onChangeText={(t) => {
@@ -939,27 +884,6 @@ const chooseArtist = (a: MbArtist) => {
                 ))}
               </View>
             ) : null}
-
-            <TextField label="City" value={city} onChangeText={setCity} />
-
-            {justAutoCity ? (
-              <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
-            ) : null}
-
-            <Pressable
-              onPress={handleUseMyLocation}
-              style={({ pressed }) => [
-                styles.locationBtn,
-                pressed ? styles.rowPressed : null,
-              ]}
-            >
-              <Ionicons
-                name="location-outline"
-                size={16}
-                color={Colours.text.primary}
-              />
-              <Text style={styles.locationBtnText}>Use my location</Text>
-            </Pressable>
 
             <DateField
               label="Date"

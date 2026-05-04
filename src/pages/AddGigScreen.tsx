@@ -30,6 +30,11 @@ import { parseYmdToUtcDate } from "../lib/date";
 import { reverseGeocodeCity } from "../lib/mapbox";
 import { addGigToCalendar } from "../lib/calendar";
 import {
+  searchArtistSetlists,
+  setlistDateToYmd,
+  type SetlistItem,
+} from "../lib/setlist";
+import {
   createSessionToken,
   getPlaceDetails,
   searchVenues,
@@ -121,8 +126,10 @@ export function AddGigScreen(props: {
   onPressLogo?: () => void;
   onBack?: () => void;
 }) {
+  
   const { showToast } = useToast();
-  const scrollRef = React.useRef<any>(null);
+const scrollRef = React.useRef<any>(null);
+const suppressNextArtistSearchRef = React.useRef(false);
 
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
@@ -170,6 +177,13 @@ export function AddGigScreen(props: {
   >();
   const [externalId, setExternalId] = React.useState<string | undefined>();
   const [ticketUrl, setTicketUrl] = React.useState<string | undefined>();
+
+  const [gigSearchLoading, setGigSearchLoading] = React.useState(false);
+  const [gigSearchError, setGigSearchError] = React.useState("");
+  const [gigSearchOpen, setGigSearchOpen] = React.useState(false);
+  const [gigSearchResults, setGigSearchResults] = React.useState<SetlistItem[]>(
+    [],
+  );
 
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
@@ -273,24 +287,29 @@ export function AddGigScreen(props: {
     }
   }, []);
 
-  React.useEffect(() => {
-    setArtistMbid(undefined);
+React.useEffect(() => {
+  if (suppressNextArtistSearchRef.current) {
+    suppressNextArtistSearchRef.current = false;
+    return;
+  }
 
-    const q = artist.trim();
+  setArtistMbid(undefined);
 
-    if (q.length < 2) {
-      setMbResults([]);
-      setMbOpen(false);
-      setMbError("");
-      return;
-    }
+  const q = artist.trim();
 
-    const t = setTimeout(() => {
-      void runMbSearch(q);
-    }, 320);
+  if (q.length < 2) {
+    setMbResults([]);
+    setMbOpen(false);
+    setMbError("");
+    return;
+  }
 
-    return () => clearTimeout(t);
-  }, [artist, runMbSearch]);
+  const t = setTimeout(() => {
+    void runMbSearch(q);
+  }, 320);
+
+  return () => clearTimeout(t);
+}, [artist, runMbSearch]);
 
   React.useEffect(() => {
     if (!props.autoCreate) return;
@@ -321,13 +340,14 @@ export function AddGigScreen(props: {
     date,
   ]);
 
-  const chooseArtist = (a: MbArtist) => {
-    setArtist(a.name);
-    setArtistMbid(a.id);
-    setMbOpen(false);
-    setMbResults([]);
-    setMbError("");
-  };
+const chooseArtist = (a: MbArtist) => {
+  suppressNextArtistSearchRef.current = true;
+  setArtist(a.name);
+  setArtistMbid(a.id);
+  setMbOpen(false);
+  setMbResults([]);
+  setMbError("");
+};
 
   const runVenueSearch = React.useCallback(
     async (q: string) => {
@@ -428,7 +448,8 @@ export function AddGigScreen(props: {
       setVenueLoading(false);
     }
   };
-    async function getExistingGigsBestEffort(): Promise<Gig[]> {
+
+  async function getExistingGigsBestEffort(): Promise<Gig[]> {
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const gigs = res?.gigs ?? [];
@@ -491,6 +512,75 @@ export function AddGigScreen(props: {
     } catch {
       Alert.alert("Location error", "Could not detect your current location.");
     }
+  };
+
+  const runGigSearch = async () => {
+    const q = artist.trim();
+
+    if (!q) {
+      Alert.alert("Artist needed", "Add an artist first, then search for a gig.");
+      return;
+    }
+
+    setGigSearchLoading(true);
+    setGigSearchError("");
+    setGigSearchOpen(false);
+
+    try {
+      const results = await searchArtistSetlists({
+  artist: q,
+  artistMbid,
+});
+
+      const venueQuery = venue.trim().toLowerCase();
+      const cityQuery = city.trim().toLowerCase();
+      const dateQuery = date.trim();
+
+      const filtered = results.filter((item) => {
+        const itemVenue = item.venueName.toLowerCase();
+        const itemCity = item.cityName.toLowerCase();
+        const itemDate = setlistDateToYmd(item.eventDate);
+
+        const venueOk = !venueQuery || itemVenue.includes(venueQuery);
+        const cityOk = !cityQuery || itemCity.includes(cityQuery);
+        const dateOk = !dateQuery || itemDate === dateQuery;
+
+        return venueOk && cityOk && dateOk;
+      });
+
+      const nextResults = filtered.length > 0 ? filtered : results;
+
+      setGigSearchResults(nextResults);
+      setGigSearchOpen(true);
+
+      if (nextResults.length === 0) {
+        setGigSearchError("No matching gigs found.");
+      }
+    } catch (e: any) {
+      setGigSearchResults([]);
+      setGigSearchError(e?.message ?? "Gig search failed");
+    } finally {
+      setGigSearchLoading(false);
+    }
+  };
+
+  const chooseSetlistGig = (gig: SetlistItem) => {
+    const ymdDate = setlistDateToYmd(gig.eventDate);
+
+    setVenue(gig.venueName);
+    setCity(gig.cityName);
+    if (ymdDate) setDate(ymdDate);
+
+    setExternalSource("setlist.fm");
+    setExternalId(gig.id);
+    setTicketUrl(gig.url ?? undefined);
+
+    setGigSearchOpen(false);
+    setGigSearchResults([]);
+    setGigSearchError("");
+
+    setJustPrefilled(true);
+    setTimeout(() => setJustPrefilled(false), 2500);
   };
 
   const handleTicketScanned = (scanPrefill: Partial<CreateGigInput>) => {
@@ -556,6 +646,11 @@ export function AddGigScreen(props: {
     setVenueError("");
     setVenueLoading(false);
     setVenueSessionToken(createSessionToken());
+
+    setGigSearchResults([]);
+    setGigSearchOpen(false);
+    setGigSearchError("");
+    setGigSearchLoading(false);
 
     setJustAutoCity(false);
     setAutoCreateAttempted(false);
@@ -707,8 +802,8 @@ export function AddGigScreen(props: {
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}
           enableOnAndroid
-          enableAutomaticScroll
-          extraScrollHeight={130}
+          enableAutomaticScroll={false}
+          extraScrollHeight={0}
         >
           <View style={styles.hero}>
             <View style={styles.titleRow}>
@@ -870,6 +965,55 @@ export function AddGigScreen(props: {
               onChange={setDate}
               placeholder="Select date"
             />
+
+            <Pressable
+              onPress={runGigSearch}
+              disabled={gigSearchLoading}
+              style={({ pressed }) => [
+                styles.locationBtn,
+                pressed ? styles.rowPressed : null,
+                gigSearchLoading ? styles.saveBtnDisabled : null,
+              ]}
+            >
+              <Ionicons
+                name="search-outline"
+                size={16}
+                color={Colours.text.primary}
+              />
+              <Text style={styles.locationBtnText}>
+                {gigSearchLoading ? "Searching…" : "Search for gig"}
+              </Text>
+            </Pressable>
+
+            {gigSearchError ? (
+              <Text style={styles.errorText}>{gigSearchError}</Text>
+            ) : null}
+
+            {gigSearchOpen && gigSearchResults.length > 0 ? (
+              <View style={styles.suggestCard}>
+                {gigSearchResults.map((gig) => (
+                  <Pressable
+                    key={gig.id}
+                    onPress={() => chooseSetlistGig(gig)}
+                    style={({ pressed }) => [
+                      styles.suggestRow,
+                      pressed ? styles.rowPressed : null,
+                    ]}
+                  >
+                    <View style={styles.flex}>
+                      <Text style={styles.suggestTitle}>
+                        {gig.eventDate} · {gig.venueName}
+                      </Text>
+                      <Text style={styles.suggestMeta}>
+                        {[gig.cityName, gig.countryCode, `${gig.songCount} songs`]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
 
             {isFutureGig ? (
               <Text style={styles.muted}>

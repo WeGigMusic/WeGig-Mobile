@@ -261,7 +261,7 @@ export function DiscoverScreen(props: {
   const [locationError, setLocationError] = React.useState("");
   const [useLocation, setUseLocation] = React.useState(false);
 
-  const activeCity = useLocation ? detectedCity.trim() : cityInput.trim();
+  const activeCity = cityInput.trim();
   const trimmedQuery = query.trim();
   const showingSearchResults = trimmedQuery.length >= 2;
 
@@ -335,7 +335,8 @@ setLocationCoords(coords);
         if (resolved.trim()) {
           const city = resolved.trim();
           setDetectedCity(city);
-          return city;
+setCityInput(city);
+return city;
         }
       } catch {}
 
@@ -348,7 +349,8 @@ setLocationCoords(coords);
       if (fallbackCity.trim()) {
         const city = fallbackCity.trim();
         setDetectedCity(city);
-        return city;
+setCityInput(city);
+return city;
       }
 
       setDetectedCity("");
@@ -525,7 +527,7 @@ const events = res._embedded?.events ?? [];
     } finally {
       setSimilarLoading(false);
     }
-  }, [fetchTicketmasterEvents, latestArtist, latestGig?.id]);
+  }, [latestArtist, latestGig?.id]);
 
   React.useEffect(() => {
     if (trimmedQuery.length < 2) {
@@ -705,11 +707,10 @@ const events = res._embedded?.events ?? [];
                   <SectionTitle
                     title={
                       latestArtist
-                        ? `Because you saw ${latestArtist}`
+                        ? `Recommendations for you`
                         : "Similar gigs"
                     }
-                    subtitle="Recommendations based on your latest gig"
-                  />
+                                      />
 
                   {similarLoading ? (
                     <View style={styles.inlineInfoRow}>

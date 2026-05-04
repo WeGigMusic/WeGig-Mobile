@@ -127,7 +127,7 @@ export function AddGigScreen(props: {
   onBack?: () => void;
 }) {
   
-  const { showToast } = useToast();
+const { showToast } = useToast();
 const scrollRef = React.useRef<any>(null);
 const suppressNextArtistSearchRef = React.useRef(false);
 
@@ -530,6 +530,8 @@ const chooseArtist = (a: MbArtist) => {
       const results = await searchArtistSetlists({
   artist: q,
   artistMbid,
+  city,
+  venue,
 });
 
       const venueQuery = venue.trim().toLowerCase();

@@ -27,6 +27,8 @@ export function setlistDateToYmd(value: string): string {
 export async function searchArtistSetlists(params: {
   artist: string;
   artistMbid?: string;
+  city?: string;
+  venue?: string;
 }): Promise<SetlistItem[]> {
   const artist = params.artist.trim();
   if (!artist) return [];
@@ -36,6 +38,14 @@ export async function searchArtistSetlists(params: {
 
   if (params.artistMbid?.trim()) {
     qs.set("artistMbid", params.artistMbid.trim());
+  }
+
+  if (params.city?.trim()) {
+    qs.set("city", params.city.trim());
+  }
+
+  if (params.venue?.trim()) {
+    qs.set("venue", params.venue.trim());
   }
 
   const res = await apiGet<SetlistArtistResponse>(

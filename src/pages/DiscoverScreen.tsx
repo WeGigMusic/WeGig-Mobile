@@ -10,34 +10,36 @@ import {
   Platform,
   ScrollView,
   Animated,
-  Switch,
+  Pressable,
+  Keyboard,
 } from "react-native";
-import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 
-
-import { reverseGeocodeCity } from "../lib/mapbox";
 import { avatarPresets } from "../config/avatarPresets";
 import { TextField } from "../components/TextField";
-import { PrimaryButton } from "../components/PrimaryButton";
 import { apiGet } from "../lib/api";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
-import type { CreateGigInput, Gig, GigsResponse } from "../shared/types/Gig";
+import type { CreateGigInput } from "../shared/types/Gig";
 
-
-const HOME_CITY_KEY = "wegig.homeCity";
 const DISCOVER_CITY_KEY = "wegig.discoverCity";
-const LOCATION_RADII_MILES = [10, 25, 50];
-
+const INCLUDE_TRIBUTE_ACTS_KEY = "wegig.includeTributeActs";
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
-
 type TicketmasterEvent = {
-  id: string;
-  name: string;
+  id?: string;
+  source?: string;
+  sourceEventId?: string;
+  name?: string;
+  title?: string;
   url?: string;
+  ticketUrl?: string;
+  date?: string;
+  dateTime?: string;
+  venueName?: string;
+  city?: string;
   dates?: {
     start?: {
       localDate?: string;
@@ -51,57 +53,88 @@ type TicketmasterEvent = {
   };
 };
 
-
 type TicketmasterResponse = {
+  events?: TicketmasterEvent[];
   _embedded?: {
     events?: TicketmasterEvent[];
   };
 };
 
-
-type LocationCoords = {
-  latitude: number;
-  longitude: number;
+type MbArtist = {
+  id: string;
+  name: string;
+  disambiguation?: string;
+  country?: string;
 };
 
+type MbArtistSearchResponse =
+  | {
+      artists?: MbArtist[];
+    }
+  | any;
 
 const UI_COPY = {
   searching: "Searching gigs…",
-  detectingLocation: "Finding your city…",
-  nearbyLoading: "Loading gigs near you…",
-  similarLoading: "Loading similar gigs…",
+  artistLoading: "Looking up artists…",
   emptySearch: "No gigs found. Try another artist, band or city.",
-  noNearbyWithCity: (city: string) =>
-    `No gigs found in ${city} right now. Try another city or search for an artist.`,
-  noNearbyNoCity: "Add a city or use your location to see gigs near you.",
-  noSimilar: "Log a few more gigs and similar recommendations will get better.",
-  useLocationLabel: (city: string) =>
-    city ? `Use my location (${city})` : "Use my location",
 };
 
+function isTributeEvent(event: TicketmasterEvent) {
+ const venue = pickVenue(event);
+
+ const text = [
+   event.name,
+   event.title,
+   event.venueName,
+   venue.venue,
+   venue.city,
+ ]
+   .filter(Boolean)
+   .join(" ")
+   .toLowerCase();
+
+ return [
+   "tribute",
+   "tributes",
+   "tribute to",
+   "a tribute",
+   "the tribute",
+   "tribute band",
+   "tribute act",
+   "experience",
+   "uk tribute",
+   "live tribute",
+ ].some((term) => text.includes(term));
+}
+
+function filterTributeEvents(
+  events: TicketmasterEvent[],
+  includeTributeActs: boolean,
+) {
+  if (includeTributeActs) return events;
+  return events.filter((event) => !isTributeEvent(event));
+}
+
+function getEventKey(item: TicketmasterEvent, index: number) {
+  return `${item.source ?? "event"}-${
+    item.sourceEventId ?? item.id ?? item.title ?? item.name ?? index
+  }`;
+}
+
+function getEventName(item: TicketmasterEvent) {
+  return item.title ?? item.name ?? "Untitled event";
+}
 
 function pickVenue(e: TicketmasterEvent) {
   const v = e._embedded?.venues?.[0];
 
-
   return {
-    venue: v?.name ?? "Unknown venue",
-    city: v?.city?.name ?? "Unknown city",
+    venue: e.venueName ?? v?.name ?? "Unknown venue",
+    city: e.city ?? v?.city?.name ?? "Unknown city",
   };
 }
 
-
-function getLatestLoggedGig(gigs: Gig[]) {
-  return [...gigs].sort((a, b) => {
-    const aTime = new Date(a.date ?? 0).getTime();
-    const bTime = new Date(b.date ?? 0).getTime();
-    return bTime - aTime;
-  })[0];
-}
-
-
 type SocialAvatarKey = "guitar" | "drums" | "mic" | "piano" | "vinyl";
-
 
 const AVATAR_IMAGES: Record<SocialAvatarKey, any> = {
   guitar: avatarPresets.find((p) => p.id === "guitar")?.image,
@@ -110,7 +143,6 @@ const AVATAR_IMAGES: Record<SocialAvatarKey, any> = {
   piano: avatarPresets.find((p) => p.id === "piano")?.image,
   vinyl: avatarPresets.find((p) => p.id === "vinyl")?.image,
 };
-
 
 function getDiscoverySignal(seed: string) {
   const options: Array<{
@@ -145,15 +177,12 @@ function getDiscoverySignal(seed: string) {
     },
   ];
 
-
   const hash = seed
     .split("")
     .reduce((sum, char) => sum + char.charCodeAt(0), 0);
 
-
   return options[hash % options.length];
 }
-
 
 function AvatarStack(props: {
   avatars: SocialAvatarKey[];
@@ -174,7 +203,6 @@ function AvatarStack(props: {
         ))}
       </View>
 
-
       {props.extraCount ? (
         <Text style={styles.socialExtra}>+{props.extraCount}</Text>
       ) : null}
@@ -182,12 +210,10 @@ function AvatarStack(props: {
   );
 }
 
-
 function SectionTitle(props: { title: string; subtitle?: string }) {
   return (
     <View style={styles.sectionTitleWrap}>
       <Text style={styles.sectionTitle}>{props.title}</Text>
-
 
       {props.subtitle ? (
         <Text style={styles.sectionSubtitle}>{props.subtitle}</Text>
@@ -196,29 +222,44 @@ function SectionTitle(props: { title: string; subtitle?: string }) {
   );
 }
 
-
 function EventCard(props: {
   item: TicketmasterEvent;
   cityFallback: string;
+  artistMbid?: string;
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
 }) {
-  const date = props.item.dates?.start?.localDate ?? "";
+  const eventName = getEventName(props.item);
+  const date = props.item.date ?? props.item.dates?.start?.localDate ?? "";
   const v = pickVenue(props.item);
-  const discovery = getDiscoverySignal(`${props.item.id}-${props.item.name}`);
-
+  const discovery = getDiscoverySignal(
+    `${props.item.source ?? ""}-${props.item.sourceEventId ?? props.item.id ?? ""}-${eventName}`,
+  );
 
   return (
     <View style={styles.resultCard}>
-      <Text style={styles.resultTitle}>{props.item.name}</Text>
+      <View style={styles.resultTopRow}>
+        <View style={styles.resultIcon}>
+          <Ionicons name="musical-notes" size={17} color="#7EB6FF" />
+        </View>
 
+        <View style={styles.resultTitleWrap}>
+          <Text style={styles.resultTitle}>{eventName}</Text>
+          <Text style={styles.resultMeta}>
+            {v.venue} • {v.city}
+          </Text>
+        </View>
+      </View>
 
-      <Text style={styles.resultMeta}>
-        {v.venue} • {v.city}
-      </Text>
-
-
-      {date ? <Text style={styles.resultDate}>{date}</Text> : null}
-
+      {date ? (
+        <View style={styles.datePill}>
+          <Ionicons
+            name="calendar-outline"
+            size={13}
+            color={Colours.text.muted}
+          />
+          <Text style={styles.resultDate}>{date}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.socialBlock}>
         <AvatarStack
@@ -228,28 +269,30 @@ function EventCard(props: {
         <Text style={styles.socialText}>{discovery.text}</Text>
       </View>
 
-
-      <View style={styles.resultActionWrap}>
-        <PrimaryButton
-          title="Add to gigs"
-          onPress={() => {
-            props.onAddToGigs({
-              artist: props.item.name,
-              venue: v.venue,
-              city: v.city || props.cityFallback,
-              date: date || new Date().toISOString().slice(0, 10),
-              externalSource: "Ticketmaster",
-              externalId: props.item.id,
-              ticketUrl: props.item.url,
-            });
-          }}
-          style={styles.resultActionBtn}
-        />
-      </View>
+      <Pressable
+        onPress={() => {
+          props.onAddToGigs({
+            artist: eventName,
+            artistMbid: props.artistMbid,
+            venue: v.venue,
+            city: v.city || props.cityFallback,
+            date: date || new Date().toISOString().slice(0, 10),
+            externalSource: props.item.source ?? "Ticketmaster",
+            externalId: props.item.sourceEventId ?? props.item.id,
+            ticketUrl: props.item.ticketUrl ?? props.item.url,
+          });
+        }}
+        style={({ pressed }) => [
+          styles.addBtn,
+          pressed ? styles.addBtnPressed : null,
+        ]}
+      >
+        <Text style={styles.addBtnText}>Add to gigs</Text>
+        <Ionicons name="add" size={16} color="#FFFFFF" />
+      </Pressable>
     </View>
   );
 }
-
 
 export function DiscoverScreen(props: {
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
@@ -257,12 +300,18 @@ export function DiscoverScreen(props: {
   scrollToTopSignal?: number;
 }) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
-  const scrollRef = React.useRef<ScrollView>(null);
-
+const scrollRef = React.useRef<ScrollView>(null);
+const suppressNextArtistSearchRef = React.useRef(false);
 
   const [cityInput, setCityInput] = React.useState("");
   const [query, setQuery] = React.useState("");
+  const [includeTributeActs, setIncludeTributeActs] = React.useState(false);
 
+  const [artistMbid, setArtistMbid] = React.useState<string | undefined>();
+  const [mbLoading, setMbLoading] = React.useState(false);
+  const [mbResults, setMbResults] = React.useState<MbArtist[]>([]);
+  const [mbError, setMbError] = React.useState("");
+  const [mbOpen, setMbOpen] = React.useState(false);
 
   const [searchLoading, setSearchLoading] = React.useState(false);
   const [searchError, setSearchError] = React.useState("");
@@ -270,236 +319,34 @@ export function DiscoverScreen(props: {
     [],
   );
 
-
-  const [nearYouLoading, setNearYouLoading] = React.useState(false);
-  const [nearYouEvents, setNearYouEvents] = React.useState<TicketmasterEvent[]>(
-    [],
-  );
-
-
-  const [similarLoading, setSimilarLoading] = React.useState(false);
-  const [similarEvents, setSimilarEvents] = React.useState<TicketmasterEvent[]>(
-    [],
-  );
-
-
-  const [loggedGigs, setLoggedGigs] = React.useState<Gig[]>([]);
-  const [detectedCity, setDetectedCity] = React.useState("");
-  const [locationCoords, setLocationCoords] =
-    React.useState<LocationCoords | null>(null);
-  const [locationLoading, setLocationLoading] = React.useState(false);
-  const [locationError, setLocationError] = React.useState("");
-  const [useLocation, setUseLocation] = React.useState(false);
-
-
-  const activeCity = useLocation ? "" : cityInput.trim();
-  const displayCity = useLocation
-    ? detectedCity.trim() || "Current location"
-    : cityInput.trim();
-
-
+  const activeCity = cityInput.trim();
   const trimmedQuery = query.trim();
-  const showingSearchResults = trimmedQuery.length >= 2;
+  const showingSearchResults =
+    trimmedQuery.length >= 2 || activeCity.length >= 2;
 
-
-  const latestGig = React.useMemo(
-    () => getLatestLoggedGig(loggedGigs),
-    [loggedGigs],
-  );
-
-
-  const latestArtist = latestGig?.artist?.trim() ?? "";
-  const hasLoggedGigs = loggedGigs.length > 0;
-
-
-  const loadSavedCity = React.useCallback(async () => {
+  const loadPrefs = React.useCallback(async () => {
     try {
-      const [discoverCity, homeCity] = await Promise.all([
+      const [savedCity, includeTributes] = await Promise.all([
         AsyncStorage.getItem(DISCOVER_CITY_KEY),
-        AsyncStorage.getItem(HOME_CITY_KEY),
+        AsyncStorage.getItem(INCLUDE_TRIBUTE_ACTS_KEY),
       ]);
 
-
-      if (discoverCity?.trim()) {
-        setCityInput(discoverCity.trim());
-        return;
+      if (savedCity?.trim()) {
+        setCityInput(savedCity.trim());
       }
 
-
-      if (homeCity?.trim()) {
-        setCityInput(homeCity.trim());
+      if (includeTributes != null) {
+        setIncludeTributeActs(includeTributes === "1");
       }
     } catch {}
   }, []);
 
-
-  const loadLoggedGigs = React.useCallback(async () => {
-    try {
-      const res = await apiGet<GigsResponse>("/gigs");
-      setLoggedGigs(res.gigs ?? []);
-    } catch {
-      setLoggedGigs([]);
-    }
-  }, []);
-
-
-  const resolveDeviceCity = React.useCallback(async (): Promise<string> => {
-    setLocationLoading(true);
-    setLocationError("");
-
-
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-
-
-      if (permission.status !== "granted") {
-        setDetectedCity("");
-        setLocationCoords(null);
-        setLocationError(
-          permission.canAskAgain
-            ? "Location permission not granted"
-            : "Location permission is blocked. Enable it in Settings.",
-        );
-        return "";
-      }
-
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-
-      const coords = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      };
-
-
-      setLocationCoords(coords);
-
-
-      try {
-        const resolved = await reverseGeocodeCity(coords);
-
-
-        if (resolved.trim()) {
-          const city = resolved.trim();
-          setDetectedCity(city);
-          return city;
-        }
-      } catch {}
-
-
-      const places = await Location.reverseGeocodeAsync(coords);
-      const place = places[0];
-
-
-      const fallbackCity =
-        place?.city || place?.subregion || place?.region || "";
-
-
-      if (fallbackCity.trim()) {
-        const city = fallbackCity.trim();
-        setDetectedCity(city);
-        return city;
-      }
-
-
-      setDetectedCity("");
-      setLocationError("");
-      return "";
-    } catch {
-      setDetectedCity("");
-      setLocationCoords(null);
-      setLocationError("Could not detect your location");
-      return "";
-    } finally {
-      setLocationLoading(false);
-    }
-  }, []);
-
-
-  const fetchTicketmasterEvents = React.useCallback(
-    async (params: {
-      keyword?: string;
-      size: number;
-    }): Promise<TicketmasterEvent[]> => {
-      if (useLocation && locationCoords) {
-        for (const radius of LOCATION_RADII_MILES) {
-          const qs = new URLSearchParams();
-
-
-          if (params.keyword?.trim()) {
-            qs.set("keyword", params.keyword.trim());
-          }
-
-
-          qs.set(
-            "latlong",
-            `${locationCoords.latitude},${locationCoords.longitude}`,
-          );
-          qs.set("radius", String(radius));
-          qs.set("unit", "miles");
-          qs.set("size", String(params.size));
-
-
-          console.log("Discover radius query:", `/tm/events/search?${qs.toString()}`);
-
-
-const res = await apiGet<TicketmasterResponse>(
- `/tm/events/search?${qs.toString()}`,
-);
-
-
-
-          const events = res._embedded?.events ?? [];
-
-
-          if (events.length > 0 || radius === LOCATION_RADII_MILES.at(-1)) {
-            return events;
-          }
-        }
-
-
-        return [];
-      }
-
-
-      const qs = new URLSearchParams();
-
-
-      if (params.keyword?.trim()) {
-        qs.set("keyword", params.keyword.trim());
-      }
-
-
-      if (!useLocation && activeCity) {
- qs.set("city", activeCity);
-}
-
-      qs.set("size", String(params.size));
-
-
-      const res = await apiGet<TicketmasterResponse>(
-        `/tm/events/search?${qs.toString()}`,
-      );
-
-
-      return res._embedded?.events ?? [];
-    },
-    [activeCity, locationCoords, useLocation],
-  );
-
-
   React.useEffect(() => {
-    void loadSavedCity();
-    void loadLoggedGigs();
-  }, [loadSavedCity, loadLoggedGigs]);
-
+    void loadPrefs();
+  }, [loadPrefs]);
 
   React.useEffect(() => {
     if (props.scrollToTopSignal == null) return;
-
 
     scrollRef.current?.scrollTo({
       y: 0,
@@ -507,13 +354,8 @@ const res = await apiGet<TicketmasterResponse>(
     });
   }, [props.scrollToTopSignal]);
 
-
   React.useEffect(() => {
-    if (useLocation) return;
-
-
     const value = cityInput.trim();
-
 
     const t = setTimeout(() => {
       if (value) {
@@ -523,29 +365,121 @@ const res = await apiGet<TicketmasterResponse>(
       }
     }, 400);
 
+    return () => clearTimeout(t);
+  }, [cityInput]);
+
+  const runMbSearch = React.useCallback(async (q: string) => {
+    const queryValue = q.trim();
+
+    if (queryValue.length < 2) {
+      setMbResults([]);
+      setMbError("");
+      setMbLoading(false);
+      return;
+    }
+
+    setMbLoading(true);
+    setMbError("");
+
+    try {
+      const res = await apiGet<MbArtistSearchResponse>(
+        `/mb/artists/search?q=${encodeURIComponent(queryValue)}`,
+      );
+
+      const artists: MbArtist[] =
+        (res?.artists as MbArtist[]) ??
+        (res?._embedded?.artists as MbArtist[]) ??
+        [];
+
+      setMbResults(Array.isArray(artists) ? artists.slice(0, 8) : []);
+      setMbOpen(true);
+    } catch (e: any) {
+      setMbError(e?.message ?? "Artist search failed");
+      setMbResults([]);
+      setMbOpen(false);
+    } finally {
+      setMbLoading(false);
+    }
+  }, []);
+
+ const chooseArtist = (artist: MbArtist) => {
+ suppressNextArtistSearchRef.current = true;
+ setQuery(artist.name);
+ setArtistMbid(artist.id);
+ setMbOpen(false);
+ setMbResults([]);
+ setMbError("");
+ Keyboard.dismiss();
+};
+
+  React.useEffect(() => {
+    setArtistMbid(undefined);
+
+    const q = query.trim();
+
+    if (q.length < 2) {
+      setMbResults([]);
+      setMbOpen(false);
+      setMbError("");
+      return;
+    }
+
+    const t = setTimeout(() => {
+      void runMbSearch(q);
+    }, 320);
 
     return () => clearTimeout(t);
-  }, [cityInput, useLocation]);
-
+  }, [query, runMbSearch]);
 
   const searchArtists = React.useCallback(async () => {
-    if (trimmedQuery.length < 2) {
+    if (trimmedQuery.length < 2 && activeCity.length < 2) {
       setSearchEvents([]);
       setSearchError("");
       return;
     }
 
-
     setSearchLoading(true);
     setSearchError("");
 
-
     try {
-      const events = await fetchTicketmasterEvents({
-        keyword: trimmedQuery,
-        size: 20,
-      });
+      const qs = new URLSearchParams();
 
+      if (trimmedQuery.length >= 2) {
+        qs.set("keyword", trimmedQuery);
+      }
+
+      if (activeCity.length >= 2) {
+        qs.set("city", activeCity);
+      }
+
+      qs.set("size", "20");
+
+      const res = await apiGet<TicketmasterResponse>(
+        `/discover/events?${qs.toString()}`,
+      );
+
+      const rawEvents = res.events ?? res._embedded?.events ?? [];
+
+      const cityFilteredEvents =
+        activeCity.length >= 2
+          ? rawEvents.filter((event) => {
+              const eventCity = String(event.city ?? "").toLowerCase();
+              const venueCity = String(
+                event._embedded?.venues?.[0]?.city?.name ?? "",
+              ).toLowerCase();
+              const cityNeedle = activeCity.toLowerCase();
+
+              return (
+                eventCity.includes(cityNeedle) ||
+                venueCity.includes(cityNeedle)
+              );
+            })
+          : rawEvents;
+
+      const events = filterTributeEvents(
+        cityFilteredEvents,
+        includeTributeActs,
+      );
 
       setSearchEvents(events);
     } catch (e: any) {
@@ -554,133 +488,21 @@ const res = await apiGet<TicketmasterResponse>(
     } finally {
       setSearchLoading(false);
     }
-  }, [trimmedQuery, fetchTicketmasterEvents]);
-
-
-  const loadNearYou = React.useCallback(async () => {
-    if (!activeCity && !(useLocation && locationCoords)) {
-      setNearYouEvents([]);
-      return;
-    }
-
-
-    setNearYouLoading(true);
-
-
-    try {
-      const events = await fetchTicketmasterEvents({
-        size: 5,
-      });
-
-
-      setNearYouEvents(events);
-    } catch (e: any) {
- console.log("Near you failed:", e?.message ?? e);
- setNearYouEvents([]);
-}
- finally {
-      setNearYouLoading(false);
-    }
-  }, [activeCity, fetchTicketmasterEvents, locationCoords, useLocation]);
-
-
-  const loadSimilar = React.useCallback(async () => {
-    if (!latestArtist) {
-      setSimilarEvents([]);
-      return;
-    }
-
-
-    setSimilarLoading(true);
-
-
-    try {
-      const qs = new URLSearchParams();
-
-
-      qs.set("keyword", latestArtist);
-      qs.set("size", "5");
-
-
-      const res = await apiGet<TicketmasterResponse>(
-        `/tm/events/search?${qs.toString()}`,
-      );
-
-
-      const events = res._embedded?.events ?? [];
-
-
-      const nextEvents = events.filter(
-        (event) => event.name !== latestArtist || event.id !== latestGig?.id,
-      );
-
-
-      setSimilarEvents(nextEvents);
-    } catch {
-      setSimilarEvents([]);
-    } finally {
-      setSimilarLoading(false);
-    }
-  }, [latestArtist, latestGig?.id]);
-
+  }, [activeCity, includeTributeActs, trimmedQuery]);
 
   React.useEffect(() => {
-    if (trimmedQuery.length < 2) {
+    if (trimmedQuery.length < 2 && activeCity.length < 2) {
       setSearchEvents([]);
       setSearchError("");
       return;
     }
 
-
     const t = setTimeout(() => {
       void searchArtists();
     }, 350);
 
-
     return () => clearTimeout(t);
-  }, [trimmedQuery, searchArtists]);
-
-
-  React.useEffect(() => {
-    if (showingSearchResults) return;
-
-
-    void loadNearYou();
-  }, [showingSearchResults, loadNearYou]);
-
-
-  React.useEffect(() => {
-    if (!hasLoggedGigs) {
-      setSimilarEvents([]);
-      return;
-    }
-
-
-    if (showingSearchResults) return;
-
-
-    void loadSimilar();
-  }, [hasLoggedGigs, showingSearchResults, loadSimilar]);
-
-
-  const handleToggleLocation = React.useCallback(
- async (next: boolean) => {
-   if (!next) {
-     setUseLocation(false);
-     setLocationCoords(null);
-     setLocationError("");
-     return;
-   }
-
-   setCityInput("Current location");
-
-   const resolvedCity = await resolveDeviceCity();
-
-   setUseLocation(true);
-   setLocationError("");
- },
- [resolveDeviceCity],
-);
+  }, [trimmedQuery, activeCity, searchArtists]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -690,7 +512,6 @@ const res = await apiGet<TicketmasterResponse>(
         keyboardVerticalOffset={8}
       >
         <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
-
 
         <AnimatedScrollView
           ref={scrollRef}
@@ -706,207 +527,163 @@ const res = await apiGet<TicketmasterResponse>(
           scrollEventThrottle={16}
         >
           <View style={styles.heroWrap}>
-            <View style={styles.heroCard}>
-              <Text style={styles.screenTitle}>Discover</Text>
+            <View style={styles.heroGlow} />
 
+            <View style={styles.titleRow}>
+              <View>
+                <Text style={styles.screenTitle}>Discover</Text>
+                <Text style={styles.screenSubtitle}>
+                  Search gigs and add them in one tap.
+                </Text>
+              </View>
 
-              <Text style={styles.screenSubtitle}>
-                Find gigs near you and add them to your log in one tap.
-              </Text>
-
-
-              <View style={styles.formBlock}>
-                <TextField
-                  label="Artist or band"
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="e.g. Foo Fighters"
-                  autoCapitalize="none"
-                />
-
-
-                <TextField
-                  label="City"
-                  value={cityInput}
-                  onChangeText={(text) => {
-                    setCityInput(text);
-                    setUseLocation(false);
-                    setLocationError("");
-                  }}
-                  placeholder="e.g. London"
-                  autoCapitalize="words"
-                />
-
-
-                <View style={styles.locationRow}>
-                  <View style={styles.flex}>
-                    <Text style={styles.locationToggleTitle}>
-                      {UI_COPY.useLocationLabel(detectedCity)}
-                    </Text>
-
-
-                    {locationLoading ? (
-                      <Text style={styles.locationMetaText}>
-                        {UI_COPY.detectingLocation}
-                      </Text>
-                    ) : locationError ? (
-                      <Text style={styles.locationMetaText}>
-                        {locationError}
-                      </Text>
-                    ) : useLocation && detectedCity ? (
-                      <Text style={styles.locationMetaText}>
-                        Showing gigs near {detectedCity}
-                      </Text>
-                    ) : null}
-                  </View>
-
-
-                  <Switch
-                    value={useLocation}
-                    onValueChange={(next) => {
-                      void handleToggleLocation(next);
-                    }}
-                    disabled={locationLoading}
-                    trackColor={{
-                      false: "rgba(255,255,255,0.18)",
-                      true: "rgba(47,140,255,0.35)",
-                    }}
-                    thumbColor={
-                      useLocation ? "#2F8CFF" : "rgba(255,255,255,0.8)"
-                    }
-                    ios_backgroundColor="rgba(255,255,255,0.18)"
-                  />
-                </View>
-
-
-                {showingSearchResults ? (
-                  searchLoading ? (
-                    <View style={styles.loadingRow}>
-                      <ActivityIndicator />
-                      <Text style={styles.loadingText}>
-                        {UI_COPY.searching}
-                      </Text>
-                    </View>
-                  ) : searchError ? (
-                    <Text style={styles.errorText}>{searchError}</Text>
-                  ) : null
-                ) : null}
+              <View style={styles.headerIcon}>
+                <Ionicons name="sparkles" size={20} color="#7EB6FF" />
               </View>
             </View>
-          </View>
 
+            <View style={styles.searchPanel}>
+              <TextField
+                label="Artist or band"
+                value={query}
+                onChangeText={(text) => {
+ setQuery(text);
+ setArtistMbid(undefined);
+ setMbOpen(true);
+}}
+
+                placeholder="e.g. Foo Fighters"
+                autoCapitalize="none"
+              />
+
+              {mbLoading ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator />
+                  <Text style={styles.loadingText}>{UI_COPY.artistLoading}</Text>
+                </View>
+              ) : null}
+
+              {mbError ? <Text style={styles.errorText}>{mbError}</Text> : null}
+
+              {mbOpen && !mbLoading && mbResults.length > 0 ? (
+                <View style={styles.suggestCard}>
+                  {mbResults.map((artist) => {
+                    const meta = [artist.country, artist.disambiguation]
+                      .filter(Boolean)
+                      .join(" • ");
+
+                    return (
+                      <Pressable
+                        key={artist.id}
+                        onPress={() => chooseArtist(artist)}
+                        style={({ pressed }) => [
+                          styles.suggestRow,
+                          pressed ? styles.rowPressed : null,
+                        ]}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.suggestTitle}>{artist.name}</Text>
+                          {meta ? (
+                            <Text style={styles.suggestMeta}>{meta}</Text>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : null}
+
+              {artistMbid ? (
+                <Text style={styles.matchedText}>Matched artist ✓</Text>
+              ) : null}
+
+              <TextField
+                label="City"
+                value={cityInput}
+                onChangeText={setCityInput}
+                placeholder="e.g. London"
+                autoCapitalize="words"
+              />
+
+              <View style={styles.tipRow}>
+                <Ionicons
+                  name="search-outline"
+                  size={15}
+                  color={Colours.text.muted}
+                />
+                <Text style={styles.tipText}>
+                  Search by artist, city, or both.
+                </Text>
+              </View>
+
+              {showingSearchResults ? (
+                searchLoading ? (
+                  <View style={styles.loadingRow}>
+                    <ActivityIndicator />
+                    <Text style={styles.loadingText}>{UI_COPY.searching}</Text>
+                  </View>
+                ) : searchError ? (
+                  <Text style={styles.errorText}>{searchError}</Text>
+                ) : null
+              ) : null}
+            </View>
+          </View>
 
           {showingSearchResults ? (
             <View style={styles.sectionBlock}>
               <SectionTitle
                 title={
-                  displayCity
-                    ? `Search results · ${displayCity}`
+                  activeCity
+                    ? `Search results · ${activeCity}`
                     : "Search results"
+                }
+                subtitle={
+                  searchEvents.length > 0
+                    ? `${searchEvents.length} upcoming ${
+                        searchEvents.length === 1 ? "gig" : "gigs"
+                      } found`
+                    : undefined
                 }
               />
 
-
               {searchEvents.length > 0 ? (
                 <View style={styles.cardList}>
-                  {searchEvents.map((item) => (
-                    <View key={item.id} style={styles.cardWrap}>
+                  {searchEvents.map((item, index) => (
+                    <View key={getEventKey(item, index)} style={styles.cardWrap}>
                       <EventCard
                         item={item}
-                        cityFallback={displayCity}
+                        cityFallback={activeCity}
+                        artistMbid={artistMbid}
                         onAddToGigs={props.onAddToGigs}
                       />
                     </View>
                   ))}
                 </View>
               ) : !searchLoading ? (
-                <Text style={styles.emptyHint}>{UI_COPY.emptySearch}</Text>
+                <View style={styles.emptyCard}>
+                  <Ionicons
+                    name="radio-outline"
+                    size={22}
+                    color={Colours.text.muted}
+                  />
+                  <Text style={styles.emptyTitle}>Nothing found yet</Text>
+                  <Text style={styles.emptyHint}>{UI_COPY.emptySearch}</Text>
+                </View>
               ) : null}
             </View>
           ) : (
-            <>
-              {hasLoggedGigs ? (
-                <View style={styles.sectionBlock}>
-                  <SectionTitle
-                    title={
-                      latestArtist ? "Recommendations for you" : "Similar gigs"
-                    }
-                  />
-
-
-                  {similarLoading ? (
-                    <View style={styles.inlineInfoRow}>
-                      <ActivityIndicator />
-                      <Text style={styles.loadingText}>
-                        {UI_COPY.similarLoading}
-                      </Text>
-                    </View>
-                  ) : similarEvents.length > 0 ? (
-                    <View style={styles.cardList}>
-                      {similarEvents.map((item) => (
-                        <View key={item.id} style={styles.cardWrap}>
-                          <EventCard
-                            item={item}
-                            cityFallback={displayCity}
-                            onAddToGigs={props.onAddToGigs}
-                          />
-                        </View>
-                      ))}
-                    </View>
-                  ) : (
-                    <Text style={styles.emptyHint}>{UI_COPY.noSimilar}</Text>
-                  )}
-                </View>
-              ) : null}
-
-
-              <View style={styles.sectionBlock}>
-                <SectionTitle
- title={
-   useLocation
-     ? "Near you"
-     : displayCity
-       ? `Gigs in ${displayCity}`
-       : "Near you"
- }
- subtitle={
-   useLocation && locationCoords
-     ? "Expands from 10 to 50 miles if needed"
-     : undefined
- }
-/>
-
-
-
-                {nearYouLoading ? (
-                  <View style={styles.inlineInfoRow}>
-                    <ActivityIndicator />
-                    <Text style={styles.loadingText}>
-                      {UI_COPY.nearbyLoading}
-                    </Text>
-                  </View>
-                ) : nearYouEvents.length > 0 ? (
-                  <View style={styles.cardList}>
-                    {nearYouEvents.map((item) => (
-                      <View key={item.id} style={styles.cardWrap}>
-                        <EventCard
-                          item={item}
-                          cityFallback={displayCity}
-                          onAddToGigs={props.onAddToGigs}
-                        />
-                      </View>
-                    ))}
-                  </View>
-                ) : (
-                  <Text style={styles.emptyHint}>
- No upcoming gigs found near you — try a different search.
-</Text>
-
-                )}
-              </View>
-            </>
+            <View style={styles.emptyCard}>
+              <Ionicons
+                name="ticket-outline"
+                size={24}
+                color={Colours.text.muted}
+              />
+              <Text style={styles.emptyTitle}>Start with a search</Text>
+              <Text style={styles.emptyHint}>
+                Search by artist or city to find upcoming gigs.
+              </Text>
+            </View>
           )}
-
 
           <View style={{ height: 24 }} />
         </AnimatedScrollView>
@@ -915,28 +692,19 @@ const res = await apiGet<TicketmasterResponse>(
   );
 }
 
-
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: Colours.background.app,
   },
 
-
-  flex: {
-    flex: 1,
-  },
-
-
   keyboardWrap: {
     flex: 1,
   },
 
-
   list: {
     flex: 1,
   },
-
 
   content: {
     paddingHorizontal: 20,
@@ -944,69 +712,81 @@ const styles = StyleSheet.create({
     paddingBottom: 180,
   },
 
-
   heroWrap: {
     marginBottom: 22,
   },
 
-
-  heroCard: {
-    backgroundColor: "transparent",
+  heroGlow: {
+    position: "absolute",
+    top: -30,
+    right: -40,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(47,140,255,0.12)",
   },
 
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    marginBottom: 18,
+  },
 
   screenTitle: {
     color: Colours.text.primary,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: "900",
-    letterSpacing: -0.2,
+    letterSpacing: -0.4,
   },
-
 
   screenSubtitle: {
     color: Colours.text.muted,
-    marginTop: 6,
+    marginTop: 4,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "700",
   },
 
-
-  formBlock: {
-    marginTop: 18,
-    gap: 16,
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: "rgba(47,140,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(126,182,255,0.16)",
   },
 
+  searchPanel: {
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.045)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.075)",
+    padding: 14,
+    gap: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+  },
 
-  locationRow: {
-    minHeight: 58,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+  tipRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 7,
+    marginTop: -2,
   },
 
-
-  locationToggleTitle: {
-    color: Colours.text.primary,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "800",
-  },
-
-
-  locationMetaText: {
-    marginTop: 4,
+  tipText: {
     color: Colours.text.muted,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "700",
   },
-
 
   loadingRow: {
     flexDirection: "row",
@@ -1015,22 +795,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-
-  inlineInfoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 2,
-  },
-
-
   loadingText: {
     color: Colours.text.muted,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "800",
   },
-
 
   errorText: {
     color: Colours.text.danger,
@@ -1039,33 +809,63 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
-
-  emptyHint: {
-    color: Colours.text.muted,
+  matchedText: {
+    color: "#2EE59D",
+    fontWeight: "800",
     fontSize: 13,
     lineHeight: 18,
-    fontWeight: "700",
   },
 
+  suggestCard: {
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 14,
+    overflow: "hidden",
+  },
+
+  suggestRow: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  rowPressed: {
+    opacity: 0.9,
+  },
+
+  suggestTitle: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 14,
+    lineHeight: 18,
+  },
+
+  suggestMeta: {
+    marginTop: 2,
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 12,
+    lineHeight: 16,
+  },
 
   sectionBlock: {
     marginTop: 20,
   },
 
-
   sectionTitleWrap: {
     marginBottom: 10,
   },
 
-
   sectionTitle: {
     color: Colours.text.primary,
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 22,
     fontWeight: "900",
-    letterSpacing: -0.15,
+    letterSpacing: -0.2,
   },
-
 
   sectionSubtitle: {
     marginTop: 4,
@@ -1075,25 +875,44 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-
   cardList: {
     gap: 12,
   },
-
 
   cardWrap: {
     width: "100%",
   },
 
-
   resultCard: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.045)",
+    borderRadius: 20,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.075)",
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
   },
 
+  resultTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 11,
+  },
+
+  resultIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "rgba(126,182,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  resultTitleWrap: {
+    flex: 1,
+  },
 
   resultTitle: {
     color: Colours.text.primary,
@@ -1103,7 +922,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.15,
   },
 
-
   resultMeta: {
     color: Colours.text.muted,
     marginTop: 5,
@@ -1112,46 +930,41 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
 
+  datePill: {
+    marginTop: 12,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.055)",
+  },
 
   resultDate: {
     color: Colours.text.muted,
-    marginTop: 3,
     fontSize: 12,
     lineHeight: 16,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-
-
-  resultActionWrap: {
-    marginTop: 14,
-    alignSelf: "flex-start",
-  },
-
-
-  resultActionBtn: {
-    alignSelf: "flex-start",
-  },
-
 
   socialBlock: {
-    marginTop: 12,
-    paddingTop: 12,
+    marginTop: 13,
+    paddingTop: 13,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.08)",
   },
-
 
   socialRow: {
     flexDirection: "row",
     alignItems: "center",
   },
 
-
   avatarStack: {
     flexDirection: "row",
     alignItems: "center",
   },
-
 
   socialAvatar: {
     width: 28,
@@ -1162,7 +975,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colours.background.card,
   },
 
-
   socialExtra: {
     marginLeft: 8,
     color: Colours.text.muted,
@@ -1171,7 +983,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-
   socialText: {
     marginTop: 8,
     color: Colours.text.muted,
@@ -1179,7 +990,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+
+  addBtn: {
+    marginTop: 14,
+    height: 42,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    backgroundColor: "#2F8CFF",
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    shadowColor: "#2F8CFF",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+  },
+
+  addBtnPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+
+  addBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  emptyCard: {
+    marginTop: 20,
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.07)",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  emptyTitle: {
+    color: Colours.text.primary,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: "900",
+  },
+
+  emptyHint: {
+    color: Colours.text.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
 });
-
-
 

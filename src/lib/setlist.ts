@@ -10,9 +10,21 @@ export type SetlistItem = {
   songCount: number;
 };
 
+export type SetlistSearchResult = {
+  setlists: SetlistItem[];
+  page: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+};
+
 type SetlistArtistResponse = {
   success: boolean;
   setlists: SetlistItem[];
+  page?: number;
+  total?: number;
+  totalPages?: number;
+  hasMore?: boolean;
   message?: string;
 };
 
@@ -29,12 +41,24 @@ export async function searchArtistSetlists(params: {
   artistMbid?: string;
   city?: string;
   venue?: string;
-}): Promise<SetlistItem[]> {
+  page?: number;
+}): Promise<SetlistSearchResult> {
   const artist = params.artist.trim();
-  if (!artist) return [];
+  const page = Math.max(1, Number(params.page ?? 1));
+
+  if (!artist) {
+    return {
+      setlists: [],
+      page,
+      total: 0,
+      totalPages: 0,
+      hasMore: false,
+    };
+  }
 
   const qs = new URLSearchParams();
   qs.set("artist", artist);
+  qs.set("page", String(page));
 
   if (params.artistMbid?.trim()) {
     qs.set("artistMbid", params.artistMbid.trim());
@@ -52,5 +76,11 @@ export async function searchArtistSetlists(params: {
     `/setlist/artist?${qs.toString()}`,
   );
 
-  return res.setlists ?? [];
+  return {
+    setlists: res.setlists ?? [],
+    page: res.page ?? page,
+    total: res.total ?? res.setlists?.length ?? 0,
+    totalPages: res.totalPages ?? 0,
+    hasMore: !!res.hasMore,
+  };
 }

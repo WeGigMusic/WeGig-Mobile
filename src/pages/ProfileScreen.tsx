@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Share,
   Linking,
+  TextInput,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -22,19 +23,16 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
 import ViewShot, { captureRef } from "react-native-view-shot";
 
-import { TextField } from "../components/TextField";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
 import { supabase } from "../lib/supabase";
 import { posthog } from "../lib/analytics";
-import { searchPlaces } from "../lib/mapbox";
 import { syncGigReminderNotifications } from "../lib/notifications";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 import { avatarPresets } from "../config/avatarPresets";
 
-const HOME_CITY_KEY = "wegig.homeCity";
 const DISPLAY_NAME_KEY = "wegig.displayName";
 const HAPTICS_KEY = "wegig.hapticsEnabled";
 const AVATAR_PRESET_KEY = "wegig.avatarPreset";
@@ -57,17 +55,6 @@ type ProfileScreenProps = {
   onPressLogo?: () => void;
   onGoToGigs?: () => void;
   scrollToTopSignal?: number;
-};
-
-type MapboxPlace = {
-  id: string;
-  name: string;
-  placeName: string;
-  city?: string;
-  region?: string;
-  country?: string;
-  latitude: number;
-  longitude: number;
 };
 
 function computeProfileStats(gigs: Gig[]) {
@@ -223,8 +210,6 @@ function buildGigCsv(params: {
 }
 
 export function ProfileScreen({
-  onPressLogo,
-  onGoToGigs,
   scrollToTopSignal,
 }: ProfileScreenProps) {
   const shareCardRef = React.useRef<ViewShot | null>(null);
@@ -236,8 +221,10 @@ export function ProfileScreen({
   > | null>(null);
   const [allGigs, setAllGigs] = React.useState<Gig[]>([]);
 
-  const [displayName, setDisplayName] = React.useState("Nowar");
-  const [homeCity, setHomeCity] = React.useState("");
+  const [displayName, setDisplayName] = React.useState("Music Fan");
+  const [editingDisplayName, setEditingDisplayName] = React.useState(false);
+  const [draftDisplayName, setDraftDisplayName] = React.useState("");
+
   const [hapticsEnabled, setHapticsEnabled] = React.useState(true);
   const [gigReminderEnabled, setGigReminderEnabled] = React.useState(true);
   const [rateReminderEnabled, setRateReminderEnabled] = React.useState(true);
@@ -251,21 +238,14 @@ export function ProfileScreen({
   const [avatarPreset, setAvatarPreset] = React.useState<string>("");
   const [avatarUri, setAvatarUri] = React.useState<string>("");
 
-  const [cityLoading, setCityLoading] = React.useState(false);
-  const [cityResults, setCityResults] = React.useState<MapboxPlace[]>([]);
-  const [cityOpen, setCityOpen] = React.useState(false);
-  const [cityError, setCityError] = React.useState("");
-  const [cityTouched, setCityTouched] = React.useState(false);
-
   const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
 
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [dn, hc, hap, preset, uri, notifyGig, notifyRate, includeTributes] =
+      const [dn, hap, preset, uri, notifyGig, notifyRate, includeTributes] =
         await Promise.all([
           AsyncStorage.getItem(DISPLAY_NAME_KEY),
-          AsyncStorage.getItem(HOME_CITY_KEY),
           AsyncStorage.getItem(HAPTICS_KEY),
           AsyncStorage.getItem(AVATAR_PRESET_KEY),
           AsyncStorage.getItem(AVATAR_URI_KEY),
@@ -275,16 +255,25 @@ export function ProfileScreen({
         ]);
 
       if (dn && dn.trim()) setDisplayName(dn.trim());
-      if (hc && hc.trim()) setHomeCity(hc.trim());
-      if (preset && preset.trim()) setAvatarPreset(preset.trim());
+
+      if (preset && preset.trim()) {
+        setAvatarPreset(preset.trim());
+      } else if (!uri?.trim() && avatarPresets.length > 0) {
+        const randomPreset =
+          avatarPresets[Math.floor(Math.random() * avatarPresets.length)];
+
+        setAvatarPreset(randomPreset.id);
+        await AsyncStorage.setItem(AVATAR_PRESET_KEY, randomPreset.id).catch(
+          () => {},
+        );
+      }
+
       if (uri && uri.trim()) setAvatarUri(uri.trim());
 
       if (hap != null) setHapticsEnabled(hap === "1");
       if (notifyGig != null) setGigReminderEnabled(notifyGig === "1");
       if (notifyRate != null) setRateReminderEnabled(notifyRate === "1");
-      if (includeTributes != null) {
-        setIncludeTributeActs(includeTributes === "1");
-      }
+      if (includeTributes != null) setIncludeTributeActs(includeTributes === "1");
     } catch {}
   }, []);
 
@@ -305,7 +294,6 @@ export function ProfileScreen({
 
   const savePrefs = React.useCallback(async () => {
     const nextName = displayName.trim();
-    const nextCity = homeCity.trim();
 
     setSavingPrefs(true);
     try {
@@ -313,12 +301,6 @@ export function ProfileScreen({
         await AsyncStorage.setItem(DISPLAY_NAME_KEY, nextName);
       } else {
         await AsyncStorage.removeItem(DISPLAY_NAME_KEY);
-      }
-
-      if (nextCity) {
-        await AsyncStorage.setItem(HOME_CITY_KEY, nextCity);
-      } else {
-        await AsyncStorage.removeItem(HOME_CITY_KEY);
       }
 
       await AsyncStorage.setItem(HAPTICS_KEY, hapticsEnabled ? "1" : "0");
@@ -343,7 +325,6 @@ export function ProfileScreen({
     }
   }, [
     displayName,
-    homeCity,
     hapticsEnabled,
     gigReminderEnabled,
     rateReminderEnabled,
@@ -445,66 +426,27 @@ export function ProfileScreen({
     void syncGigReminderNotifications(allGigs);
   }, [allGigs, gigReminderEnabled, rateReminderEnabled, loading]);
 
-  const runCitySearch = React.useCallback(async (q: string) => {
-    const query = q.trim();
+  const startEditingDisplayName = React.useCallback(() => {
+    setDraftDisplayName(displayName);
+    setEditingDisplayName(true);
+  }, [displayName]);
 
-    if (query.length < 2) {
-      setCityResults([]);
-      setCityError("");
-      setCityLoading(false);
-      return;
-    }
+  const saveDisplayName = React.useCallback(async () => {
+    const next = draftDisplayName.trim() || "Music Fan";
 
-    setCityLoading(true);
-    setCityError("");
+    setDisplayName(next);
+    setEditingDisplayName(false);
 
     try {
-      const results = await searchPlaces({
-        query,
-        limit: 6,
-      });
+      await AsyncStorage.setItem(DISPLAY_NAME_KEY, next);
+    } catch {}
 
-      const mapped = results.filter(
-        (place) => !!(place.city || place.region || place.name),
-      );
-
-      setCityResults(mapped);
-      setCityOpen(true);
-    } catch (e: any) {
-      setCityError(e?.message ?? "City search failed");
-      setCityResults([]);
-      setCityOpen(false);
-    } finally {
-      setCityLoading(false);
+    if (hapticsEnabled) {
+      try {
+        await Haptics.selectionAsync();
+      } catch {}
     }
-  }, []);
-
-  React.useEffect(() => {
-    if (!cityTouched) return;
-
-    const q = homeCity.trim();
-    if (q.length < 2) {
-      setCityResults([]);
-      setCityOpen(false);
-      setCityError("");
-      return;
-    }
-
-    const t = setTimeout(() => {
-      void runCitySearch(q);
-    }, 320);
-
-    return () => clearTimeout(t);
-  }, [homeCity, cityTouched, runCitySearch]);
-
-  const chooseCity = React.useCallback((place: MapboxPlace) => {
-    const best = place.city?.trim() || place.region?.trim() || place.name.trim();
-
-    setHomeCity(best);
-    setCityOpen(false);
-    setCityResults([]);
-    setCityError("");
-  }, []);
+  }, [draftDisplayName, hapticsEnabled]);
 
   const handlePickPreset = React.useCallback(async (presetId: string) => {
     setAvatarPreset(presetId);
@@ -581,7 +523,7 @@ export function ProfileScreen({
   const handleChangePassword = React.useCallback(() => {
     Alert.alert(
       "Change password",
-      "This will be available once email login is set up.",
+      "This will be available soon.",
     );
   }, []);
 
@@ -606,10 +548,6 @@ export function ProfileScreen({
         },
       },
     ]);
-  }, []);
-
-  const handleSignIn = React.useCallback(() => {
-    Alert.alert("Sign in", "Sign in to sync will be added next.");
   }, []);
 
   const handleExportGigs = React.useCallback(async () => {
@@ -764,7 +702,30 @@ export function ProfileScreen({
 
           <View style={styles.profileHeroText}>
             <View style={styles.nameWithShareRow}>
-              <Text style={styles.name}>{displayName}</Text>
+              {editingDisplayName ? (
+                <TextInput
+                  value={draftDisplayName}
+                  onChangeText={setDraftDisplayName}
+                  autoFocus
+                  autoCapitalize="words"
+                  returnKeyType="done"
+                  onSubmitEditing={() => void saveDisplayName()}
+                  onBlur={() => void saveDisplayName()}
+                  style={styles.nameInput}
+                  placeholder="Display name"
+                  placeholderTextColor={Colours.text.muted}
+                />
+              ) : (
+                <Pressable
+                  onPress={startEditingDisplayName}
+                  style={({ pressed }) => [
+                    styles.editNameButton,
+                    pressed ? { opacity: 0.82 } : null,
+                  ]}
+                >
+                  <Text style={styles.name}>{displayName}</Text>
+                </Pressable>
+              )}
 
               <Pressable
                 onPress={() => void handleShareProfile()}
@@ -816,70 +777,6 @@ export function ProfileScreen({
         <SectionTitle title="Preferences" />
         <View style={styles.card}>
           <View style={{ gap: 10 }}>
-            <TextField
-              label="Display name"
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder="e.g. Fred Yacoub"
-              autoCapitalize="words"
-            />
-
-            <TextField
-              label="Town or City for discover personalisation"
-              value={homeCity}
-              onChangeText={(value) => {
-                setCityTouched(true);
-                setHomeCity(value);
-                setCityOpen(true);
-              }}
-              placeholder="e.g. Fleet"
-              autoCapitalize="words"
-            />
-
-            {cityLoading ? (
-              <View style={styles.inlineRow}>
-                <ActivityIndicator />
-                <Text style={styles.muted}>Searching cities…</Text>
-              </View>
-            ) : null}
-
-            {cityError ? (
-              <Text style={styles.errorText}>{cityError}</Text>
-            ) : null}
-
-            {cityOpen && !cityLoading && cityResults.length > 0 ? (
-              <View style={styles.suggestCard}>
-                {cityResults.map((place, index) => {
-                  const label = place.city?.trim() || place.name.trim();
-
-                  const meta = [place.region, place.country]
-                    .filter(Boolean)
-                    .join(" • ");
-
-                  return (
-                    <Pressable
-                      key={place.id}
-                      onPress={() => chooseCity(place)}
-                      style={({ pressed }) => [
-                        styles.suggestRow,
-                        index === cityResults.length - 1
-                          ? styles.suggestRowLast
-                          : null,
-                        pressed ? { opacity: 0.9 } : null,
-                      ]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.suggestTitle}>{label}</Text>
-                        {meta ? (
-                          <Text style={styles.suggestMeta}>{meta}</Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
-
             <View style={styles.toggleGroup}>
               <View style={styles.toggleRowNoBorder}>
                 <View style={{ flex: 1 }}>
@@ -896,7 +793,9 @@ export function ProfileScreen({
                     false: "rgba(255,255,255,0.18)",
                     true: "rgba(47,140,255,0.35)",
                   }}
-                  thumbColor="rgba(255,255,255,0.95)"
+                  thumbColor={
+                    hapticsEnabled ? "#2F8CFF" : "rgba(255,255,255,0.8)"
+                  }
                   ios_backgroundColor="rgba(255,255,255,0.18)"
                 />
               </View>
@@ -916,7 +815,9 @@ export function ProfileScreen({
                     false: "rgba(255,255,255,0.18)",
                     true: "rgba(47,140,255,0.35)",
                   }}
-                  thumbColor="rgba(255,255,255,0.95)"
+                  thumbColor={
+                    gigReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.8)"
+                  }
                   ios_backgroundColor="rgba(255,255,255,0.18)"
                 />
               </View>
@@ -936,7 +837,9 @@ export function ProfileScreen({
                     false: "rgba(255,255,255,0.18)",
                     true: "rgba(47,140,255,0.35)",
                   }}
-                  thumbColor="rgba(255,255,255,0.95)"
+                  thumbColor={
+                    rateReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.8)"
+                  }
                   ios_backgroundColor="rgba(255,255,255,0.18)"
                 />
               </View>
@@ -956,7 +859,9 @@ export function ProfileScreen({
                     false: "rgba(255,255,255,0.18)",
                     true: "rgba(47,140,255,0.35)",
                   }}
-                  thumbColor="rgba(255,255,255,0.95)"
+                  thumbColor={
+                    includeTributeActs ? "#2F8CFF" : "rgba(255,255,255,0.8)"
+                  }
                   ios_backgroundColor="rgba(255,255,255,0.18)"
                 />
               </View>
@@ -972,11 +877,6 @@ export function ProfileScreen({
 
         <SectionTitle title="Account" />
         <View style={styles.card}>
-          <ActionRow
-            title="Sign in to sync"
-            subtitle="Apple, Google, Facebook or email"
-            onPress={handleSignIn}
-          />
           <ActionRow
             title="Change password"
             subtitle="Email login only (coming soon)"
@@ -1013,7 +913,7 @@ export function ProfileScreen({
                 ? "Exporting attended gigs…"
                 : "Export attended gigs"
             }
-            subtitle="Download your gig history as CSV"
+            subtitle="Download a CSV of your gig history"
             onPress={() => void handleExportGigs()}
             isLast
           />
@@ -1195,6 +1095,23 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
 
+  editNameButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 1,
+  },
+
+  nameInput: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 20,
+    lineHeight: 24,
+    flex: 1,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+  },
+
   avatar: {
     width: 72,
     height: 72,
@@ -1231,14 +1148,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 24,
     flexShrink: 1,
-  },
-
-  metaLine: {
-    marginTop: 6,
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 13,
-    lineHeight: 17,
   },
 
   statusPill: {
@@ -1366,50 +1275,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  errorText: {
-    color: Colours.text.danger,
-    fontWeight: "700",
-    fontSize: 13,
-    lineHeight: 17,
-  },
-
-  suggestCard: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    overflow: "hidden",
-  },
-
-  suggestRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colours.ui.border,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  suggestRowLast: {
-    borderBottomWidth: 0,
-  },
-
-  suggestTitle: {
-    color: Colours.text.primary,
-    fontWeight: "700",
-    fontSize: 14,
-    lineHeight: 18,
-  },
-
-  suggestMeta: {
-    marginTop: 2,
-    color: Colours.text.muted,
-    fontWeight: "500",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
   hiddenShareLayer: {
     position: "absolute",
     left: -9999,
@@ -1480,13 +1345,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 62,
     marginBottom: 10,
-  },
-
-  shareCardMeta: {
-    color: "rgba(255,255,255,0.66)",
-    fontSize: 28,
-    fontWeight: "600",
-    marginBottom: 12,
   },
 
   shareCardStatus: {

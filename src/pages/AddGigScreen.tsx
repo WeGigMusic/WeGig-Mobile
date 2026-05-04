@@ -205,7 +205,7 @@ export function AddGigScreen(props: {
 
   React.useEffect(() => {
     if (!props.prefill) return;
-
+suppressNextArtistSearchRef.current = true;
     if (props.prefill.artist != null) setArtist(String(props.prefill.artist));
     if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
     if (props.prefill.city != null) setCity(String(props.prefill.city));
@@ -472,19 +472,21 @@ const results = await searchArtistSetlists({
       const cityQuery = city.trim().toLowerCase();
       const dateQuery = date.trim();
 
-      const filtered = results.filter((item) => {
-        const itemVenue = item.venueName.toLowerCase();
-        const itemCity = item.cityName.toLowerCase();
-        const itemDate = setlistDateToYmd(item.eventDate);
+      const safeResults: SetlistItem[] = Array.isArray(results) ? results : [];
 
-        const venueOk = !venueQuery || itemVenue.includes(venueQuery);
-        const cityOk = !cityQuery || itemCity.includes(cityQuery);
-        const dateOk = !dateQuery || itemDate === dateQuery;
+const filtered = safeResults.filter((item: SetlistItem) => {
+ const itemVenue = item.venueName.toLowerCase();
+ const itemCity = item.cityName.toLowerCase();
+ const itemDate = setlistDateToYmd(item.eventDate);
 
-        return venueOk && cityOk && dateOk;
-      });
+ const venueOk = !venueQuery || itemVenue.includes(venueQuery);
+ const cityOk = !cityQuery || itemCity.includes(cityQuery);
+ const dateOk = !dateQuery || itemDate === dateQuery;
 
-      const nextResults = filtered.length > 0 ? filtered : results;
+ return venueOk && cityOk && dateOk;
+});
+
+      const nextResults = filtered.length > 0 ? filtered : safeResults;
 
       setGigSearchResults(nextResults);
       setGigSearchOpen(true);

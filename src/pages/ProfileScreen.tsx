@@ -51,6 +51,11 @@ const WEGIG_PRIVACY_URL = "https://www.wegig.live/privacy/";
 const WEGIG_FEEDBACK_URL = "https://www.wegig.live/feedback/";
 const APP_VERSION = "v0.1.0";
 
+const SWITCH_TRACK_COLORS = {
+  false: "rgba(255,255,255,0.20)",
+  true: "rgba(47,140,255,0.35)",
+};
+
 type ProfileScreenProps = {
   onPressLogo?: () => void;
   onGoToGigs?: () => void;
@@ -60,48 +65,28 @@ type ProfileScreenProps = {
 function computeProfileStats(gigs: Gig[]) {
   const total = gigs.length;
 
-  const rated = gigs.filter((g) => typeof g.rating === "number") as Array<
-    Gig & { rating: number }
-  >;
-
-  const cities = gigs.reduce<Record<string, number>>((acc, g) => {
-    const k = (g.city ?? "").trim() || "Unknown";
-    acc[k] = (acc[k] ?? 0) + 1;
+  const byArtist = gigs.reduce<Record<string, number>>((acc, gig) => {
+    const key = (gig.artist ?? "").trim() || "Unknown";
+    acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, {});
 
-  const cityEntries = Object.entries(cities).sort((a, b) => b[1] - a[1]);
-  const topCity = cityEntries[0]?.[0];
-  const cityCount = Object.keys(cities).length;
+  const byVenue = gigs.reduce<Record<string, number>>((acc, gig) => {
+    const key = (gig.venue ?? "").trim() || "Unknown";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
 
-  let statusLabel = "New Fan";
-  let statusColor = "#6B7280";
-  let statusIcon = "✨";
+  const topArtist =
+    Object.entries(byArtist).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
-  if (total >= 10) {
-    statusLabel = "Scene Member";
-    statusColor = "#2F8CFF";
-    statusIcon = "⚡";
-  } else if (cityCount >= 3) {
-    statusLabel = "Explorer";
-    statusColor = "#C0C4CC";
-    statusIcon = "🌍";
-  } else if (rated.length >= 5) {
-    statusLabel = "Reviewer";
-    statusColor = "#2EE59D";
-    statusIcon = "📝";
-  } else if (total >= 5) {
-    statusLabel = "Regular";
-    statusColor = "#2F8CFF";
-    statusIcon = "🔥";
-  }
+  const topVenue =
+    Object.entries(byVenue).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
   return {
     total,
-    topCity,
-    statusLabel,
-    statusColor,
-    statusIcon,
+    topArtist,
+    topVenue,
   };
 }
 
@@ -138,13 +123,6 @@ function SectionTitle(props: { title: string }) {
   return <Text style={styles.sectionTitle}>{props.title}</Text>;
 }
 
-function formatUkDateForFile(date = new Date()) {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = String(date.getFullYear());
-  return `${day}-${month}-${year}`;
-}
-
 function formatDisplayDate(date = new Date()) {
   return date.toLocaleDateString("en-GB", {
     day: "2-digit",
@@ -153,12 +131,14 @@ function formatDisplayDate(date = new Date()) {
   });
 }
 
-function toFileSafePart(value: string) {
-  return String(value)
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function toSafeFileName(value: string) {
+  return (
+    String(value)
+      .trim()
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "")
+      .replace(/\s+/g, " ")
+      .slice(0, 80) || "Music Fan"
+  );
 }
 
 function csvCell(value: unknown) {
@@ -209,9 +189,7 @@ function buildGigCsv(params: {
     .join("\n");
 }
 
-export function ProfileScreen({
-  scrollToTopSignal,
-}: ProfileScreenProps) {
+export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
   const shareCardRef = React.useRef<ViewShot | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
 
@@ -521,10 +499,7 @@ export function ProfileScreen({
   }, []);
 
   const handleChangePassword = React.useCallback(() => {
-    Alert.alert(
-      "Change password",
-      "This will be available soon.",
-    );
+    Alert.alert("Change password", "This will be available soon.");
   }, []);
 
   const handleLogout = React.useCallback(() => {
@@ -630,10 +605,8 @@ export function ProfileScreen({
         return;
       }
 
-      const rawName = displayName.trim() || "profile";
-      const safeName = toFileSafePart(rawName) || "profile";
-      const ukDate = formatUkDateForFile();
-      const fileName = `wegig-profile-${safeName}-${ukDate}.png`;
+      const rawName = displayName.trim() || "Music Fan";
+      const fileName = `${toSafeFileName(rawName)}.png`;
       const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
 
       const tempUri = await captureRef(shareCardRef, {
@@ -656,7 +629,7 @@ export function ProfileScreen({
 
       await Share.share(
         {
-          title: "Share your WeGig profile",
+          title: `${rawName}'s gig stats`,
           message:
             Platform.OS === "android"
               ? `${shareMessage}\n${targetUri}`
@@ -664,8 +637,8 @@ export function ProfileScreen({
           url: targetUri,
         },
         {
-          dialogTitle: "Share your WeGig profile",
-          subject: "My WeGig profile",
+          dialogTitle: `${rawName}'s gig stats`,
+          subject: `${rawName}'s gig stats`,
         },
       );
     } catch (e: any) {
@@ -675,7 +648,10 @@ export function ProfileScreen({
     }
   }, [displayName, sharingProfile]);
 
+  const rawDisplayName = displayName.trim() || "Music Fan";
   const totalGigs = stats?.total ?? 0;
+  const topArtist = stats?.topArtist ?? "—";
+  const topVenue = stats?.topVenue ?? "—";
   const selectedPreset = avatarPresets.find((p) => p.id === avatarPreset);
 
   return (
@@ -695,7 +671,7 @@ export function ProfileScreen({
               <Image source={selectedPreset.image} style={styles.avatarImage} />
             ) : (
               <Text style={styles.avatarText}>
-                {displayName.slice(0, 1).toUpperCase()}
+                {rawDisplayName.slice(0, 1).toUpperCase()}
               </Text>
             )}
           </Pressable>
@@ -723,7 +699,7 @@ export function ProfileScreen({
                     pressed ? { opacity: 0.82 } : null,
                   ]}
                 >
-                  <Text style={styles.name}>{displayName}</Text>
+                  <Text style={styles.name}>{rawDisplayName}</Text>
                 </Pressable>
               )}
 
@@ -738,31 +714,10 @@ export function ProfileScreen({
               >
                 <Ionicons
                   name="share-outline"
-                  size={14}
+                  size={13}
                   color={Colours.text.muted}
                 />
               </Pressable>
-            </View>
-
-            <View
-              style={[
-                styles.statusPill,
-                {
-                  backgroundColor: `${stats?.statusColor ?? "#6B7280"}22`,
-                  borderColor: `${stats?.statusColor ?? "#6B7280"}55`,
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.statusPillText,
-                  { color: stats?.statusColor ?? "#6B7280" },
-                ]}
-              >
-                {(stats?.statusIcon ?? "✨") +
-                  " " +
-                  (stats?.statusLabel ?? "New Fan")}
-              </Text>
             </View>
           </View>
         </View>
@@ -789,14 +744,9 @@ export function ProfileScreen({
                 <Switch
                   value={hapticsEnabled}
                   onValueChange={() => void toggleHaptics()}
-                  trackColor={{
-                    false: "rgba(255,255,255,0.18)",
-                    true: "rgba(47,140,255,0.35)",
-                  }}
-                  thumbColor={
-                    hapticsEnabled ? "#2F8CFF" : "rgba(255,255,255,0.8)"
-                  }
-                  ios_backgroundColor="rgba(255,255,255,0.18)"
+                  trackColor={SWITCH_TRACK_COLORS}
+                  thumbColor={hapticsEnabled ? "#2F8CFF" : "#FFFFFF"}
+                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
                 />
               </View>
 
@@ -811,14 +761,9 @@ export function ProfileScreen({
                 <Switch
                   value={gigReminderEnabled}
                   onValueChange={() => void toggleGigReminder()}
-                  trackColor={{
-                    false: "rgba(255,255,255,0.18)",
-                    true: "rgba(47,140,255,0.35)",
-                  }}
-                  thumbColor={
-                    gigReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.8)"
-                  }
-                  ios_backgroundColor="rgba(255,255,255,0.18)"
+                  trackColor={SWITCH_TRACK_COLORS}
+                  thumbColor={gigReminderEnabled ? "#2F8CFF" : "#FFFFFF"}
+                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
                 />
               </View>
 
@@ -833,14 +778,9 @@ export function ProfileScreen({
                 <Switch
                   value={rateReminderEnabled}
                   onValueChange={() => void toggleRateReminder()}
-                  trackColor={{
-                    false: "rgba(255,255,255,0.18)",
-                    true: "rgba(47,140,255,0.35)",
-                  }}
-                  thumbColor={
-                    rateReminderEnabled ? "#2F8CFF" : "rgba(255,255,255,0.8)"
-                  }
-                  ios_backgroundColor="rgba(255,255,255,0.18)"
+                  trackColor={SWITCH_TRACK_COLORS}
+                  thumbColor={rateReminderEnabled ? "#2F8CFF" : "#FFFFFF"}
+                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
                 />
               </View>
 
@@ -855,14 +795,9 @@ export function ProfileScreen({
                 <Switch
                   value={includeTributeActs}
                   onValueChange={() => void toggleIncludeTributeActs()}
-                  trackColor={{
-                    false: "rgba(255,255,255,0.18)",
-                    true: "rgba(47,140,255,0.35)",
-                  }}
-                  thumbColor={
-                    includeTributeActs ? "#2F8CFF" : "rgba(255,255,255,0.8)"
-                  }
-                  ios_backgroundColor="rgba(255,255,255,0.18)"
+                  trackColor={SWITCH_TRACK_COLORS}
+                  thumbColor={includeTributeActs ? "#2F8CFF" : "#FFFFFF"}
+                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
                 />
               </View>
             </View>
@@ -966,7 +901,6 @@ export function ProfileScreen({
                 style={styles.shareCardLogo}
                 resizeMode="contain"
               />
-              <Text style={styles.shareCardTag}>Live music memories</Text>
             </View>
 
             <View style={styles.shareCardProfileRow}>
@@ -983,28 +917,20 @@ export function ProfileScreen({
                   />
                 ) : (
                   <Text style={styles.shareCardAvatarText}>
-                    {displayName.slice(0, 1).toUpperCase()}
+                    {rawDisplayName.slice(0, 1).toUpperCase()}
                   </Text>
                 )}
               </View>
 
               <View style={{ flex: 1 }}>
-                <Text style={styles.shareCardName}>{displayName}</Text>
-                <Text
-                  style={[
-                    styles.shareCardStatus,
-                    { color: stats?.statusColor ?? "#6B7280" },
-                  ]}
-                >
-                  {(stats?.statusIcon ?? "✨") +
-                    " " +
-                    (stats?.statusLabel ?? "New Fan")}
+                <Text style={styles.shareCardName}>
+                  {`${rawDisplayName}'s gig stats`}
                 </Text>
               </View>
             </View>
 
             <View style={styles.shareCardStatsRow}>
-              <View style={styles.shareCardStat}>
+              <View style={styles.shareCardStatSmall}>
                 <Text style={styles.shareCardStatValue}>{totalGigs}</Text>
                 <Text style={styles.shareCardStatLabel}>Gigs logged</Text>
               </View>
@@ -1012,10 +938,19 @@ export function ProfileScreen({
               <View style={styles.shareCardDivider} />
 
               <View style={styles.shareCardStat}>
-                <Text style={styles.shareCardStatValue}>
-                  {stats?.topCity ?? "—"}
+                <Text style={styles.shareCardStatValue} numberOfLines={1}>
+                  {topArtist}
                 </Text>
-                <Text style={styles.shareCardStatLabel}>Top city</Text>
+                <Text style={styles.shareCardStatLabel}>Top artist</Text>
+              </View>
+
+              <View style={styles.shareCardDivider} />
+
+              <View style={styles.shareCardStat}>
+                <Text style={styles.shareCardStatValue} numberOfLines={1}>
+                  {topVenue}
+                </Text>
+                <Text style={styles.shareCardStatLabel}>Top venue</Text>
               </View>
             </View>
 
@@ -1042,52 +977,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colours.background.app,
   },
 
-  socialLinksRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 34,
-    paddingVertical: 10,
-  },
-
-  socialIconLink: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-  },
-
-  socialIconLabel: {
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 13,
-    lineHeight: 17,
-  },
-
   body: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 18,
     paddingBottom: 88,
     gap: 12,
-  },
-
-  sectionTitle: {
-    marginTop: 4,
-    marginBottom: 4,
-    color: Colours.text.secondary,
-    fontWeight: "700",
-    fontSize: 15,
-    lineHeight: 19,
   },
 
   profileHero: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: Colours.background.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colours.ui.border,
-    padding: 14,
+    paddingHorizontal: 2,
+    paddingVertical: 12,
+    marginBottom: 10,
   },
 
   profileHeroText: {
@@ -1095,31 +998,14 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
 
-  editNameButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexShrink: 1,
-  },
-
-  nameInput: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 20,
-    lineHeight: 24,
-    flex: 1,
-    paddingVertical: 0,
-    paddingHorizontal: 0,
-  },
-
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
+    width: 76,
+    height: 76,
+    borderRadius: 24,
     overflow: "hidden",
     backgroundColor: "rgba(47,140,255,0.18)",
     borderWidth: 1,
-    borderColor: "rgba(47,140,255,0.28)",
+    borderColor: "rgba(255,255,255,0.10)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1139,44 +1025,54 @@ const styles = StyleSheet.create({
   nameWithShareRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+  },
+
+  editNameButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 1,
+  },
+
+  nameInput: {
+    color: Colours.text.primary,
+    fontWeight: "800",
+    fontSize: 25,
+    lineHeight: 30,
+    flex: 1,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
   },
 
   name: {
     color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 20,
-    lineHeight: 24,
+    fontWeight: "900",
+    fontSize: 25,
+    lineHeight: 30,
+    letterSpacing: -0.25,
     flexShrink: 1,
   },
 
-  statusPill: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    marginTop: 10,
-  },
-
-  statusPillText: {
-    fontWeight: "700",
-    fontSize: 11,
-    lineHeight: 14,
-    letterSpacing: 0.1,
-  },
-
   shareButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(255,255,255,0.06)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.08)",
     flexShrink: 0,
-    marginTop: 1,
+  },
+
+  sectionTitle: {
+    marginTop: 4,
+    marginBottom: 4,
+    color: Colours.text.secondary,
+    fontWeight: "800",
+    fontSize: 15,
+    lineHeight: 19,
   },
 
   card: {
@@ -1265,6 +1161,27 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
 
+  socialLinksRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 34,
+    paddingVertical: 10,
+  },
+
+  socialIconLink: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  socialIconLabel: {
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 13,
+    lineHeight: 17,
+  },
+
   versionText: {
     textAlign: "center",
     color: Colours.text.muted,
@@ -1285,7 +1202,10 @@ const styles = StyleSheet.create({
   shareCard: {
     width: 1080,
     backgroundColor: "#0B0B0F",
-    padding: 72,
+    paddingTop: 56,
+    paddingRight: 72,
+    paddingBottom: 72,
+    paddingLeft: 56,
     borderRadius: 48,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
@@ -1294,8 +1214,8 @@ const styles = StyleSheet.create({
   shareCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 56,
+    justifyContent: "flex-start",
+    marginBottom: 58,
   },
 
   shareCardLogo: {
@@ -1303,17 +1223,11 @@ const styles = StyleSheet.create({
     height: 72,
   },
 
-  shareCardTag: {
-    color: "rgba(255,255,255,0.64)",
-    fontSize: 28,
-    fontWeight: "600",
-  },
-
   shareCardProfileRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 28,
-    marginBottom: 56,
+    gap: 30,
+    marginBottom: 58,
   },
 
   shareCardAvatar: {
@@ -1341,15 +1255,10 @@ const styles = StyleSheet.create({
 
   shareCardName: {
     color: "#fff",
-    fontSize: 56,
+    fontSize: 50,
     fontWeight: "800",
-    lineHeight: 62,
+    lineHeight: 58,
     marginBottom: 10,
-  },
-
-  shareCardStatus: {
-    fontSize: 30,
-    fontWeight: "700",
   },
 
   shareCardStatsRow: {
@@ -1365,13 +1274,19 @@ const styles = StyleSheet.create({
     marginBottom: 42,
   },
 
+  shareCardStatSmall: {
+    flex: 0.48,
+    minWidth: 0,
+  },
+
   shareCardStat: {
     flex: 1,
+    minWidth: 0,
   },
 
   shareCardStatValue: {
     color: "#fff",
-    fontSize: 44,
+    fontSize: 42,
     fontWeight: "800",
     lineHeight: 50,
     marginBottom: 8,
@@ -1379,7 +1294,7 @@ const styles = StyleSheet.create({
 
   shareCardStatLabel: {
     color: "rgba(255,255,255,0.62)",
-    fontSize: 24,
+    fontSize: 23,
     fontWeight: "600",
   },
 

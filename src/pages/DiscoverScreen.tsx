@@ -261,13 +261,6 @@ function EventCard(props: {
         </View>
       ) : null}
 
-      <View style={styles.socialBlock}>
-        <AvatarStack
-          avatars={discovery.avatars}
-          extraCount={discovery.extraCount}
-        />
-        <Text style={styles.socialText}>{discovery.text}</Text>
-      </View>
 
       <Pressable
         onPress={() => {
@@ -287,8 +280,7 @@ function EventCard(props: {
           pressed ? styles.addBtnPressed : null,
         ]}
       >
-        <Text style={styles.addBtnText}>Add to gigs</Text>
-        <Ionicons name="add" size={16} color="#FFFFFF" />
+                <Text style={styles.addBtnText}>Add gig</Text>
       </Pressable>
     </View>
   );
@@ -527,7 +519,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
           scrollEventThrottle={16}
         >
           <View style={styles.heroWrap}>
-            <View style={styles.heroGlow} />
+          
 
             <View style={styles.titleRow}>
               <View>
@@ -552,7 +544,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
  setMbOpen(true);
 }}
 
-                placeholder="e.g. Foo Fighters"
+                placeholder=""
                 autoCapitalize="none"
               />
 
@@ -601,7 +593,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
                 label="City"
                 value={cityInput}
                 onChangeText={setCityInput}
-                placeholder="e.g. London"
+                placeholder=""
                 autoCapitalize="words"
               />
 
@@ -612,7 +604,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
                   color={Colours.text.muted}
                 />
                 <Text style={styles.tipText}>
-                  Search by artist, city, or both.
+                  Search by artist, city, or both
                 </Text>
               </View>
 
@@ -672,17 +664,17 @@ const suppressNextArtistSearchRef = React.useRef(false);
               ) : null}
             </View>
           ) : (
-            <View style={styles.emptyCard}>
-              <Ionicons
-                name="ticket-outline"
-                size={24}
-                color={Colours.text.muted}
-              />
-              <Text style={styles.emptyTitle}>Start with a search</Text>
-              <Text style={styles.emptyHint}>
-                Search by artist or city to find upcoming gigs.
-              </Text>
-            </View>
+            <View style={styles.emptyPlain}>
+  <Ionicons
+    name="ticket-outline"
+    size={24}
+    color={Colours.text.muted}
+  />
+  <Text style={styles.emptyTitle}>Start with a search</Text>
+  <Text style={styles.emptyHint}>
+    Search by artist or city to find upcoming gigs.
+  </Text>
+</View>
           )}
 
           <View style={{ height: 24 }} />
@@ -1029,6 +1021,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+
+  emptyPlain: {
+  marginTop: 20,
+  paddingHorizontal: 18,
+  paddingVertical: 18,
+  alignItems: "center",
+  gap: 8,
+},
 
   emptyTitle: {
     color: Colours.text.primary,

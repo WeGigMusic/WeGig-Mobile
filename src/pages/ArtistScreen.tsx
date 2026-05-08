@@ -432,24 +432,24 @@ export function ArtistScreen(props: {
       >
         <View style={styles.artistHero}>
           <View style={styles.artistHeroTop}>
-           {spotifyLoading ? (
-  <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
-    <ActivityIndicator />
-  </View>
-) : spotifyArtist?.imageUrl ? (
-  <Image
-    source={{ uri: spotifyArtist.imageUrl }}
-    style={styles.artistImage}
-  />
-) : (
-  <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
-    <Image
-      source={require("../../assets/logo-symbol.png")}
-      style={styles.artistImageFallbackLogo}
-      resizeMode="cover"
-    />
-  </View>
-)}
+            {spotifyLoading ? (
+              <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
+                <ActivityIndicator />
+              </View>
+            ) : spotifyArtist?.imageUrl ? (
+              <Image
+                source={{ uri: spotifyArtist.imageUrl }}
+                style={styles.artistImage}
+              />
+            ) : (
+              <View style={[styles.artistImageWrap, styles.artistImagePlaceholder]}>
+                <Image
+                  source={require("../../assets/logo-symbol.png")}
+                  style={styles.artistImageFallbackLogo}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
 
             <View style={styles.artistHeroText}>
               <Text style={styles.artistName}>
@@ -525,12 +525,12 @@ export function ArtistScreen(props: {
           ) : null}
 
           {showSpotifyFallback ? (
-  <View style={styles.spotifyFallbackBox}>
-    <Text style={styles.spotifyFallbackText}>
-      No current profile for this artist can be matched.
-    </Text>
-  </View>
-) : null}
+            <View style={styles.spotifyFallbackBox}>
+              <Text style={styles.spotifyFallbackText}>
+                No current profile for this artist can be matched.
+              </Text>
+            </View>
+          ) : null}
         </View>
 
         {loading ? (
@@ -747,13 +747,10 @@ const styles = StyleSheet.create({
   },
 
   artistHero: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    padding: 14,
-    gap: 10,
-    marginBottom: 10,
+    paddingHorizontal: 2,
+    paddingVertical: 10,
+    gap: 12,
+    marginBottom: 14,
   },
 
   artistHeroTop: {
@@ -792,11 +789,11 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 32,
   },
-  
+
   artistImageFallbackLogo: {
-  width: "100%",
-  height: "100%",
-},
+    width: "100%",
+    height: "100%",
+  },
 
   artistName: {
     color: Colours.text.primary,
@@ -809,18 +806,14 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 10,
     marginTop: 8,
   },
 
   metaPill: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
   },
 
   metaPillText: {
@@ -833,21 +826,16 @@ const styles = StyleSheet.create({
   spotifyLinkBtn: {
     marginTop: 10,
     alignSelf: "flex-start",
-    backgroundColor: "rgba(29,185,84,0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(29,185,84,0.24)",
-    paddingVertical: 8,
-    paddingLeft: 11,
-    paddingRight: 24,
-    borderRadius: 12,
+    paddingVertical: 4,
+    paddingRight: 18,
     position: "relative",
     justifyContent: "center",
   },
 
   spotifyPillIcon: {
     position: "absolute",
-    right: 8,
-    top: 10,
+    right: 0,
+    top: 6,
   },
 
   spotifyLinkText: {
@@ -871,7 +859,7 @@ const styles = StyleSheet.create({
   },
 
   heroGigList: {
-    gap: 8,
+    gap: 0,
   },
 
   gigsHeaderTitle: {
@@ -931,13 +919,12 @@ const styles = StyleSheet.create({
   },
 
   artistGigRow: {
-    backgroundColor: "rgba(255,255,255,0.035)",
-    borderRadius: 14,
     paddingVertical: 12,
-    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
 
   artistGigBody: {
@@ -975,11 +962,7 @@ const styles = StyleSheet.create({
   },
 
   spotifyFallbackBox: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    borderRadius: 14,
-    padding: 12,
+    paddingVertical: 6,
     gap: 4,
   },
 
@@ -998,12 +981,8 @@ const styles = StyleSheet.create({
   },
 
   card: {
-    backgroundColor: Colours.background.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-    padding: 13,
-    marginBottom: 8,
+    paddingVertical: 10,
+    marginBottom: 14,
   },
 
   sectionHeaderRow: {
@@ -1121,16 +1100,12 @@ const styles = StyleSheet.create({
   similarArtistsWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 14,
   },
 
   similarArtistChip: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    borderRadius: 999,
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 2,
   },
 
   similarArtistChipText: {

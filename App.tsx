@@ -7,6 +7,7 @@ import {
   AppState,
   Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
@@ -37,6 +38,8 @@ import { Colours } from "./src/theme/colours";
 type Tab = "gigs" | "discover" | "stats" | "profile";
 type ProfileRoute = "home" | "about" | "help" | "feedback";
 
+const HAPTICS_KEY = "wegig.hapticsEnabled";
+
 const TABS: Array<{
   key: Tab;
   label: string;
@@ -47,6 +50,23 @@ const TABS: Array<{
   { key: "stats", label: "Stats", icon: "bar-chart" },
   { key: "profile", label: "Profile", icon: "person" },
 ];
+
+async function hapticsAllowed() {
+  try {
+    const value = await AsyncStorage.getItem(HAPTICS_KEY);
+    return value == null || value === "1";
+  } catch {
+    return true;
+  }
+}
+
+async function selectionHaptic() {
+  if (!(await hapticsAllowed())) return;
+
+  try {
+    await Haptics.selectionAsync();
+  } catch {}
+}
 
 function TabItem(props: {
   active: boolean;
@@ -108,9 +128,9 @@ function AppShell() {
   const [justSynced, setJustSynced] = React.useState(false);
 
   const syncInFlightRef = React.useRef(false);
-  const justSyncedTimeoutRef = React.useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
+  const justSyncedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const goHome = React.useCallback(() => {
     setTab("gigs");
@@ -193,9 +213,7 @@ function AppShell() {
     async (next: Tab) => {
       const isSameTab = next === tab;
 
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
+      await selectionHaptic();
 
       if (isSameTab) {
         if (next === "gigs") {
@@ -341,34 +359,34 @@ export default function App() {
 
     let mounted = true;
 
-   supabase.auth.getSession().then(({ data }) => {
-  if (!mounted) return;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
 
-  const nextSession = data.session ?? null;
-  setSession(nextSession);
-  setAuthLoading(false);
+      const nextSession = data.session ?? null;
+      setSession(nextSession);
+      setAuthLoading(false);
 
-  if (nextSession?.user) {
-    posthog.identify(nextSession.user.id, {
-      email: nextSession.user.email ?? null,
+      if (nextSession?.user) {
+        posthog.identify(nextSession.user.id, {
+          email: nextSession.user.email ?? null,
+        });
+      }
     });
-  }
-});
 
-const {
-  data: { subscription },
-} = supabase.auth.onAuthStateChange((_event, nextSession) => {
-  setSession(nextSession ?? null);
-  setAuthLoading(false);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession ?? null);
+      setAuthLoading(false);
 
-  if (nextSession?.user) {
-    posthog.identify(nextSession.user.id, {
-      email: nextSession.user.email ?? null,
+      if (nextSession?.user) {
+        posthog.identify(nextSession.user.id, {
+          email: nextSession.user.email ?? null,
+        });
+      } else {
+        posthog.reset();
+      }
     });
-  } else {
-    posthog.reset();
-  }
-});
 
     return () => {
       mounted = false;
@@ -386,20 +404,14 @@ const {
 
   if (!session) {
     return (
-      <PostHogProvider
-  client={posthog}
-  autocapture={false}
->
+      <PostHogProvider client={posthog} autocapture={false}>
         <AuthScreen />
       </PostHogProvider>
     );
   }
 
   return (
-    <PostHogProvider
-  client={posthog}
-  autocapture={false}
->
+    <PostHogProvider client={posthog} autocapture={false}>
       <ToastProvider>
         <AppShell />
       </ToastProvider>

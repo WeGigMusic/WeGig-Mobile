@@ -12,12 +12,14 @@ import {
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
 import { setCachedGigs } from "../lib/gigsCache";
 import { apiGet, apiPost, ApiError } from "../lib/api";
 import { syncGigReminderNotifications } from "../lib/notifications";
 import type { Gig, GigsResponse, CreateGigInput } from "../shared/types/Gig";
 import { parseYmdToUtcDate } from "../lib/date";
+import { useToast } from "../components/ToastProvider";
 
 import { AddGigScreen } from "./AddGigScreen";
 import { EditGigScreen } from "./EditGigScreen";
@@ -40,6 +42,23 @@ type SpotifyArtistPageResponse = {
 type PastGigListItem =
   | { type: "year"; year: string; count: number }
   | { type: "gig"; year: string; gig: Gig };
+
+type UnlockableBadge = {
+  title: string;
+  icon: string;
+  unlocked: boolean;
+};
+
+const HAPTICS_KEY = "wegig.hapticsEnabled";
+
+async function hapticsAllowed() {
+  try {
+    const value = await AsyncStorage.getItem(HAPTICS_KEY);
+    return value == null || value === "1";
+  } catch {
+    return true;
+  }
+}
 
 const AnimatedFlatList =
   Animated.createAnimatedComponent(FlatList<PastGigListItem>);
@@ -118,6 +137,117 @@ function buildPastGigItems(
   });
 }
 
+function buildUnlockableBadges(gigs: Gig[]): UnlockableBadge[] {
+  const total = gigs.length;
+
+  const rated = gigs.filter((g) => typeof g.rating === "number") as Array<
+    Gig & { rating: number }
+  >;
+
+  const byCity = gigs.reduce<Record<string, number>>((acc, g) => {
+    const key = (g.city ?? "").trim() || "Unknown";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const byVenue = gigs.reduce<Record<string, number>>((acc, g) => {
+    const key = (g.venue ?? "").trim() || "Unknown";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const byArtist = gigs.reduce<Record<string, number>>((acc, g) => {
+    const key = (g.artist ?? "").trim() || "Unknown";
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const cityCount = Object.keys(byCity).length;
+  const venueCount = Object.keys(byVenue).length;
+  const topArtistCount =
+    Object.entries(byArtist).sort((a, b) => b[1] - a[1])[0]?.[1] ?? 0;
+  const hasFiveStarGig = gigs.some((g) => g.rating === 5);
+
+  return [
+    {
+      title: "Setlist Opener",
+      icon: "🎟️",
+      unlocked: total >= 1,
+    },
+    {
+      title: "Soundcheck",
+      icon: "🎧",
+      unlocked: rated.length >= 1,
+    },
+    {
+      title: "Scene Regular",
+      icon: "🔥",
+      unlocked: total >= 15,
+    },
+    {
+      title: "Scene Fixture",
+      icon: "🏟️",
+      unlocked: total >= 30,
+    },
+    {
+      title: "Touring the Scene",
+      icon: "🏟️",
+      unlocked: venueCount >= 7,
+    },
+    {
+      title: "On Tour",
+      icon: "🌍",
+      unlocked: cityCount >= 5,
+    },
+    {
+      title: "Die Hard",
+      icon: "⭐",
+      unlocked: topArtistCount >= 5,
+    },
+    {
+      title: "Encore",
+      icon: "🌟",
+      unlocked: hasFiveStarGig,
+    },
+    {
+      title: "Well Tuned",
+      icon: "🎚️",
+      unlocked: rated.length >= 5,
+    },
+    {
+      title: "Headliner",
+      icon: "🎤",
+      unlocked: total >= 50,
+    },
+  ];
+}
+
+function getNewlyUnlockedBadge(previousGigs: Gig[], nextGigs: Gig[]) {
+  const previousBadges = buildUnlockableBadges(previousGigs);
+  const nextBadges = buildUnlockableBadges(nextGigs);
+
+  const previousUnlocked = new Set(
+    previousBadges.filter((badge) => badge.unlocked).map((badge) => badge.title),
+  );
+
+  return nextBadges.find(
+    (badge) => badge.unlocked && !previousUnlocked.has(badge.title),
+  );
+}
+
+async function triggerGigSavedFeedback(hasUnlockedBadge: boolean) {
+  if (!(await hapticsAllowed())) return;
+
+  try {
+    if (hasUnlockedBadge) {
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return;
+    }
+
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch {}
+}
+
 function TicketStub({ count }: { count: number }) {
   return (
     <View style={styles.ticketStub}>
@@ -137,6 +267,8 @@ export function GigsScreen(props: {
   onPrefillUsed?: () => void;
   onGigCreated?: () => void;
 }) {
+  const { showToast } = useToast();
+
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const listRef = React.useRef<FlatList<PastGigListItem>>(null);
 
@@ -309,8 +441,39 @@ export function GigsScreen(props: {
     }));
   }, []);
 
+  const showGigCreatedFeedback = React.useCallback(
+    async (previousGigs: Gig[], createdGig: Gig) => {
+      const nextGigs = [
+        ...previousGigs.filter((gig) => gig.id !== createdGig.id),
+        createdGig,
+      ];
+
+      const newlyUnlocked = getNewlyUnlockedBadge(previousGigs, nextGigs);
+
+      await triggerGigSavedFeedback(Boolean(newlyUnlocked));
+
+      if (newlyUnlocked) {
+        showToast({
+          eyebrow: "Milestone unlocked",
+          title: newlyUnlocked.title,
+          icon: newlyUnlocked.icon,
+          duration: 2600,
+        });
+        return;
+      }
+
+      showToast({
+        message: "Gig added",
+        duration: 1500,
+      });
+    },
+    [showToast],
+  );
+
   const createGigFromDiscover = React.useCallback(async () => {
     if (!discoverPrefill) return;
+
+    const previousGigs = data?.gigs ?? [];
 
     setConfirmingSubmit(true);
     setError("");
@@ -321,8 +484,11 @@ export function GigsScreen(props: {
       clearDiscoverPrefill();
       setConfirmingGig(false);
       setEditingGig(created);
+
+      await showGigCreatedFeedback(previousGigs, created);
       await load();
       await loadPinnedGigIds();
+
       props.onGigCreated?.();
     } catch (e: any) {
       if (e instanceof ApiError && e.status === 409) {
@@ -339,7 +505,15 @@ export function GigsScreen(props: {
     } finally {
       setConfirmingSubmit(false);
     }
-  }, [clearDiscoverPrefill, discoverPrefill, load, loadPinnedGigIds, props]);
+  }, [
+    clearDiscoverPrefill,
+    data?.gigs,
+    discoverPrefill,
+    load,
+    loadPinnedGigIds,
+    props,
+    showGigCreatedFeedback,
+  ]);
 
   if (confirmingGig && discoverPrefill) {
     return (
@@ -376,6 +550,8 @@ export function GigsScreen(props: {
           clearDiscoverPrefill();
         }}
         onCreated={async (createdGig: Gig) => {
+          const previousGigs = data?.gigs ?? [];
+
           setAddingGig(false);
           clearDiscoverPrefill();
 
@@ -383,8 +559,10 @@ export function GigsScreen(props: {
             setEditingGig(createdGig);
           }
 
+          await showGigCreatedFeedback(previousGigs, createdGig);
           await load();
           await loadPinnedGigIds();
+
           props.onGigCreated?.();
         }}
       />
@@ -570,13 +748,15 @@ export function GigsScreen(props: {
                       hitSlop={8}
                     >
                       <View style={styles.yearTitleRow}>
-  <Ionicons
-    name={isCollapsed ? "chevron-forward" : "chevron-down"}
-    size={16}
-    color={Colours.text.muted}
-  />
-  <Text style={styles.yearTitle}>{item.year}</Text>
-</View>
+                        <Ionicons
+                          name={
+                            isCollapsed ? "chevron-forward" : "chevron-down"
+                          }
+                          size={16}
+                          color={Colours.text.muted}
+                        />
+                        <Text style={styles.yearTitle}>{item.year}</Text>
+                      </View>
                     </Pressable>
                   );
                 }
@@ -732,4 +912,3 @@ const styles = {
     lineHeight: 21,
   },
 };
-

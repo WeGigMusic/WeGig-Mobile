@@ -52,7 +52,11 @@ const BADGE_INFO: Record<string, BadgeInfo> = {
   },
   "Scene Regular": {
     title: "Scene Regular",
-    description: "Logged 10 gigs.",
+    description: "Logged 15 gigs.",
+  },
+  "Scene Fixture": {
+    title: "Scene Fixture",
+    description: "Logged 30 gigs.",
   },
   "Touring the Scene": {
     title: "Touring the Scene",
@@ -76,7 +80,7 @@ const BADGE_INFO: Record<string, BadgeInfo> = {
   },
   Headliner: {
     title: "Headliner",
-    description: "Logged 20 gigs.",
+    description: "Logged 50 gigs.",
   },
 };
 
@@ -157,22 +161,18 @@ function buildStats(gigs: Gig[]) {
   let statusColor = "#6B7280";
   let statusIcon = "✨";
 
-  if (total >= 20) {
+  if (total >= 50) {
     statusLabel = "Headliner";
     statusColor = "#FFB703";
     statusIcon = "🎤";
-  } else if (total >= 10) {
-    statusLabel = "Scene Regular";
+  } else if (total >= 30) {
+    statusLabel = "Scene Fixture";
     statusColor = "#8A5BFF";
+    statusIcon = "🏟️";
+  } else if (total >= 15) {
+    statusLabel = "Scene Regular";
+    statusColor = "#2F8CFF";
     statusIcon = "🔥";
-  } else if (cityCount >= 5) {
-    statusLabel = "On Tour";
-    statusColor = "#C0C4CC";
-    statusIcon = "🌍";
-  } else if (rated.length >= 5) {
-    statusLabel = "Well Tuned";
-    statusColor = "#2EE59D";
-    statusIcon = "🎚️";
   } else if (total >= 1) {
     statusLabel = "Setlist Opener";
     statusColor = "#2F8CFF";
@@ -206,8 +206,14 @@ function buildStats(gigs: Gig[]) {
     {
       title: "Scene Regular",
       icon: "🔥",
-      unlocked: total >= 10,
-      progressLabel: `${Math.min(total, 10)}/10 gigs`,
+      unlocked: total >= 15,
+      progressLabel: `${Math.min(total, 15)}/15 gigs`,
+    },
+    {
+      title: "Scene Fixture",
+      icon: "🏟️",
+      unlocked: total >= 30,
+      progressLabel: `${Math.min(total, 30)}/30 gigs`,
     },
     {
       title: "Touring the Scene",
@@ -242,8 +248,8 @@ function buildStats(gigs: Gig[]) {
     {
       title: "Headliner",
       icon: "🎤",
-      unlocked: total >= 20,
-      progressLabel: `${Math.min(total, 20)}/20 gigs`,
+      unlocked: total >= 50,
+      progressLabel: `${Math.min(total, 50)}/50 gigs`,
     },
   ];
 
@@ -265,7 +271,7 @@ function buildStats(gigs: Gig[]) {
     onTourProgress: clampProgress(cityCount, 5),
     dieHardProgress: clampProgress(topArtistCount, 5),
     touringProgress: clampProgress(venueCount, 7),
-    headlinerProgress: clampProgress(total, 20),
+    headlinerProgress: clampProgress(total, 50),
   };
 }
 
@@ -283,7 +289,8 @@ function KeyStatCard(props: {
   value: string;
   subtitle?: string;
   imageUrl?: string | null;
-  tone?: "default" | "gold" | "blue" | "purple";
+imageSource?: any;
+tone?: "default" | "gold" | "blue" | "purple";
 }) {
   const content = (
     <View style={styles.keyStatInner}>
@@ -306,10 +313,10 @@ function KeyStatCard(props: {
     </View>
   );
 
-  if (props.imageUrl) {
-    return (
-      <ImageBackground
-        source={{ uri: props.imageUrl }}
+if (props.imageUrl || props.imageSource) {
+  return (
+    <ImageBackground
+      source={props.imageSource ?? { uri: props.imageUrl }}
         style={styles.keyStatCard}
         imageStyle={styles.keyStatImage}
       >
@@ -333,12 +340,14 @@ function LiveStatCard(props: {
 }) {
   return (
     <View style={styles.liveStatCard}>
-      <View style={styles.keyStatHeader}>
+      <View style={styles.liveStatHeader}>
         <Ionicons name={props.icon} size={14} color={Colours.text.primary} />
         <Text style={styles.keyStatLabel}>{props.label}</Text>
       </View>
 
-      <Text style={styles.liveStatValue}>{props.value}</Text>
+      <View style={styles.liveStatValueWrap}>
+        <Text style={styles.liveStatValue}>{props.value}</Text>
+      </View>
     </View>
   );
 }
@@ -353,20 +362,20 @@ function BadgeCard(
       onLongPress={props.onLongPress}
       delayLongPress={320}
       style={({ pressed }) => [
-        styles.badgeCard,
+        styles.badgeShape,
         props.unlocked ? styles.badgeCardOn : styles.badgeCardOff,
         pressed ? { opacity: 0.88 } : null,
       ]}
     >
+      <View style={styles.badgeTopCut} />
       <Text style={styles.badgeIcon}>{props.icon}</Text>
       <Text style={styles.badgeTitle} numberOfLines={2}>
         {props.title}
       </Text>
-      {!props.unlocked && props.progressLabel ? (
-        <Text style={styles.badgeProgress}>{props.progressLabel}</Text>
-      ) : (
-        <Text style={styles.badgeProgress}>Unlocked</Text>
-      )}
+      <View style={styles.badgeRibbonRow}>
+        <View style={styles.badgeRibbonLeft} />
+        <View style={styles.badgeRibbonRight} />
+      </View>
     </Pressable>
   );
 }
@@ -377,16 +386,13 @@ function TimelineTicketCard(props: {
 }) {
   return (
     <View style={styles.timelineTicketCard}>
-      <View>
-        <Text style={styles.timelineTicketYear}>{props.year}</Text>
-        <Text style={styles.timelineTicketLabel}>
-          {props.count} {props.count === 1 ? "gig" : "gigs"}
-        </Text>
-      </View>
+      <View style={styles.timelineTicketNotchLeft} />
+      <View style={styles.timelineTicketNotchRight} />
 
-      <View style={styles.timelineTicketStub}>
-        <Ionicons name="ticket-outline" size={16} color={Colours.brand.primary} />
-      </View>
+      <Text style={styles.timelineTicketYear}>{props.year}</Text>
+      <Text style={styles.timelineTicketLabel}>
+        {props.count} {props.count === 1 ? "gig" : "gigs"}
+      </Text>
     </View>
   );
 }
@@ -417,6 +423,41 @@ function BadgeInfoModal(props: {
       </Pressable>
     </Modal>
   );
+}
+
+function getStatusInfo(total: number, statusLabel: string) {
+  if (total >= 50) {
+    return {
+      title: `Status: ${statusLabel}`,
+      description: `You’ve logged ${total} gigs. Headliner unlocked at 50 gigs.`,
+    };
+  }
+
+  if (total >= 30) {
+    return {
+      title: `Status: ${statusLabel}`,
+      description: `You’ve logged ${total} gigs. Scene Fixture unlocked at 30 gigs. Keep gigging to reach Headliner at 50 gigs.`,
+    };
+  }
+
+  if (total >= 15) {
+    return {
+      title: `Status: ${statusLabel}`,
+      description: `Nice one — you’ve logged ${total} gigs. Scene Regular unlocked at 15 gigs. Keep gigging to reach Scene Fixture at 30 gigs.`,
+    };
+  }
+
+  if (total >= 1) {
+    return {
+      title: `Status: ${statusLabel}`,
+      description: `Well done for logging your first gig. Keep gigging to reach Scene Regular at 15 gigs.`,
+    };
+  }
+
+  return {
+    title: "Status: New Fan",
+    description: "Log your first gig to unlock Setlist Opener.",
+  };
 }
 
 export function StatsScreen(props: {
@@ -568,11 +609,19 @@ export function StatsScreen(props: {
           </View>
         ) : (
           <>
-            <Text style={styles.statusText}>
-              {stats.statusIcon} {stats.statusLabel}
-            </Text>
+            <Pressable
+  onLongPress={() =>
+    setSelectedBadgeInfo(getStatusInfo(stats.total, stats.statusLabel))
+  }
+  delayLongPress={320}
+  style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
+>
+  <Text style={styles.statusText}>
+    Status: {stats.statusIcon} {stats.statusLabel}
+  </Text>
+</Pressable>
 
-            <SectionHeader title="Key stats" />
+            <SectionHeader title="Your highlights" />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -593,28 +642,28 @@ export function StatsScreen(props: {
               />
 
               <KeyStatCard
-                icon="business-outline"
-                label="Favourite venue"
-                value={stats.topVenue ? stats.topVenue[0] : "—"}
-                subtitle={
-                  stats.topVenue
-                    ? `${stats.topVenue[1]} visits`
-                    : "No favourite yet"
-                }
-                tone="blue"
-              />
+  icon="business-outline"
+  label="Favourite venue"
+  value={stats.topVenue ? stats.topVenue[0] : "—"}
+  subtitle={
+    stats.topVenue
+      ? `${stats.topVenue[1]} visits`
+      : "No favourite yet"
+  }
+  imageSource={require("../../assets/venue-background.png")}
+/>
 
               <KeyStatCard
-                icon="location-outline"
-                label="Main scene"
-                value={stats.topCity ? stats.topCity[0] : "—"}
-                subtitle={
-                  stats.topCity
-                    ? `${stats.topCity[1]} gigs there`
-                    : "Your city story starts here"
-                }
-                tone="purple"
-              />
+  icon="location-outline"
+  label="Main scene"
+  value={stats.topCity ? stats.topCity[0] : "—"}
+  subtitle={
+    stats.topCity
+      ? `${stats.topCity[1]} gigs there`
+      : "Your city story starts here"
+  }
+  imageSource={require("../../assets/main-scene-background.png")}
+/>
             </ScrollView>
 
             <SectionHeader title="Badges" />
@@ -642,7 +691,7 @@ export function StatsScreen(props: {
               ))}
             </ScrollView>
 
-            <SectionHeader title="Live stats" />
+            <SectionHeader title="Gig stats" />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -764,7 +813,7 @@ const styles = StyleSheet.create({
   statusText: {
     color: Colours.text.primary,
     fontWeight: "900",
-    fontSize: 18,
+    fontSize: 16,
     lineHeight: 23,
     letterSpacing: -0.15,
     marginBottom: 2,
@@ -863,28 +912,82 @@ const styles = StyleSheet.create({
 
   liveStatCard: {
     width: 104,
-    minHeight: 72,
+    minHeight: 76,
     backgroundColor: Colours.background.card,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 9,
   },
 
-  liveStatValue: {
-    marginTop: 10,
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 18,
-    lineHeight: 22,
-    letterSpacing: -0.15,
+  liveStatHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
 
-  badgeCard: {
-    width: 146,
-    minHeight: 86,
-    borderRadius: 16,
-    padding: 11,
+  liveStatValueWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  liveStatValue: {
+    color: Colours.text.primary,
+    fontWeight: "900",
+    fontSize: 20,
+    lineHeight: 24,
+    letterSpacing: -0.15,
+    textAlign: "center",
+  },
+
+  badgeShape: {
+    width: 118,
+    height: 92,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
+    paddingHorizontal: 10,
+    paddingTop: 12,
+    paddingBottom: 8,
     backgroundColor: Colours.background.card,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,183,3,0.78)",
+    overflow: "hidden",
+  },
+
+  badgeTopCut: {
+    position: "absolute",
+    top: -9,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colours.background.app,
+    borderWidth: 1,
+    borderColor: "rgba(255,183,3,0.28)",
+  },
+
+  badgeRibbonRow: {
+    position: "absolute",
+    bottom: -1,
+    flexDirection: "row",
+  },
+
+  badgeRibbonLeft: {
+    width: 24,
+    height: 18,
+    backgroundColor: "rgba(255,183,3,0.18)",
+    transform: [{ skewX: "-16deg" }],
+  },
+
+  badgeRibbonRight: {
+    width: 24,
+    height: 18,
+    backgroundColor: "rgba(255,183,3,0.14)",
+    transform: [{ skewX: "16deg" }],
   },
 
   badgeCardOn: {
@@ -892,41 +995,58 @@ const styles = StyleSheet.create({
   },
 
   badgeCardOff: {
-    opacity: 0.45,
+    opacity: 0.42,
   },
 
   badgeIcon: {
-    fontSize: 18,
-    lineHeight: 22,
+    fontSize: 20,
+    lineHeight: 24,
+    textAlign: "center",
   },
 
   badgeTitle: {
     marginTop: 6,
     color: Colours.text.primary,
     fontWeight: "800",
-    fontSize: 13,
-    lineHeight: 17,
-  },
-
-  badgeProgress: {
-    marginTop: 5,
-    color: Colours.text.muted,
-    fontWeight: "600",
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 15,
+    textAlign: "center",
   },
 
   timelineTicketCard: {
-    width: 116,
-    minHeight: 74,
+    width: 118,
+    height: 74,
     backgroundColor: Colours.background.card,
-    borderRadius: 16,
-    padding: 11,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.10)",
+    position: "relative",
+    overflow: "hidden",
+  },
+
+  timelineTicketNotchLeft: {
+    position: "absolute",
+    left: -8,
+    top: "50%",
+    marginTop: -8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colours.background.app,
+  },
+
+  timelineTicketNotchRight: {
+    position: "absolute",
+    right: -8,
+    top: "50%",
+    marginTop: -8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colours.background.app,
   },
 
   timelineTicketYear: {
@@ -942,17 +1062,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 11,
     lineHeight: 14,
-  },
-
-  timelineTicketStub: {
-    width: 30,
-    height: 42,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderLeftWidth: 1,
-    borderLeftColor: "rgba(255,255,255,0.10)",
   },
 
   badgeModalOverlay: {

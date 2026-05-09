@@ -16,14 +16,12 @@ import {
   TextInput,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
 import ViewShot, { captureRef } from "react-native-view-shot";
 
-import { PrimaryButton } from "../components/PrimaryButton";
 import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
@@ -34,14 +32,12 @@ import type { GigsResponse, Gig } from "../shared/types/Gig";
 import { avatarPresets } from "../config/avatarPresets";
 
 const DISPLAY_NAME_KEY = "wegig.displayName";
-const HAPTICS_KEY = "wegig.hapticsEnabled";
 const AVATAR_PRESET_KEY = "wegig.avatarPreset";
 const AVATAR_URI_KEY = "wegig.avatarUri";
 const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 const NOTIFY_GIG_REMINDER_KEY = "wegig.notifyGigReminder";
 const NOTIFY_RATE_REMINDER_KEY = "wegig.notifyRateReminder";
-const INCLUDE_TRIBUTE_ACTS_KEY = "wegig.includeTributeActs";
 
 const WEGIG_INSTAGRAM_URL = "https://www.instagram.com/wegigmusic/";
 const WEGIG_FACEBOOK_URL =
@@ -53,7 +49,7 @@ const APP_VERSION = "v0.1.0";
 
 const SWITCH_TRACK_COLORS = {
   false: "rgba(255,255,255,0.20)",
-  true: "rgba(47,140,255,0.35)",
+  true: "rgba(47,140,255,0.45)",
 };
 
 type ProfileScreenProps = {
@@ -203,12 +199,9 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
   const [editingDisplayName, setEditingDisplayName] = React.useState(false);
   const [draftDisplayName, setDraftDisplayName] = React.useState("");
 
-  const [hapticsEnabled, setHapticsEnabled] = React.useState(true);
   const [gigReminderEnabled, setGigReminderEnabled] = React.useState(true);
   const [rateReminderEnabled, setRateReminderEnabled] = React.useState(true);
-  const [includeTributeActs, setIncludeTributeActs] = React.useState(false);
 
-  const [savingPrefs, setSavingPrefs] = React.useState(false);
   const [sharingProfile, setSharingProfile] = React.useState(false);
   const [exportingGigs, setExportingGigs] = React.useState(false);
 
@@ -221,16 +214,13 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
 
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [dn, hap, preset, uri, notifyGig, notifyRate, includeTributes] =
-        await Promise.all([
-          AsyncStorage.getItem(DISPLAY_NAME_KEY),
-          AsyncStorage.getItem(HAPTICS_KEY),
-          AsyncStorage.getItem(AVATAR_PRESET_KEY),
-          AsyncStorage.getItem(AVATAR_URI_KEY),
-          AsyncStorage.getItem(NOTIFY_GIG_REMINDER_KEY),
-          AsyncStorage.getItem(NOTIFY_RATE_REMINDER_KEY),
-          AsyncStorage.getItem(INCLUDE_TRIBUTE_ACTS_KEY),
-        ]);
+      const [dn, preset, uri, notifyGig, notifyRate] = await Promise.all([
+        AsyncStorage.getItem(DISPLAY_NAME_KEY),
+        AsyncStorage.getItem(AVATAR_PRESET_KEY),
+        AsyncStorage.getItem(AVATAR_URI_KEY),
+        AsyncStorage.getItem(NOTIFY_GIG_REMINDER_KEY),
+        AsyncStorage.getItem(NOTIFY_RATE_REMINDER_KEY),
+      ]);
 
       if (dn && dn.trim()) setDisplayName(dn.trim());
 
@@ -248,10 +238,8 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
 
       if (uri && uri.trim()) setAvatarUri(uri.trim());
 
-      if (hap != null) setHapticsEnabled(hap === "1");
-      if (notifyGig != null) setGigReminderEnabled(notifyGig === "1");
-      if (notifyRate != null) setRateReminderEnabled(notifyRate === "1");
-      if (includeTributes != null) setIncludeTributeActs(includeTributes === "1");
+      setGigReminderEnabled(notifyGig == null ? true : notifyGig === "1");
+      setRateReminderEnabled(notifyRate == null ? true : notifyRate === "1");
     } catch {}
   }, []);
 
@@ -270,60 +258,6 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
     }
   }, []);
 
-  const savePrefs = React.useCallback(async () => {
-    const nextName = displayName.trim();
-
-    setSavingPrefs(true);
-    try {
-      if (nextName) {
-        await AsyncStorage.setItem(DISPLAY_NAME_KEY, nextName);
-      } else {
-        await AsyncStorage.removeItem(DISPLAY_NAME_KEY);
-      }
-
-      await AsyncStorage.setItem(HAPTICS_KEY, hapticsEnabled ? "1" : "0");
-      await AsyncStorage.setItem(
-        NOTIFY_GIG_REMINDER_KEY,
-        gigReminderEnabled ? "1" : "0",
-      );
-      await AsyncStorage.setItem(
-        NOTIFY_RATE_REMINDER_KEY,
-        rateReminderEnabled ? "1" : "0",
-      );
-      await AsyncStorage.setItem(
-        INCLUDE_TRIBUTE_ACTS_KEY,
-        includeTributeActs ? "1" : "0",
-      );
-
-      Alert.alert("Saved", "Preferences updated.");
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to save preferences");
-    } finally {
-      setSavingPrefs(false);
-    }
-  }, [
-    displayName,
-    hapticsEnabled,
-    gigReminderEnabled,
-    rateReminderEnabled,
-    includeTributeActs,
-  ]);
-
-  const toggleHaptics = React.useCallback(async () => {
-    const next = !hapticsEnabled;
-    setHapticsEnabled(next);
-
-    try {
-      await AsyncStorage.setItem(HAPTICS_KEY, next ? "1" : "0");
-    } catch {}
-
-    if (next) {
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
-    }
-  }, [hapticsEnabled]);
-
   const toggleGigReminder = React.useCallback(async () => {
     const next = !gigReminderEnabled;
     setGigReminderEnabled(next);
@@ -331,13 +265,7 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
     try {
       await AsyncStorage.setItem(NOTIFY_GIG_REMINDER_KEY, next ? "1" : "0");
     } catch {}
-
-    if (hapticsEnabled) {
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
-    }
-  }, [gigReminderEnabled, hapticsEnabled]);
+  }, [gigReminderEnabled]);
 
   const toggleRateReminder = React.useCallback(async () => {
     const next = !rateReminderEnabled;
@@ -346,28 +274,7 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
     try {
       await AsyncStorage.setItem(NOTIFY_RATE_REMINDER_KEY, next ? "1" : "0");
     } catch {}
-
-    if (hapticsEnabled) {
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
-    }
-  }, [rateReminderEnabled, hapticsEnabled]);
-
-  const toggleIncludeTributeActs = React.useCallback(async () => {
-    const next = !includeTributeActs;
-    setIncludeTributeActs(next);
-
-    try {
-      await AsyncStorage.setItem(INCLUDE_TRIBUTE_ACTS_KEY, next ? "1" : "0");
-    } catch {}
-
-    if (hapticsEnabled) {
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
-    }
-  }, [includeTributeActs, hapticsEnabled]);
+  }, [rateReminderEnabled]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -418,13 +325,7 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
     try {
       await AsyncStorage.setItem(DISPLAY_NAME_KEY, next);
     } catch {}
-
-    if (hapticsEnabled) {
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
-    }
-  }, [draftDisplayName, hapticsEnabled]);
+  }, [draftDisplayName]);
 
   const handlePickPreset = React.useCallback(async (presetId: string) => {
     setAvatarPreset(presetId);
@@ -504,17 +405,13 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
 
   const handleLogout = React.useCallback(() => {
     Alert.alert("Log out", "Are you sure you want to log out?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
+      { text: "Cancel", style: "cancel" },
       {
         text: "Log out",
         style: "destructive",
         onPress: async () => {
           try {
             await supabase.auth.signOut();
-
             posthog.capture("logout_completed");
             posthog.reset();
           } catch (e: any) {
@@ -541,11 +438,7 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
         return;
       }
 
-      const csv = buildGigCsv({
-        gigs,
-        firstGigId,
-        favouriteGigId,
-      });
+      const csv = buildGigCsv({ gigs, firstGigId, favouriteGigId });
 
       const exportDate = formatDisplayDate(new Date());
       const safeDate = exportDate.replace(/\s+/g, "-");
@@ -600,6 +493,7 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
     setSharingProfile(true);
     try {
       const available = await Sharing.isAvailableAsync();
+
       if (!available) {
         Alert.alert("Unavailable", "Sharing is not available on this device.");
         return;
@@ -729,84 +623,42 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
           </View>
         ) : null}
 
-        <SectionTitle title="Preferences" />
+        <SectionTitle title="Notifications" />
         <View style={styles.card}>
-          <View style={{ gap: 10 }}>
-            <View style={styles.toggleGroup}>
-              <View style={styles.toggleRowNoBorder}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleTitle}>Haptics</Text>
-                  <Text style={styles.toggleSubtitle}>
-                    Vibrate on badge unlocks
-                  </Text>
-                </View>
-
-                <Switch
-                  value={hapticsEnabled}
-                  onValueChange={() => void toggleHaptics()}
-                  trackColor={SWITCH_TRACK_COLORS}
-                  thumbColor={hapticsEnabled ? "#2F8CFF" : "#FFFFFF"}
-                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
-                />
+          <View style={styles.toggleGroup}>
+            <View style={styles.toggleRowNoBorder}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleTitle}>Gig reminders</Text>
+                <Text style={styles.toggleSubtitle}>
+                  Get a reminder the day before
+                </Text>
               </View>
 
-              <View style={styles.toggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleTitle}>Gig reminders</Text>
-                  <Text style={styles.toggleSubtitle}>
-                    Get a reminder the day before gigs
-                  </Text>
-                </View>
-
-                <Switch
-                  value={gigReminderEnabled}
-                  onValueChange={() => void toggleGigReminder()}
-                  trackColor={SWITCH_TRACK_COLORS}
-                  thumbColor={gigReminderEnabled ? "#2F8CFF" : "#FFFFFF"}
-                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
-                />
-              </View>
-
-              <View style={styles.toggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleTitle}>Rate your gigs</Text>
-                  <Text style={styles.toggleSubtitle}>
-                    Get a reminder after to log your rating
-                  </Text>
-                </View>
-
-                <Switch
-                  value={rateReminderEnabled}
-                  onValueChange={() => void toggleRateReminder()}
-                  trackColor={SWITCH_TRACK_COLORS}
-                  thumbColor={rateReminderEnabled ? "#2F8CFF" : "#FFFFFF"}
-                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
-                />
-              </View>
-
-              <View style={styles.toggleRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleTitle}>Include tribute acts</Text>
-                  <Text style={styles.toggleSubtitle}>
-                    Show tribute bands in search results
-                  </Text>
-                </View>
-
-                <Switch
-                  value={includeTributeActs}
-                  onValueChange={() => void toggleIncludeTributeActs()}
-                  trackColor={SWITCH_TRACK_COLORS}
-                  thumbColor={includeTributeActs ? "#2F8CFF" : "#FFFFFF"}
-                  ios_backgroundColor={SWITCH_TRACK_COLORS.false}
-                />
-              </View>
+              <Switch
+                value={gigReminderEnabled}
+                onValueChange={() => void toggleGigReminder()}
+                trackColor={SWITCH_TRACK_COLORS}
+                thumbColor={Platform.OS === "android" ? "#FFFFFF" : undefined}
+                ios_backgroundColor={SWITCH_TRACK_COLORS.false}
+              />
             </View>
 
-            <PrimaryButton
-              title={savingPrefs ? "Saving…" : "Save preferences"}
-              onPress={savePrefs}
-              disabled={savingPrefs}
-            />
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleTitle}>Rate your gigs</Text>
+                <Text style={styles.toggleSubtitle}>
+                  Get reminded to rate gigs
+                </Text>
+              </View>
+
+              <Switch
+                value={rateReminderEnabled}
+                onValueChange={() => void toggleRateReminder()}
+                trackColor={SWITCH_TRACK_COLORS}
+                thumbColor={Platform.OS === "android" ? "#FFFFFF" : undefined}
+                ios_backgroundColor={SWITCH_TRACK_COLORS.false}
+              />
+            </View>
           </View>
         </View>
 
@@ -976,14 +828,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colours.background.app,
   },
-
   body: {
     paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 88,
     gap: 12,
   },
-
   profileHero: {
     flexDirection: "row",
     alignItems: "center",
@@ -992,12 +842,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginBottom: 10,
   },
-
   profileHeroText: {
     flex: 1,
     minWidth: 0,
   },
-
   avatar: {
     width: 76,
     height: 76,
@@ -1009,32 +857,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   avatarImage: {
     width: "100%",
     height: "100%",
   },
-
   avatarText: {
     color: Colours.text.primary,
     fontWeight: "800",
     fontSize: 24,
     lineHeight: 28,
   },
-
   nameWithShareRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-
   editNameButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     flexShrink: 1,
   },
-
   nameInput: {
     color: Colours.text.primary,
     fontWeight: "800",
@@ -1044,7 +887,6 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     paddingHorizontal: 0,
   },
-
   name: {
     color: Colours.text.primary,
     fontWeight: "900",
@@ -1053,7 +895,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.25,
     flexShrink: 1,
   },
-
   shareButton: {
     width: 30,
     height: 30,
@@ -1065,7 +906,6 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.08)",
     flexShrink: 0,
   },
-
   sectionTitle: {
     marginTop: 4,
     marginBottom: 4,
@@ -1074,7 +914,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 19,
   },
-
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 18,
@@ -1083,13 +922,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 16,
   },
-
   inlineRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-
   actionRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1098,18 +935,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colours.ui.divider ?? Colours.ui.border,
   },
-
   actionRowLast: {
     borderBottomWidth: 0,
   },
-
   actionTitle: {
     color: Colours.text.primary,
     fontWeight: "700",
     fontSize: 14,
     lineHeight: 18,
   },
-
   actionSubtitle: {
     marginTop: 3,
     color: Colours.text.muted,
@@ -1117,11 +951,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 17,
   },
-
   toggleGroup: {
     marginTop: 4,
+    marginBottom: 4,
   },
-
   toggleRow: {
     marginTop: 6,
     flexDirection: "row",
@@ -1131,21 +964,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.08)",
   },
-
   toggleRowNoBorder: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     paddingVertical: Platform.OS === "ios" ? 6 : 2,
   },
-
   toggleTitle: {
     color: Colours.text.primary,
     fontWeight: "700",
     fontSize: 14,
     lineHeight: 18,
   },
-
   toggleSubtitle: {
     marginTop: 4,
     color: Colours.text.muted,
@@ -1153,14 +983,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-
   muted: {
     color: Colours.text.muted,
     fontWeight: "500",
     fontSize: 13,
     lineHeight: 18,
   },
-
   socialLinksRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1168,20 +996,17 @@ const styles = StyleSheet.create({
     gap: 34,
     paddingVertical: 10,
   },
-
   socialIconLink: {
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
   },
-
   socialIconLabel: {
     color: Colours.text.muted,
     fontWeight: "700",
     fontSize: 13,
     lineHeight: 17,
   },
-
   versionText: {
     textAlign: "center",
     color: Colours.text.muted,
@@ -1191,14 +1016,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     marginTop: 6,
   },
-
   hiddenShareLayer: {
     position: "absolute",
     left: -9999,
     top: -9999,
     opacity: 0,
   },
-
   shareCard: {
     width: 1080,
     backgroundColor: "#0B0B0F",
@@ -1210,26 +1033,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
-
   shareCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-start",
     marginBottom: 58,
   },
-
   shareCardLogo: {
     width: 220,
     height: 72,
   },
-
   shareCardProfileRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 30,
     marginBottom: 58,
   },
-
   shareCardAvatar: {
     width: 132,
     height: 132,
@@ -1241,18 +1060,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   shareCardAvatarImage: {
     width: "100%",
     height: "100%",
   },
-
   shareCardAvatarText: {
     color: "#fff",
     fontWeight: "800",
     fontSize: 46,
   },
-
   shareCardName: {
     color: "#fff",
     fontSize: 50,
@@ -1260,7 +1076,6 @@ const styles = StyleSheet.create({
     lineHeight: 58,
     marginBottom: 10,
   },
-
   shareCardStatsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1273,17 +1088,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 38,
     marginBottom: 42,
   },
-
   shareCardStatSmall: {
     flex: 0.48,
     minWidth: 0,
   },
-
   shareCardStat: {
     flex: 1,
     minWidth: 0,
   },
-
   shareCardStatValue: {
     color: "#fff",
     fontSize: 42,
@@ -1291,23 +1103,21 @@ const styles = StyleSheet.create({
     lineHeight: 50,
     marginBottom: 8,
   },
-
   shareCardStatLabel: {
     color: "rgba(255,255,255,0.62)",
     fontSize: 23,
     fontWeight: "600",
   },
-
   shareCardDivider: {
     width: 1,
     alignSelf: "stretch",
     backgroundColor: "rgba(255,255,255,0.08)",
     marginHorizontal: 24,
   },
-
   shareCardFooter: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 24,
     fontWeight: "600",
   },
 });
+

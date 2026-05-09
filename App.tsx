@@ -11,10 +11,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
+import * as Notifications from "expo-notifications";
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import type { Session } from "@supabase/supabase-js";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "./src/lib/analytics";
+
 
 import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
@@ -22,6 +24,7 @@ import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
 import { apiGet } from "./src/lib/api";
 import { configureNotificationBehaviour } from "./src/lib/notifications";
 import { supabase } from "./src/lib/supabase";
+
 
 import { GigsScreen } from "./src/pages/GigsScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
@@ -32,13 +35,17 @@ import AboutPrivacyScreen from "./src/pages/AboutPrivacyScreen";
 import HelpScreen from "./src/pages/HelpScreen";
 import FeedbackScreen from "./src/pages/FeedbackScreen";
 
+
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
+
 
 type Tab = "gigs" | "discover" | "stats" | "profile";
 type ProfileRoute = "home" | "about" | "help" | "feedback";
 
+
 const HAPTICS_KEY = "wegig.hapticsEnabled";
+
 
 const TABS: Array<{
   key: Tab;
@@ -51,6 +58,7 @@ const TABS: Array<{
   { key: "profile", label: "Profile", icon: "person" },
 ];
 
+
 async function hapticsAllowed() {
   try {
     const value = await AsyncStorage.getItem(HAPTICS_KEY);
@@ -60,13 +68,16 @@ async function hapticsAllowed() {
   }
 }
 
+
 async function selectionHaptic() {
   if (!(await hapticsAllowed())) return;
+
 
   try {
     await Haptics.selectionAsync();
   } catch {}
 }
+
 
 function TabItem(props: {
   active: boolean;
@@ -78,9 +89,11 @@ function TabItem(props: {
     ? Colours.text.primary
     : "rgba(255,255,255,0.48)";
 
+
   const labelColor = props.active
     ? Colours.text.primary
     : "rgba(255,255,255,0.48)";
+
 
   return (
     <Pressable
@@ -103,11 +116,13 @@ function TabItem(props: {
   );
 }
 
+
 function AppShell() {
   const [tab, setTab] = React.useState<Tab>("gigs");
   const [profileRoute, setProfileRoute] = React.useState<ProfileRoute>("home");
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [gigsResetSignal, setGigsResetSignal] = React.useState(0);
+
 
   const [gigsScrollToTopSignal, setGigsScrollToTopSignal] = React.useState(0);
   const [discoverScrollToTopSignal, setDiscoverScrollToTopSignal] =
@@ -117,26 +132,36 @@ function AppShell() {
   const [profileScrollToTopSignal, setProfileScrollToTopSignal] =
     React.useState(0);
 
+
   const [prefill, setPrefill] = React.useState<Partial<CreateGigInput> | null>(
     null,
   );
   const [autoCreatePrefill, setAutoCreatePrefill] = React.useState(false);
+
+
+  const [openGigIdFromNotification, setOpenGigIdFromNotification] =
+    React.useState<string | null>(null);
+
 
   const [queuedCount, setQueuedCount] = React.useState(0);
   const [isOnline, setIsOnline] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
   const [justSynced, setJustSynced] = React.useState(false);
 
+
   const syncInFlightRef = React.useRef(false);
   const justSyncedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
+
   const goHome = React.useCallback(() => {
     setTab("gigs");
+    setProfileRoute("home");
     setGigsResetSignal((n) => n + 1);
     setGigsScrollToTopSignal((n) => n + 1);
   }, []);
+
 
   const refreshQueuedCount = React.useCallback(async () => {
     try {
@@ -144,6 +169,7 @@ function AppShell() {
       setQueuedCount(n);
     } catch {}
   }, []);
+
 
   const checkOnline = React.useCallback(async () => {
     try {
@@ -156,14 +182,17 @@ function AppShell() {
     }
   }, []);
 
+
   const runSync = React.useCallback(async () => {
     if (syncInFlightRef.current) return;
     syncInFlightRef.current = true;
+
 
     try {
       const online = await checkOnline();
       await refreshQueuedCount();
       if (!online) return;
+
 
       setSyncing(true);
       try {
@@ -172,16 +201,20 @@ function AppShell() {
         const after = await getQueuedGigsCount();
         setQueuedCount(after);
 
+
         if (before > 0 && after === 0) {
           setJustSynced(true);
+
 
           if (justSyncedTimeoutRef.current) {
             clearTimeout(justSyncedTimeoutRef.current);
           }
 
+
           justSyncedTimeoutRef.current = setTimeout(() => {
             setJustSynced(false);
           }, 1800);
+
 
           setRefreshKey((k) => k + 1);
         }
@@ -193,15 +226,19 @@ function AppShell() {
     }
   }, [checkOnline, refreshQueuedCount]);
 
+
   React.useEffect(() => {
     void runSync();
+
 
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") void runSync();
     });
 
+
     return () => {
       sub.remove();
+
 
       if (justSyncedTimeoutRef.current) {
         clearTimeout(justSyncedTimeoutRef.current);
@@ -209,29 +246,63 @@ function AppShell() {
     };
   }, [runSync]);
 
+
+  React.useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data as {
+          type?: string;
+          gigId?: string;
+        };
+
+
+        if (data.type === "rate_reminder" && data.gigId) {
+          setPrefill(null);
+          setAutoCreatePrefill(false);
+          setProfileRoute("home");
+          setTab("gigs");
+          setOpenGigIdFromNotification(data.gigId);
+          setRefreshKey((k) => k + 1);
+        }
+      },
+    );
+
+
+    return () => {
+      sub.remove();
+    };
+  }, []);
+
+
   const pressTab = React.useCallback(
     async (next: Tab) => {
       const isSameTab = next === tab;
 
+
       await selectionHaptic();
+
 
       if (isSameTab) {
         if (next === "gigs") {
           setPrefill(null);
           setAutoCreatePrefill(false);
+          setOpenGigIdFromNotification(null);
           setGigsResetSignal((n) => n + 1);
           setGigsScrollToTopSignal((n) => n + 1);
         }
 
+
         if (next === "discover") {
           setDiscoverScrollToTopSignal((n) => n + 1);
         }
+
 
         if (next === "stats") {
           posthog.capture("stats_viewed");
           void posthog.flush();
           setStatsScrollToTopSignal((n) => n + 1);
         }
+
 
         if (next === "profile") {
           posthog.capture("profile_viewed");
@@ -240,24 +311,32 @@ function AppShell() {
           setProfileScrollToTopSignal((n) => n + 1);
         }
 
+
         return;
       }
+
 
       if (next === "stats") {
         posthog.capture("stats_viewed");
         void posthog.flush();
       }
 
+
       if (next === "profile") {
         posthog.capture("profile_viewed");
         void posthog.flush();
       }
 
+
       if (next !== "profile") setProfileRoute("home");
+      if (next !== "gigs") setOpenGigIdFromNotification(null);
+
+
       setTab(next);
     },
     [tab],
   );
+
 
   return (
     <View style={styles.app}>
@@ -268,6 +347,7 @@ function AppShell() {
         justSynced={justSynced}
       />
 
+
       <View style={styles.content}>
         {tab === "gigs" ? (
           <GigsScreen
@@ -277,6 +357,10 @@ function AppShell() {
             scrollToTopSignal={gigsScrollToTopSignal}
             prefill={prefill}
             autoCreatePrefill={autoCreatePrefill}
+            openGigIdFromNotification={openGigIdFromNotification}
+            onNotificationGigOpened={() => {
+              setOpenGigIdFromNotification(null);
+            }}
             onPrefillUsed={() => {
               setPrefill(null);
               setAutoCreatePrefill(false);
@@ -285,8 +369,10 @@ function AppShell() {
               posthog.capture("gig_created");
               void posthog.flush();
 
+
               setPrefill(null);
               setAutoCreatePrefill(false);
+              setOpenGigIdFromNotification(null);
               setRefreshKey((k) => k + 1);
               void runSync();
             }}
@@ -296,6 +382,7 @@ function AppShell() {
             onPressLogo={goHome}
             scrollToTopSignal={discoverScrollToTopSignal}
             onAddToGigs={(draft) => {
+              setOpenGigIdFromNotification(null);
               setPrefill(draft);
               setAutoCreatePrefill(true);
               setTab("gigs");
@@ -316,11 +403,15 @@ function AppShell() {
         ) : (
           <ProfileScreen
             onPressLogo={goHome}
-            onGoToGigs={() => setTab("gigs")}
+            onGoToGigs={() => {
+              setProfileRoute("home");
+              setTab("gigs");
+            }}
             scrollToTopSignal={profileScrollToTopSignal}
           />
         )}
       </View>
+
 
       <View pointerEvents="box-none" style={styles.tabWrap}>
         <BlurView intensity={60} tint="dark" style={styles.tabBar}>
@@ -341,12 +432,15 @@ function AppShell() {
   );
 }
 
+
 export default function App() {
   const [session, setSession] = React.useState<Session | null>(null);
   const [authLoading, setAuthLoading] = React.useState(true);
 
+
   React.useEffect(() => {
     configureNotificationBehaviour();
+
 
     void Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
@@ -357,14 +451,18 @@ export default function App() {
       playThroughEarpieceAndroid: false,
     });
 
+
     let mounted = true;
+
 
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
 
+
       const nextSession = data.session ?? null;
       setSession(nextSession);
       setAuthLoading(false);
+
 
       if (nextSession?.user) {
         posthog.identify(nextSession.user.id, {
@@ -373,11 +471,13 @@ export default function App() {
       }
     });
 
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession ?? null);
       setAuthLoading(false);
+
 
       if (nextSession?.user) {
         posthog.identify(nextSession.user.id, {
@@ -388,11 +488,13 @@ export default function App() {
       }
     });
 
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
   }, []);
+
 
   if (authLoading) {
     return (
@@ -402,6 +504,7 @@ export default function App() {
     );
   }
 
+
   if (!session) {
     return (
       <PostHogProvider client={posthog} autocapture={false}>
@@ -409,6 +512,7 @@ export default function App() {
       </PostHogProvider>
     );
   }
+
 
   return (
     <PostHogProvider client={posthog} autocapture={false}>
@@ -419,15 +523,18 @@ export default function App() {
   );
 }
 
+
 const styles = StyleSheet.create({
   app: {
     flex: 1,
     backgroundColor: Colours.background.app,
   },
 
+
   content: {
     flex: 1,
   },
+
 
   tabWrap: {
     position: "absolute",
@@ -435,6 +542,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+
 
   tabBar: {
     backgroundColor:
@@ -448,11 +556,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
 
+
   tabRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
+
 
   tabItem: {
     flex: 1,
@@ -462,11 +572,13 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
 
+
   tabLabel: {
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.15,
   },
+
 
   loadingWrap: {
     flex: 1,
@@ -475,8 +587,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
+
   loadingText: {
     color: Colours.text.primary,
     fontWeight: "700",
   },
 });
+
+
+

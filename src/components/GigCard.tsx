@@ -11,6 +11,7 @@ import {
   Image,
   Animated,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { Colours } from "../theme/colours";
@@ -167,10 +168,26 @@ export function GigCard({
   const hasNotes = noteText.length > 0;
   const imageUrl = getGigImageUrl(gig);
 
+const HAPTICS_KEY = "wegig.hapticsEnabled";
+
+async function hapticsAllowed() {
+ try {
+   const value = await AsyncStorage.getItem(HAPTICS_KEY);
+   return value == null || value === "1";
+ } catch {
+   return true;
+ }
+}
+
+async function selectionHaptic() {
+ if (!(await hapticsAllowed())) return;
+
+ await selectionHaptic();
+}
+
+
   const handlePress = async () => {
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
+   await selectionHaptic();
     onPress?.();
   };
 
@@ -181,9 +198,7 @@ export function GigCard({
       e?.stopPropagation?.();
     } catch {}
 
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
+    await selectionHaptic();
 
     onPressArtist(gig.artist);
   };
@@ -193,9 +208,7 @@ export function GigCard({
       e?.stopPropagation?.();
     } catch {}
 
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
+    await selectionHaptic();
 
     setNotesOpen(true);
   };
@@ -265,9 +278,7 @@ export function GigCard({
       e?.stopPropagation?.();
     } catch {}
 
-    try {
-      await Haptics.selectionAsync();
-    } catch {}
+    await selectionHaptic();
 
     if (setlistMatch?.matched && setlistMatch.setlist) {
       setSetlistOpen(true);

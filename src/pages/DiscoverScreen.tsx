@@ -4,7 +4,6 @@ import {
   Text,
   View,
   ActivityIndicator,
-  Image,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
@@ -16,47 +15,41 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
-import { avatarPresets } from "../config/avatarPresets";
 import { TextField } from "../components/TextField";
 import { apiGet } from "../lib/api";
+import {
+  searchFutureEvents,
+  type AppEvent,
+  getEventArtistName,
+  getEventDate,
+} from "../lib/events";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput } from "../shared/types/Gig";
 
 const DISCOVER_CITY_KEY = "wegig.discoverCity";
-const INCLUDE_TRIBUTE_ACTS_KEY = "wegig.includeTributeActs";
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
-type TicketmasterEvent = {
+type DiscoverEvent = AppEvent & {
   id?: string;
-  source?: string;
-  sourceEventId?: string;
   name?: string;
-  title?: string;
   url?: string;
-  ticketUrl?: string;
-  date?: string;
-  dateTime?: string;
-  venueName?: string;
-  city?: string;
-  dates?: {
-    start?: {
-      localDate?: string;
-    };
-  };
   _embedded?: {
     venues?: Array<{
       name?: string;
       city?: { name?: string };
     }>;
-  };
-};
-
-type TicketmasterResponse = {
-  events?: TicketmasterEvent[];
-  _embedded?: {
-    events?: TicketmasterEvent[];
+    attractions?: Array<{
+      name?: string;
+      type?: string;
+      subType?: string;
+      classifications?: Array<{
+        segment?: { name?: string };
+        genre?: { name?: string };
+        subGenre?: { name?: string };
+      }>;
+    }>;
   };
 };
 
@@ -79,53 +72,11 @@ const UI_COPY = {
   emptySearch: "No gigs found. Try another artist, band or city.",
 };
 
-function isTributeEvent(event: TicketmasterEvent) {
- const venue = pickVenue(event);
-
- const text = [
-   event.name,
-   event.title,
-   event.venueName,
-   venue.venue,
-   venue.city,
- ]
-   .filter(Boolean)
-   .join(" ")
-   .toLowerCase();
-
- return [
-   "tribute",
-   "tributes",
-   "tribute to",
-   "a tribute",
-   "the tribute",
-   "tribute band",
-   "tribute act",
-   "experience",
-   "uk tribute",
-   "live tribute",
- ].some((term) => text.includes(term));
-}
-
-function filterTributeEvents(
-  events: TicketmasterEvent[],
-  includeTributeActs: boolean,
-) {
-  if (includeTributeActs) return events;
-  return events.filter((event) => !isTributeEvent(event));
-}
-
-function getEventKey(item: TicketmasterEvent, index: number) {
-  return `${item.source ?? "event"}-${
-    item.sourceEventId ?? item.id ?? item.title ?? item.name ?? index
-  }`;
-}
-
-function getEventName(item: TicketmasterEvent) {
+function getEventName(item: DiscoverEvent) {
   return item.title ?? item.name ?? "Untitled event";
 }
 
-function pickVenue(e: TicketmasterEvent) {
+function pickVenue(e: DiscoverEvent) {
   const v = e._embedded?.venues?.[0];
 
   return {
@@ -134,80 +85,132 @@ function pickVenue(e: TicketmasterEvent) {
   };
 }
 
-type SocialAvatarKey = "guitar" | "drums" | "mic" | "piano" | "vinyl";
-
-const AVATAR_IMAGES: Record<SocialAvatarKey, any> = {
-  guitar: avatarPresets.find((p) => p.id === "guitar")?.image,
-  drums: avatarPresets.find((p) => p.id === "drums")?.image,
-  mic: avatarPresets.find((p) => p.id === "mic")?.image,
-  piano: avatarPresets.find((p) => p.id === "piano")?.image,
-  vinyl: avatarPresets.find((p) => p.id === "vinyl")?.image,
-};
-
-function getDiscoverySignal(seed: string) {
-  const options: Array<{
-    avatars: SocialAvatarKey[];
-    text: string;
-    extraCount?: number;
-  }> = [
-    {
-      avatars: ["guitar", "mic", "vinyl"],
-      text: "Worth a look for local gig discovery",
-      extraCount: 12,
-    },
-    {
-      avatars: ["drums", "guitar", "mic"],
-      text: "Live music pick in your area",
-      extraCount: 8,
-    },
-    {
-      avatars: ["vinyl", "piano", "mic"],
-      text: "One to watch on the scene",
-      extraCount: 5,
-    },
-    {
-      avatars: ["guitar", "drums"],
-      text: "Strong local discovery pick",
-      extraCount: 14,
-    },
-    {
-      avatars: ["piano", "vinyl"],
-      text: "Good fit for a night out",
-      extraCount: 6,
-    },
-  ];
-
-  const hash = seed
-    .split("")
-    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
-
-  return options[hash % options.length];
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function AvatarStack(props: {
-  avatars: SocialAvatarKey[];
-  extraCount?: number;
-}) {
-  return (
-    <View style={styles.socialRow}>
-      <View style={styles.avatarStack}>
-        {props.avatars.map((key, index) => (
-          <Image
-            key={`${key}-${index}`}
-            source={AVATAR_IMAGES[key]}
-            style={[
-              styles.socialAvatar,
-              index > 0 ? { marginLeft: -10 } : null,
-            ]}
-          />
-        ))}
-      </View>
+function isTributeEvent(event: DiscoverEvent) {
+  const venue = pickVenue(event);
 
-      {props.extraCount ? (
-        <Text style={styles.socialExtra}>+{props.extraCount}</Text>
-      ) : null}
-    </View>
+  const attractionText =
+    event._embedded?.attractions
+      ?.map((a) => {
+        const classifications =
+          a.classifications
+            ?.map((c) =>
+              [c.segment?.name, c.genre?.name, c.subGenre?.name]
+                .filter(Boolean)
+                .join(" "),
+            )
+            .join(" ") ?? "";
+
+        return [a.name, a.type, a.subType, classifications]
+          .filter(Boolean)
+          .join(" ");
+      })
+      .join(" ") ?? "";
+
+  const text = normalizeSearchText(
+    [
+      event.name,
+      event.title,
+      event.venueName,
+      venue.venue,
+      venue.city,
+      attractionText,
+    ]
+      .filter(Boolean)
+      .join(" "),
   );
+
+  const tributeTerms = [
+    "tribute",
+    "tributes",
+    "tribute to",
+    "tribute band",
+    "tribute act",
+    "live tribute",
+    "uk tribute",
+    "celebration of",
+    "celebrating",
+    "the music of",
+    "music of",
+    "songs of",
+    "performed by",
+    "performed live by",
+    "presents",
+    "reimagined",
+    "orchestra performs",
+    "by candlelight",
+    "experience",
+    "legacy",
+    "story of",
+    "the story of",
+    "a night of",
+    "an evening of",
+    "homage",
+  ].map(normalizeSearchText);
+
+  const knownTributeActs = [
+    "definitely oasis",
+    "noasis",
+    "oasish",
+    "the smyths",
+    "wrong jovi",
+    "uk foo fighters",
+    "forever queen",
+    "queen extravaganza",
+    "killer queen",
+    "abba mania",
+    "abba reunion",
+    "abba stars",
+    "abba forever",
+    "bootleg beatles",
+    "the counterfactuals",
+    "fleetwood bac",
+    "rumours of fleetwood mac",
+    "the total stone roses",
+    "the clone roses",
+    "kazabian",
+    "the fillas",
+    "scam fender",
+    "the phonics",
+    "stereotonics",
+    "the bon jovi experience",
+    "ultimate coldplay",
+    "coldplace",
+    "guns 2 roses",
+    "green date",
+    "nearly dan",
+    "t rexstasy",
+    "the rolling clones",
+    "the doors alive",
+    "the elvis years",
+  ].map(normalizeSearchText);
+
+  return [...tributeTerms, ...knownTributeActs].some((term) =>
+    text.includes(term),
+  );
+}
+
+function filterTributeEvents(
+  events: DiscoverEvent[],
+  includeTributeActs: boolean,
+) {
+  if (includeTributeActs) return events;
+  return events.filter((event) => !isTributeEvent(event));
+}
+
+function getEventKey(item: DiscoverEvent, index: number) {
+  return `${item.source ?? "event"}-${
+    item.sourceEventId ?? item.id ?? item.title ?? item.name ?? index
+  }`;
 }
 
 function SectionTitle(props: { title: string; subtitle?: string }) {
@@ -223,17 +226,22 @@ function SectionTitle(props: { title: string; subtitle?: string }) {
 }
 
 function EventCard(props: {
-  item: TicketmasterEvent;
+  item: DiscoverEvent;
   cityFallback: string;
+  selectedArtistName?: string;
   artistMbid?: string;
   onAddToGigs: (draft: Partial<CreateGigInput>) => void;
 }) {
   const eventName = getEventName(props.item);
-  const date = props.item.date ?? props.item.dates?.start?.localDate ?? "";
+  const date = getEventDate(props.item);
   const v = pickVenue(props.item);
-  const discovery = getDiscoverySignal(
-    `${props.item.source ?? ""}-${props.item.sourceEventId ?? props.item.id ?? ""}-${eventName}`,
-  );
+
+  const artistName =
+    props.selectedArtistName?.trim() ||
+    getEventArtistName(props.item) ||
+    eventName;
+
+  const city = v.city && v.city !== "Unknown city" ? v.city : props.cityFallback;
 
   return (
     <View style={styles.resultCard}>
@@ -245,7 +253,7 @@ function EventCard(props: {
         <View style={styles.resultTitleWrap}>
           <Text style={styles.resultTitle}>{eventName}</Text>
           <Text style={styles.resultMeta}>
-            {v.venue} • {v.city}
+            {v.venue} • {city || "Unknown city"}
           </Text>
         </View>
       </View>
@@ -261,17 +269,18 @@ function EventCard(props: {
         </View>
       ) : null}
 
-
       <Pressable
         onPress={() => {
+          Keyboard.dismiss();
+
           props.onAddToGigs({
-            artist: eventName,
+            artist: artistName,
             artistMbid: props.artistMbid,
             venue: v.venue,
-            city: v.city || props.cityFallback,
+            city: city || "Unknown city",
             date: date || new Date().toISOString().slice(0, 10),
-            externalSource: props.item.source ?? "Ticketmaster",
-            externalId: props.item.sourceEventId ?? props.item.id,
+            externalSource: props.item.source,
+            externalId: props.item.sourceEventId,
             ticketUrl: props.item.ticketUrl ?? props.item.url,
           });
         }}
@@ -280,7 +289,7 @@ function EventCard(props: {
           pressed ? styles.addBtnPressed : null,
         ]}
       >
-                <Text style={styles.addBtnText}>Add gig</Text>
+        <Text style={styles.addBtnText}>Add gig</Text>
       </Pressable>
     </View>
   );
@@ -292,14 +301,18 @@ export function DiscoverScreen(props: {
   scrollToTopSignal?: number;
 }) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
-const scrollRef = React.useRef<ScrollView>(null);
-const suppressNextArtistSearchRef = React.useRef(false);
+  const scrollRef = React.useRef<ScrollView>(null);
+  const suppressNextArtistSearchRef = React.useRef(false);
 
   const [cityInput, setCityInput] = React.useState("");
   const [query, setQuery] = React.useState("");
-  const [includeTributeActs, setIncludeTributeActs] = React.useState(false);
+  const includeTributeActs = false;
 
   const [artistMbid, setArtistMbid] = React.useState<string | undefined>();
+  const [selectedArtistName, setSelectedArtistName] = React.useState<
+    string | undefined
+  >();
+
   const [mbLoading, setMbLoading] = React.useState(false);
   const [mbResults, setMbResults] = React.useState<MbArtist[]>([]);
   const [mbError, setMbError] = React.useState("");
@@ -307,9 +320,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
 
   const [searchLoading, setSearchLoading] = React.useState(false);
   const [searchError, setSearchError] = React.useState("");
-  const [searchEvents, setSearchEvents] = React.useState<TicketmasterEvent[]>(
-    [],
-  );
+  const [searchEvents, setSearchEvents] = React.useState<DiscoverEvent[]>([]);
 
   const activeCity = cityInput.trim();
   const trimmedQuery = query.trim();
@@ -318,17 +329,12 @@ const suppressNextArtistSearchRef = React.useRef(false);
 
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [savedCity, includeTributes] = await Promise.all([
+      const [savedCity] = await Promise.all([
         AsyncStorage.getItem(DISCOVER_CITY_KEY),
-        AsyncStorage.getItem(INCLUDE_TRIBUTE_ACTS_KEY),
       ]);
 
       if (savedCity?.trim()) {
         setCityInput(savedCity.trim());
-      }
-
-      if (includeTributes != null) {
-        setIncludeTributeActs(includeTributes === "1");
       }
     } catch {}
   }, []);
@@ -393,19 +399,29 @@ const suppressNextArtistSearchRef = React.useRef(false);
       setMbLoading(false);
     }
   }, []);
-
- const chooseArtist = (artist: MbArtist) => {
- suppressNextArtistSearchRef.current = true;
- setQuery(artist.name);
- setArtistMbid(artist.id);
- setMbOpen(false);
- setMbResults([]);
- setMbError("");
- Keyboard.dismiss();
-};
+      const chooseArtist = (artist: MbArtist) => {
+    suppressNextArtistSearchRef.current = true;
+    setQuery(artist.name);
+    setSelectedArtistName(artist.name);
+    setArtistMbid(artist.id);
+    setMbOpen(false);
+    setMbResults([]);
+    setMbError("");
+    setMbLoading(false);
+    Keyboard.dismiss();
+  };
 
   React.useEffect(() => {
+    if (suppressNextArtistSearchRef.current) {
+      suppressNextArtistSearchRef.current = false;
+      setMbOpen(false);
+      setMbResults([]);
+      setMbLoading(false);
+      return;
+    }
+
     setArtistMbid(undefined);
+    setSelectedArtistName(undefined);
 
     const q = query.trim();
 
@@ -423,7 +439,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
     return () => clearTimeout(t);
   }, [query, runMbSearch]);
 
-  const searchArtists = React.useCallback(async () => {
+  const searchEventsForQuery = React.useCallback(async () => {
     if (trimmedQuery.length < 2 && activeCity.length < 2) {
       setSearchEvents([]);
       setSearchError("");
@@ -434,23 +450,11 @@ const suppressNextArtistSearchRef = React.useRef(false);
     setSearchError("");
 
     try {
-      const qs = new URLSearchParams();
-
-      if (trimmedQuery.length >= 2) {
-        qs.set("keyword", trimmedQuery);
-      }
-
-      if (activeCity.length >= 2) {
-        qs.set("city", activeCity);
-      }
-
-      qs.set("size", "20");
-
-      const res = await apiGet<TicketmasterResponse>(
-        `/discover/events?${qs.toString()}`,
-      );
-
-      const rawEvents = res.events ?? res._embedded?.events ?? [];
+      const rawEvents = (await searchFutureEvents({
+        q: trimmedQuery.length >= 2 ? trimmedQuery : activeCity,
+        city: activeCity.length >= 2 ? activeCity : undefined,
+        size: 20,
+      })) as DiscoverEvent[];
 
       const cityFilteredEvents =
         activeCity.length >= 2
@@ -469,7 +473,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
           : rawEvents;
 
       const events = filterTributeEvents(
-        cityFilteredEvents,
+        cityFilteredEvents as DiscoverEvent[],
         includeTributeActs,
       );
 
@@ -490,11 +494,11 @@ const suppressNextArtistSearchRef = React.useRef(false);
     }
 
     const t = setTimeout(() => {
-      void searchArtists();
+      void searchEventsForQuery();
     }, 350);
 
     return () => clearTimeout(t);
-  }, [trimmedQuery, activeCity, searchArtists]);
+  }, [trimmedQuery, activeCity, searchEventsForQuery]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -519,8 +523,6 @@ const suppressNextArtistSearchRef = React.useRef(false);
           scrollEventThrottle={16}
         >
           <View style={styles.heroWrap}>
-          
-
             <View style={styles.titleRow}>
               <View>
                 <Text style={styles.screenTitle}>Discover</Text>
@@ -539,11 +541,11 @@ const suppressNextArtistSearchRef = React.useRef(false);
                 label="Artist or band"
                 value={query}
                 onChangeText={(text) => {
- setQuery(text);
- setArtistMbid(undefined);
- setMbOpen(true);
-}}
-
+                  setQuery(text);
+                  setSelectedArtistName(undefined);
+                  setArtistMbid(undefined);
+                  setMbOpen(true);
+                }}
                 placeholder=""
                 autoCapitalize="none"
               />
@@ -573,7 +575,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
                           pressed ? styles.rowPressed : null,
                         ]}
                       >
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.flex}>
                           <Text style={styles.suggestTitle}>{artist.name}</Text>
                           {meta ? (
                             <Text style={styles.suggestMeta}>{meta}</Text>
@@ -645,6 +647,7 @@ const suppressNextArtistSearchRef = React.useRef(false);
                       <EventCard
                         item={item}
                         cityFallback={activeCity}
+                        selectedArtistName={selectedArtistName ?? trimmedQuery}
                         artistMbid={artistMbid}
                         onAddToGigs={props.onAddToGigs}
                       />
@@ -665,16 +668,16 @@ const suppressNextArtistSearchRef = React.useRef(false);
             </View>
           ) : (
             <View style={styles.emptyPlain}>
-  <Ionicons
-    name="ticket-outline"
-    size={24}
-    color={Colours.text.muted}
-  />
-  <Text style={styles.emptyTitle}>Start with a search</Text>
-  <Text style={styles.emptyHint}>
-    Search by artist or city to find upcoming gigs.
-  </Text>
-</View>
+              <Ionicons
+                name="ticket-outline"
+                size={24}
+                color={Colours.text.muted}
+              />
+              <Text style={styles.emptyTitle}>Start with a search</Text>
+              <Text style={styles.emptyHint}>
+                Search by artist or city to find upcoming gigs.
+              </Text>
+            </View>
           )}
 
           <View style={{ height: 24 }} />
@@ -689,35 +692,23 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colours.background.app,
   },
-
+  flex: {
+    flex: 1,
+  },
   keyboardWrap: {
     flex: 1,
   },
-
   list: {
     flex: 1,
   },
-
   content: {
     paddingHorizontal: 20,
     paddingTop: 10,
     paddingBottom: 180,
   },
-
   heroWrap: {
     marginBottom: 22,
   },
-
-  heroGlow: {
-    position: "absolute",
-    top: -30,
-    right: -40,
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: "rgba(47,140,255,0.12)",
-  },
-
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -725,7 +716,6 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 18,
   },
-
   screenTitle: {
     color: Colours.text.primary,
     fontSize: 22,
@@ -733,7 +723,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -0.4,
   },
-
   screenSubtitle: {
     color: Colours.text.muted,
     marginTop: 4,
@@ -741,7 +730,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "700",
   },
-
   headerIcon: {
     width: 44,
     height: 44,
@@ -752,7 +740,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(126,182,255,0.16)",
   },
-
   searchPanel: {
     borderRadius: 22,
     backgroundColor: "rgba(255,255,255,0.045)",
@@ -765,55 +752,47 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
   },
-
   tipRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 7,
     marginTop: -2,
   },
-
   tipText: {
     color: Colours.text.muted,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "700",
   },
-
   loadingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginTop: 2,
   },
-
   loadingText: {
     color: Colours.text.muted,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "800",
   },
-
   errorText: {
     color: Colours.text.danger,
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "800",
   },
-
   matchedText: {
     color: "#2EE59D",
     fontWeight: "800",
     fontSize: 13,
     lineHeight: 18,
   },
-
   suggestCard: {
     backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 14,
     overflow: "hidden",
   },
-
   suggestRow: {
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -823,18 +802,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-
   rowPressed: {
     opacity: 0.9,
   },
-
   suggestTitle: {
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 14,
     lineHeight: 18,
   },
-
   suggestMeta: {
     marginTop: 2,
     color: Colours.text.muted,
@@ -842,15 +818,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-
   sectionBlock: {
     marginTop: 20,
   },
-
   sectionTitleWrap: {
     marginBottom: 10,
   },
-
   sectionTitle: {
     color: Colours.text.primary,
     fontSize: 17,
@@ -858,7 +831,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -0.2,
   },
-
   sectionSubtitle: {
     marginTop: 4,
     color: Colours.text.muted,
@@ -866,15 +838,12 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: "700",
   },
-
   cardList: {
     gap: 12,
   },
-
   cardWrap: {
     width: "100%",
   },
-
   resultCard: {
     backgroundColor: "rgba(255,255,255,0.045)",
     borderRadius: 20,
@@ -886,13 +855,11 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
   },
-
   resultTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 11,
   },
-
   resultIcon: {
     width: 34,
     height: 34,
@@ -901,11 +868,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
   resultTitleWrap: {
     flex: 1,
   },
-
   resultTitle: {
     color: Colours.text.primary,
     fontSize: 17,
@@ -913,7 +878,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -0.15,
   },
-
   resultMeta: {
     color: Colours.text.muted,
     marginTop: 5,
@@ -921,7 +885,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "800",
   },
-
   datePill: {
     marginTop: 12,
     alignSelf: "flex-start",
@@ -933,56 +896,12 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     backgroundColor: "rgba(255,255,255,0.055)",
   },
-
   resultDate: {
     color: Colours.text.muted,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "800",
   },
-
-  socialBlock: {
-    marginTop: 13,
-    paddingTop: 13,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.08)",
-  },
-
-  socialRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  avatarStack: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  socialAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: Colours.background.app,
-    backgroundColor: Colours.background.card,
-  },
-
-  socialExtra: {
-    marginLeft: 8,
-    color: Colours.text.muted,
-    fontWeight: "800",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  socialText: {
-    marginTop: 8,
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
   addBtn: {
     marginTop: 14,
     height: 42,
@@ -999,18 +918,15 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 6 },
   },
-
   addBtnPressed: {
     opacity: 0.9,
     transform: [{ scale: 0.98 }],
   },
-
   addBtnText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "800",
   },
-
   emptyCard: {
     marginTop: 20,
     borderRadius: 20,
@@ -1021,22 +937,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-
   emptyPlain: {
-  marginTop: 20,
-  paddingHorizontal: 18,
-  paddingVertical: 18,
-  alignItems: "center",
-  gap: 8,
-},
-
+    marginTop: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    alignItems: "center",
+    gap: 8,
+  },
   emptyTitle: {
     color: Colours.text.primary,
     fontSize: 15,
     lineHeight: 20,
     fontWeight: "900",
   },
-
   emptyHint: {
     color: Colours.text.muted,
     fontSize: 13,
@@ -1045,4 +958,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-

@@ -14,6 +14,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
+
 import { setCachedGigs } from "../lib/gigsCache";
 import { apiGet, apiPost, ApiError } from "../lib/api";
 import { syncGigReminderNotifications } from "../lib/notifications";
@@ -21,17 +22,22 @@ import type { Gig, GigsResponse, CreateGigInput } from "../shared/types/Gig";
 import { parseYmdToUtcDate } from "../lib/date";
 import { useToast } from "../components/ToastProvider";
 
+
 import { AddGigScreen } from "./AddGigScreen";
 import { EditGigScreen } from "./EditGigScreen";
 import { ArtistScreen } from "./ArtistScreen";
 import { ConfirmGigScreen } from "./ConfirmGigScreen";
+
 
 import { PrimaryButton } from "../components/PrimaryButton";
 import { GigCard } from "../components/GigCard";
 import { AppHeader } from "../components/AppHeader";
 import { Colours } from "../theme/colours";
 
+
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
+const HAPTICS_KEY = "wegig.hapticsEnabled";
+
 
 type SpotifyArtistPageResponse = {
   artist: {
@@ -39,9 +45,11 @@ type SpotifyArtistPageResponse = {
   } | null;
 };
 
+
 type PastGigListItem =
   | { type: "year"; year: string; count: number }
   | { type: "gig"; year: string; gig: Gig };
+
 
 type UnlockableBadge = {
   title: string;
@@ -49,7 +57,6 @@ type UnlockableBadge = {
   unlocked: boolean;
 };
 
-const HAPTICS_KEY = "wegig.hapticsEnabled";
 
 async function hapticsAllowed() {
   try {
@@ -60,19 +67,23 @@ async function hapticsAllowed() {
   }
 }
 
+
 const AnimatedFlatList =
   Animated.createAnimatedComponent(FlatList<PastGigListItem>);
+
 
 function getGigYear(gig: Gig) {
   const d = parseYmdToUtcDate(gig.date);
   return d ? String(d.getUTCFullYear()) : "Unknown";
 }
 
+
 function splitGigs(gigs: Gig[]) {
   const today = new Date();
   const todayUtc = new Date(
     Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
   );
+
 
   const comingUpGigs = gigs
     .filter((gig) => {
@@ -85,6 +96,7 @@ function splitGigs(gigs: Gig[]) {
       return ad - bd;
     });
 
+
   const pastGigs = gigs
     .filter((gig) => {
       const d = parseYmdToUtcDate(gig.date);
@@ -96,8 +108,10 @@ function splitGigs(gigs: Gig[]) {
       return bd - ad;
     });
 
+
   return { comingUpGigs, pastGigs };
 }
+
 
 function buildPastGigItems(
   pastGigs: Gig[],
@@ -110,14 +124,17 @@ function buildPastGigItems(
     return acc;
   }, {});
 
+
   const years = Object.keys(grouped).sort((a, b) => {
     if (a === "Unknown") return 1;
     if (b === "Unknown") return -1;
     return Number(b) - Number(a);
   });
 
+
   return years.flatMap((year): PastGigListItem[] => {
     const gigs = grouped[year];
+
 
     const header: PastGigListItem = {
       type: "year",
@@ -125,7 +142,9 @@ function buildPastGigItems(
       count: gigs.length,
     };
 
+
     if (collapsed[year]) return [header];
+
 
     const gigItems: PastGigListItem[] = gigs.map((gig) => ({
       type: "gig" as const,
@@ -133,16 +152,20 @@ function buildPastGigItems(
       gig,
     }));
 
+
     return [header, ...gigItems];
   });
 }
 
+
 function buildUnlockableBadges(gigs: Gig[]): UnlockableBadge[] {
   const total = gigs.length;
+
 
   const rated = gigs.filter((g) => typeof g.rating === "number") as Array<
     Gig & { rating: number }
   >;
+
 
   const byCity = gigs.reduce<Record<string, number>>((acc, g) => {
     const key = (g.city ?? "").trim() || "Unknown";
@@ -150,11 +173,13 @@ function buildUnlockableBadges(gigs: Gig[]): UnlockableBadge[] {
     return acc;
   }, {});
 
+
   const byVenue = gigs.reduce<Record<string, number>>((acc, g) => {
     const key = (g.venue ?? "").trim() || "Unknown";
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, {});
+
 
   const byArtist = gigs.reduce<Record<string, number>>((acc, g) => {
     const key = (g.artist ?? "").trim() || "Unknown";
@@ -162,11 +187,13 @@ function buildUnlockableBadges(gigs: Gig[]): UnlockableBadge[] {
     return acc;
   }, {});
 
+
   const cityCount = Object.keys(byCity).length;
   const venueCount = Object.keys(byVenue).length;
   const topArtistCount =
     Object.entries(byArtist).sort((a, b) => b[1] - a[1])[0]?.[1] ?? 0;
   const hasFiveStarGig = gigs.some((g) => g.rating === 5);
+
 
   return [
     {
@@ -222,21 +249,26 @@ function buildUnlockableBadges(gigs: Gig[]): UnlockableBadge[] {
   ];
 }
 
+
 function getNewlyUnlockedBadge(previousGigs: Gig[], nextGigs: Gig[]) {
   const previousBadges = buildUnlockableBadges(previousGigs);
   const nextBadges = buildUnlockableBadges(nextGigs);
 
+
   const previousUnlocked = new Set(
     previousBadges.filter((badge) => badge.unlocked).map((badge) => badge.title),
   );
+
 
   return nextBadges.find(
     (badge) => badge.unlocked && !previousUnlocked.has(badge.title),
   );
 }
 
+
 async function triggerGigSavedFeedback(hasUnlockedBadge: boolean) {
   if (!(await hapticsAllowed())) return;
+
 
   try {
     if (hasUnlockedBadge) {
@@ -244,9 +276,11 @@ async function triggerGigSavedFeedback(hasUnlockedBadge: boolean) {
       return;
     }
 
+
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   } catch {}
 }
+
 
 function TicketStub({ count }: { count: number }) {
   return (
@@ -258,6 +292,7 @@ function TicketStub({ count }: { count: number }) {
   );
 }
 
+
 export function GigsScreen(props: {
   onPressLogo?: () => void;
   resetSignal?: number;
@@ -266,15 +301,20 @@ export function GigsScreen(props: {
   autoCreatePrefill?: boolean;
   onPrefillUsed?: () => void;
   onGigCreated?: () => void;
+  openGigIdFromNotification?: string | null;
+  onNotificationGigOpened?: () => void;
 }) {
   const { showToast } = useToast();
+
 
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const listRef = React.useRef<FlatList<PastGigListItem>>(null);
 
+
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
   const [data, setData] = React.useState<GigsResponse | null>(null);
+
 
   const [addingGig, setAddingGig] = React.useState(false);
   const [confirmingGig, setConfirmingGig] = React.useState(false);
@@ -282,18 +322,23 @@ export function GigsScreen(props: {
   const [editingGig, setEditingGig] = React.useState<Gig | null>(null);
   const [artistView, setArtistView] = React.useState<string | null>(null);
 
+
   const [discoverPrefill, setDiscoverPrefill] =
     React.useState<Partial<CreateGigInput> | null>(null);
 
+
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
+
 
   const [artistImageByName, setArtistImageByName] = React.useState<
     Record<string, string | null>
   >({});
 
+
   const [collapsedYears, setCollapsedYears] = React.useState<
     Record<string, boolean>
   >({});
+
 
   const loadPinnedGigIds = React.useCallback(async () => {
     try {
@@ -304,9 +349,11 @@ export function GigsScreen(props: {
     }
   }, []);
 
+
   const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
+
 
     try {
       const res = await apiGet<GigsResponse>("/gigs");
@@ -320,10 +367,12 @@ export function GigsScreen(props: {
     }
   }, []);
 
+
   React.useEffect(() => {
     void load();
     void loadPinnedGigIds();
   }, [load, loadPinnedGigIds]);
+
 
   React.useEffect(() => {
     setAddingGig(false);
@@ -334,8 +383,10 @@ export function GigsScreen(props: {
     setDiscoverPrefill(null);
   }, [props.resetSignal]);
 
+
   React.useEffect(() => {
     if (props.scrollToTopSignal == null) return;
+
 
     listRef.current?.scrollToOffset({
       offset: 0,
@@ -343,15 +394,18 @@ export function GigsScreen(props: {
     });
   }, [props.scrollToTopSignal]);
 
+
   React.useEffect(() => {
     const prefill = props.prefill;
     if (!prefill) return;
+
 
     const artist =
       typeof prefill.artist === "string" ? prefill.artist.trim() : "";
     const venue = typeof prefill.venue === "string" ? prefill.venue.trim() : "";
     const city = typeof prefill.city === "string" ? prefill.city.trim() : "";
     const date = typeof prefill.date === "string" ? prefill.date.trim() : "";
+
 
     const normalizedPrefill: Partial<CreateGigInput> = {
       ...prefill,
@@ -365,9 +419,12 @@ export function GigsScreen(props: {
           : prefill.notes,
     };
 
+
     const hasRequired = Boolean(artist && venue && city && date);
 
+
     setDiscoverPrefill(normalizedPrefill);
+
 
     if (!hasRequired) {
       setAddingGig(true);
@@ -375,29 +432,71 @@ export function GigsScreen(props: {
       return;
     }
 
+
     if (props.autoCreatePrefill) {
       setAddingGig(true);
       setConfirmingGig(false);
       return;
     }
 
+
     setConfirmingGig(true);
     setAddingGig(false);
   }, [props.prefill, props.autoCreatePrefill]);
+
+
+  React.useEffect(() => {
+    const targetGigId = props.openGigIdFromNotification;
+
+
+    if (!targetGigId) return;
+    if (loading) return;
+    if (!data?.gigs?.length) return;
+
+
+    const targetGig = data.gigs.find((gig) => gig.id === targetGigId);
+
+
+    if (!targetGig) {
+      props.onNotificationGigOpened?.();
+      return;
+    }
+
+
+    setAddingGig(false);
+    setConfirmingGig(false);
+    setConfirmingSubmit(false);
+    setArtistView(null);
+    setDiscoverPrefill(null);
+    setEditingGig(targetGig);
+
+
+    props.onNotificationGigOpened?.();
+  }, [
+    data?.gigs,
+    loading,
+    props.openGigIdFromNotification,
+    props.onNotificationGigOpened,
+  ]);
+
 
   React.useEffect(() => {
     const uniqueArtists = Array.from(
       new Set((data?.gigs ?? []).map((g) => g.artist?.trim()).filter(Boolean)),
     ) as string[];
 
+
     const missingArtists = uniqueArtists.filter((artist) => {
       const key = artist.toLowerCase();
       return !(key in artistImageByName);
     });
 
+
     if (missingArtists.length === 0) return;
 
+
     let cancelled = false;
+
 
     const loadImages = async () => {
       const entries = await Promise.all(
@@ -407,12 +506,14 @@ export function GigsScreen(props: {
               `/spotify/artist-page?name=${encodeURIComponent(artist)}`,
             );
 
+
             return [artist.toLowerCase(), res.artist?.imageUrl ?? null] as const;
           } catch {
             return [artist.toLowerCase(), null] as const;
           }
         }),
       );
+
 
       if (!cancelled) {
         setArtistImageByName((prev) => ({
@@ -422,17 +523,21 @@ export function GigsScreen(props: {
       }
     };
 
+
     void loadImages();
+
 
     return () => {
       cancelled = true;
     };
   }, [data?.gigs, artistImageByName]);
 
+
   const clearDiscoverPrefill = React.useCallback(() => {
     setDiscoverPrefill(null);
     props.onPrefillUsed?.();
   }, [props]);
+
 
   const toggleYear = React.useCallback((year: string) => {
     setCollapsedYears((prev) => ({
@@ -441,6 +546,7 @@ export function GigsScreen(props: {
     }));
   }, []);
 
+
   const showGigCreatedFeedback = React.useCallback(
     async (previousGigs: Gig[], createdGig: Gig) => {
       const nextGigs = [
@@ -448,9 +554,12 @@ export function GigsScreen(props: {
         createdGig,
       ];
 
+
       const newlyUnlocked = getNewlyUnlockedBadge(previousGigs, nextGigs);
 
+
       await triggerGigSavedFeedback(Boolean(newlyUnlocked));
+
 
       if (newlyUnlocked) {
         showToast({
@@ -462,6 +571,7 @@ export function GigsScreen(props: {
         return;
       }
 
+
       showToast({
         message: "Gig added",
         duration: 1500,
@@ -470,24 +580,31 @@ export function GigsScreen(props: {
     [showToast],
   );
 
+
   const createGigFromDiscover = React.useCallback(async () => {
     if (!discoverPrefill) return;
 
+
     const previousGigs = data?.gigs ?? [];
+
 
     setConfirmingSubmit(true);
     setError("");
 
+
     try {
       const created = await apiPost<Gig>("/gigs", discoverPrefill);
+
 
       clearDiscoverPrefill();
       setConfirmingGig(false);
       setEditingGig(created);
 
+
       await showGigCreatedFeedback(previousGigs, created);
       await load();
       await loadPinnedGigIds();
+
 
       props.onGigCreated?.();
     } catch (e: any) {
@@ -499,6 +616,7 @@ export function GigsScreen(props: {
         Alert.alert("Already logged", "This gig is already in your list.");
         return;
       }
+
 
       setError(e?.message ?? "Failed to add gig from Discover");
       Alert.alert("Error", e?.message ?? "Failed to add gig from Discover");
@@ -514,6 +632,7 @@ export function GigsScreen(props: {
     props,
     showGigCreatedFeedback,
   ]);
+
 
   if (confirmingGig && discoverPrefill) {
     return (
@@ -536,6 +655,7 @@ export function GigsScreen(props: {
     );
   }
 
+
   if (addingGig) {
     return (
       <AddGigScreen
@@ -552,22 +672,27 @@ export function GigsScreen(props: {
         onCreated={async (createdGig: Gig) => {
           const previousGigs = data?.gigs ?? [];
 
+
           setAddingGig(false);
           clearDiscoverPrefill();
+
 
           if (createdGig?.id) {
             setEditingGig(createdGig);
           }
 
+
           await showGigCreatedFeedback(previousGigs, createdGig);
           await load();
           await loadPinnedGigIds();
+
 
           props.onGigCreated?.();
         }}
       />
     );
   }
+
 
   if (editingGig) {
     return (
@@ -588,6 +713,7 @@ export function GigsScreen(props: {
     );
   }
 
+
   if (artistView) {
     return (
       <ArtistScreen
@@ -600,8 +726,10 @@ export function GigsScreen(props: {
     );
   }
 
+
   const gigs = (data?.gigs ?? []).map((gig) => {
     const artistKey = String(gig.artist ?? "").trim().toLowerCase();
+
 
     return {
       ...gig,
@@ -610,13 +738,16 @@ export function GigsScreen(props: {
     };
   });
 
+
   const { comingUpGigs, pastGigs } = splitGigs(gigs);
   const pastGigItems = buildPastGigItems(pastGigs, collapsedYears);
   const isEmpty = !loading && !error && gigs.length === 0;
 
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: Colours.background.app }}>
       <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
+
 
       <View style={{ paddingHorizontal: 16, flex: 1 }}>
         {loading ? (
@@ -642,6 +773,7 @@ export function GigsScreen(props: {
               No gigs yet 🎶
             </Text>
 
+
             <Text
               style={{
                 color: Colours.text.muted,
@@ -651,6 +783,7 @@ export function GigsScreen(props: {
             >
               Start by adding one manually or discover shows to prefill faster.
             </Text>
+
 
             <View style={{ width: "100%", maxWidth: 240, marginTop: 4 }}>
               <PrimaryButton
@@ -680,6 +813,7 @@ export function GigsScreen(props: {
                         <TicketStub count={comingUpGigs.length} />
                       </View>
 
+
                       <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -703,6 +837,7 @@ export function GigsScreen(props: {
                       </ScrollView>
                     </View>
                   ) : null}
+
 
                   <View style={styles.sectionHeaderRow}>
                     <Text style={styles.bigSectionTitle}>Past gigs</Text>
@@ -738,6 +873,7 @@ export function GigsScreen(props: {
                 if (item.type === "year") {
                   const isCollapsed = !!collapsedYears[item.year];
 
+
                   return (
                     <Pressable
                       onPress={() => toggleYear(item.year)}
@@ -761,6 +897,7 @@ export function GigsScreen(props: {
                   );
                 }
 
+
                 return (
                   <GigCard
                     gig={item.gig}
@@ -782,6 +919,7 @@ export function GigsScreen(props: {
               )}
               scrollEventThrottle={16}
             />
+
 
             <Pressable
               onPress={() => setAddingGig(true)}
@@ -819,6 +957,7 @@ export function GigsScreen(props: {
   );
 }
 
+
 const styles = {
   sectionHeaderRow: {
     flexDirection: "row" as const,
@@ -827,6 +966,7 @@ const styles = {
     marginBottom: 12,
   },
 
+
   bigSectionTitle: {
     color: Colours.text.primary,
     fontWeight: "800" as const,
@@ -834,6 +974,7 @@ const styles = {
     lineHeight: 22,
     letterSpacing: -0.1,
   },
+
 
   ticketStub: {
     minWidth: 34,
@@ -853,6 +994,7 @@ const styles = {
     transform: [{ rotate: "-0.6deg" }],
   },
 
+
   ticketStubNotchLeft: {
     position: "absolute" as const,
     left: -4,
@@ -864,6 +1006,7 @@ const styles = {
     backgroundColor: Colours.background.app,
     opacity: 0.9,
   },
+
 
   ticketStubNotchRight: {
     position: "absolute" as const,
@@ -877,6 +1020,7 @@ const styles = {
     opacity: 0.9,
   },
 
+
   ticketStubText: {
     color: Colours.text.primary,
     fontWeight: "800" as const,
@@ -884,6 +1028,7 @@ const styles = {
     lineHeight: 13,
     letterSpacing: 0.4,
   },
+
 
   yearHeader: {
     marginTop: 8,
@@ -895,15 +1040,18 @@ const styles = {
     justifyContent: "space-between" as const,
   },
 
+
   yearHeaderPressed: {
     opacity: 0.78,
   },
+
 
   yearTitleRow: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 6,
   },
+
 
   yearTitle: {
     color: Colours.text.primary,
@@ -912,3 +1060,6 @@ const styles = {
     lineHeight: 21,
   },
 };
+
+
+

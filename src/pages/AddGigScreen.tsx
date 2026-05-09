@@ -20,6 +20,12 @@ import { AppHeader } from "../components/AppHeader";
 import { DateField } from "../components/DateField";
 import { useToast } from "../components/ToastProvider";
 import { apiPost, apiGet } from "../lib/api";
+import {
+  searchPastEvents,
+  type AppEvent,
+  getEventArtistName,
+  getEventDate,
+} from "../lib/events";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput, Gig, GigsResponse } from "../shared/types/Gig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -28,18 +34,12 @@ import { enqueueGig, isOfflineError } from "../lib/offlineQueue";
 import { parseYmdToUtcDate } from "../lib/date";
 import { addGigToCalendar } from "../lib/calendar";
 import {
-  searchArtistSetlists,
-  setlistDateToYmd,
-  type SetlistItem,
-} from "../lib/setlist";
-import {
   createSessionToken,
   getPlaceDetails,
   searchVenues,
   type PlaceDetails,
   type PlaceSuggestion,
 } from "./googlePlaces";
-import { TicketScanScreen } from "./TicketScanScreen";
 
 type MbArtist = {
   id: string;
@@ -54,11 +54,12 @@ type MbArtistSearchResponse =
     }
   | any;
 
+type PrefillSource = "discover" | null;
+
 const UI_COPY = {
   artistLoading: "Looking up artists…",
   venueLoading: "Finding the venue…",
   prefilled: "Filled from Discover ✓",
-  scanned: "Filled from ticket scan ✓",
   autoCity: "City found ✓",
   saving: "Locking it in…",
 };
@@ -129,6 +130,7 @@ export function AddGigScreen(props: {
   const { showToast } = useToast();
   const scrollRef = React.useRef<any>(null);
   const suppressNextArtistSearchRef = React.useRef(false);
+  const suppressNextVenueSearchRef = React.useRef(false);
 
   const [artist, setArtist] = React.useState("");
   const [venue, setVenue] = React.useState("");
@@ -173,17 +175,19 @@ export function AddGigScreen(props: {
   const [gigSearchLoading, setGigSearchLoading] = React.useState(false);
   const [gigSearchError, setGigSearchError] = React.useState("");
   const [gigSearchOpen, setGigSearchOpen] = React.useState(false);
-  const [gigSearchResults, setGigSearchResults] = React.useState<SetlistItem[]>(
+  const [gigSearchResults, setGigSearchResults] = React.useState<AppEvent[]>(
     [],
   );
- 
+
   const [loading, setLoading] = React.useState(false);
   const [justPrefilled, setJustPrefilled] = React.useState(false);
-  const [justScanned, setJustScanned] = React.useState(false);
   const [justAutoCity, setJustAutoCity] = React.useState(false);
-  const [scanningTicket, setScanningTicket] = React.useState(false);
   const [autoCreateAttempted, setAutoCreateAttempted] = React.useState(false);
   const [addToCalendar, setAddToCalendar] = React.useState(false);
+  const [prefillSource, setPrefillSource] =
+    React.useState<PrefillSource>(null);
+
+  const isDiscoverPrefill = prefillSource === "discover";
 
   const isFutureGig = React.useMemo(() => {
     const d = parseYmdToUtcDate(date);
@@ -205,7 +209,18 @@ export function AddGigScreen(props: {
 
   React.useEffect(() => {
     if (!props.prefill) return;
-suppressNextArtistSearchRef.current = true;
+
+    const nextIsDiscoverPrefill = Boolean(
+      props.prefill.externalSource ||
+        props.prefill.externalId ||
+        props.prefill.ticketUrl,
+    );
+
+    setPrefillSource(nextIsDiscoverPrefill ? "discover" : null);
+
+    suppressNextArtistSearchRef.current = true;
+    suppressNextVenueSearchRef.current = true;
+
     if (props.prefill.artist != null) setArtist(String(props.prefill.artist));
     if (props.prefill.venue != null) setVenue(String(props.prefill.venue));
     if (props.prefill.city != null) setCity(String(props.prefill.city));
@@ -234,6 +249,21 @@ suppressNextArtistSearchRef.current = true;
     if ((props.prefill as any).ticketUrl != null) {
       setTicketUrl(String((props.prefill as any).ticketUrl));
     }
+
+    setMbOpen(false);
+    setMbResults([]);
+    setMbError("");
+    setMbLoading(false);
+
+    setVenueOpen(false);
+    setVenueResults([]);
+    setVenueError("");
+    setVenueLoading(false);
+
+    setGigSearchOpen(false);
+    setGigSearchResults([]);
+    setGigSearchError("");
+    setGigSearchLoading(false);
 
     setAutoCreateAttempted(false);
     setJustPrefilled(true);
@@ -280,8 +310,19 @@ suppressNextArtistSearchRef.current = true;
   }, []);
 
   React.useEffect(() => {
+    if (isDiscoverPrefill) {
+      setMbOpen(false);
+      setMbResults([]);
+      setMbLoading(false);
+      setMbError("");
+      return;
+    }
+
     if (suppressNextArtistSearchRef.current) {
       suppressNextArtistSearchRef.current = false;
+      setMbOpen(false);
+      setMbResults([]);
+      setMbLoading(false);
       return;
     }
 
@@ -301,7 +342,7 @@ suppressNextArtistSearchRef.current = true;
     }, 320);
 
     return () => clearTimeout(t);
-  }, [artist, runMbSearch]);
+  }, [artist, runMbSearch, isDiscoverPrefill]);
 
   React.useEffect(() => {
     if (!props.autoCreate) return;
@@ -372,8 +413,24 @@ suppressNextArtistSearchRef.current = true;
     },
     [venueSessionToken, city],
   );
+  
+    React.useEffect(() => {
+    if (isDiscoverPrefill) {
+      setVenueResults([]);
+      setVenueOpen(false);
+      setVenueLoading(false);
+      setVenueError("");
+      return;
+    }
 
-  React.useEffect(() => {
+    if (suppressNextVenueSearchRef.current) {
+      suppressNextVenueSearchRef.current = false;
+      setVenueResults([]);
+      setVenueOpen(false);
+      setVenueLoading(false);
+      return;
+    }
+
     const q = venue.trim();
 
     if (selectedVenuePlaceId) {
@@ -396,7 +453,7 @@ suppressNextArtistSearchRef.current = true;
     }, 320);
 
     return () => clearTimeout(t);
-  }, [venue, runVenueSearch, selectedVenuePlaceId]);
+  }, [venue, runVenueSearch, selectedVenuePlaceId, isDiscoverPrefill]);
 
   const chooseGoogleVenue = async (suggestion: PlaceSuggestion) => {
     try {
@@ -413,6 +470,7 @@ suppressNextArtistSearchRef.current = true;
       setSelectedVenueLng(details.longitude);
       setSelectedVenuePlaceName(details.formattedAddress);
 
+      suppressNextVenueSearchRef.current = true;
       setVenue(details.venueName);
 
       const placeCity = details.city.trim();
@@ -459,32 +517,32 @@ suppressNextArtistSearchRef.current = true;
 
     try {
       const includeTributeActs =
-  (await AsyncStorage.getItem(INCLUDE_TRIBUTE_ACTS_KEY)) === "1";
+        (await AsyncStorage.getItem(INCLUDE_TRIBUTE_ACTS_KEY)) === "1";
 
-const results = await searchArtistSetlists({
-  artist: q,
-  artistMbid: includeTributeActs ? undefined : artistMbid,
-  city,
-  venue,
-});
+      const rawResults = await searchPastEvents({
+        artist: q,
+        artistMbid: includeTributeActs ? undefined : artistMbid,
+        city: city.trim() || undefined,
+        venue: venue.trim() || undefined,
+      });
 
       const venueQuery = venue.trim().toLowerCase();
       const cityQuery = city.trim().toLowerCase();
       const dateQuery = date.trim();
 
-      const safeResults: SetlistItem[] = Array.isArray(results) ? results : [];
+      const safeResults = Array.isArray(rawResults) ? rawResults : [];
 
-const filtered = safeResults.filter((item: SetlistItem) => {
- const itemVenue = item.venueName.toLowerCase();
- const itemCity = item.cityName.toLowerCase();
- const itemDate = setlistDateToYmd(item.eventDate);
+      const filtered = safeResults.filter((item: AppEvent) => {
+        const itemVenue = String(item.venueName ?? "").toLowerCase();
+        const itemCity = String(item.city ?? "").toLowerCase();
+        const itemDate = getEventDate(item);
 
- const venueOk = !venueQuery || itemVenue.includes(venueQuery);
- const cityOk = !cityQuery || itemCity.includes(cityQuery);
- const dateOk = !dateQuery || itemDate === dateQuery;
+        const venueOk = !venueQuery || itemVenue.includes(venueQuery);
+        const cityOk = !cityQuery || itemCity.includes(cityQuery);
+        const dateOk = !dateQuery || itemDate === dateQuery;
 
- return venueOk && cityOk && dateOk;
-});
+        return venueOk && cityOk && dateOk;
+      });
 
       const nextResults = filtered.length > 0 ? filtered : safeResults;
 
@@ -502,16 +560,21 @@ const filtered = safeResults.filter((item: SetlistItem) => {
     }
   };
 
-  const chooseSetlistGig = (gig: SetlistItem) => {
-    const ymdDate = setlistDateToYmd(gig.eventDate);
+  const chooseSearchedGig = (gig: AppEvent) => {
+    const eventDate = getEventDate(gig);
+    const artistName = getEventArtistName(gig) || artist.trim() || gig.title;
 
-    setVenue(gig.venueName);
-    setCity(gig.cityName);
-    if (ymdDate) setDate(ymdDate);
+    suppressNextArtistSearchRef.current = true;
+    suppressNextVenueSearchRef.current = true;
 
-    setExternalSource("setlist.fm");
-    setExternalId(gig.id);
-    setTicketUrl(gig.url ?? undefined);
+    if (artistName) setArtist(artistName);
+    if (gig.venueName) setVenue(gig.venueName);
+    if (gig.city) setCity(gig.city);
+    if (eventDate) setDate(eventDate);
+
+    setExternalSource(gig.source);
+    setExternalId(gig.sourceEventId);
+    setTicketUrl(gig.ticketUrl ?? undefined);
 
     setGigSearchOpen(false);
     setGigSearchResults([]);
@@ -519,41 +582,6 @@ const filtered = safeResults.filter((item: SetlistItem) => {
 
     setJustPrefilled(true);
     setTimeout(() => setJustPrefilled(false), 2500);
-  };
-
-  const handleTicketScanned = (scanPrefill: Partial<CreateGigInput>) => {
-    if (scanPrefill.artist != null) setArtist(String(scanPrefill.artist));
-    if (scanPrefill.venue != null) setVenue(String(scanPrefill.venue));
-    if (scanPrefill.city != null) setCity(String(scanPrefill.city));
-    if (scanPrefill.date != null) setDate(String(scanPrefill.date));
-
-    if (typeof scanPrefill.rating === "number") {
-      setRating(scanPrefill.rating);
-    }
-
-    if ((scanPrefill as any).artistMbid != null) {
-      setArtistMbid(String((scanPrefill as any).artistMbid));
-    }
-
-    if ((scanPrefill as any).notes != null) {
-      setNotes(String((scanPrefill as any).notes));
-    }
-
-    if ((scanPrefill as any).externalSource != null) {
-      setExternalSource(String((scanPrefill as any).externalSource));
-    }
-
-    if ((scanPrefill as any).externalId != null) {
-      setExternalId(String((scanPrefill as any).externalId));
-    }
-
-    if ((scanPrefill as any).ticketUrl != null) {
-      setTicketUrl(String((scanPrefill as any).ticketUrl));
-    }
-
-    setScanningTicket(false);
-    setJustScanned(true);
-    setTimeout(() => setJustScanned(false), 2500);
   };
 
   const resetForm = () => {
@@ -568,6 +596,7 @@ const filtered = safeResults.filter((item: SetlistItem) => {
     setExternalSource(undefined);
     setExternalId(undefined);
     setTicketUrl(undefined);
+    setPrefillSource(null);
 
     setSelectedVenueLat(undefined);
     setSelectedVenueLng(undefined);
@@ -588,7 +617,7 @@ const filtered = safeResults.filter((item: SetlistItem) => {
     setGigSearchOpen(false);
     setGigSearchError("");
     setGigSearchLoading(false);
-  
+
     setJustAutoCity(false);
     setAutoCreateAttempted(false);
     setAddToCalendar(false);
@@ -709,16 +738,6 @@ const filtered = safeResults.filter((item: SetlistItem) => {
     }
   };
 
-  if (scanningTicket) {
-    return (
-      <TicketScanScreen
-        onPressLogo={props.onPressLogo}
-        onBack={() => setScanningTicket(false)}
-        onScanned={handleTicketScanned}
-      />
-    );
-  }
-
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
@@ -745,29 +764,10 @@ const filtered = safeResults.filter((item: SetlistItem) => {
           <View style={styles.hero}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>Log a gig</Text>
-
-              <Pressable
-                onPress={() => setScanningTicket(true)}
-                hitSlop={10}
-                style={({ pressed }) => [
-                  styles.scanHeaderBtn,
-                  pressed ? styles.pressedSmall : null,
-                ]}
-              >
-                <Ionicons
-                  name="scan-outline"
-                  size={20}
-                  color={Colours.text.primary}
-                />
-              </Pressable>
             </View>
 
             {justPrefilled ? (
               <Text style={styles.ok}>{UI_COPY.prefilled}</Text>
-            ) : null}
-
-            {justScanned ? (
-              <Text style={styles.ok}>{UI_COPY.scanned}</Text>
             ) : null}
           </View>
 
@@ -777,6 +777,7 @@ const filtered = safeResults.filter((item: SetlistItem) => {
               value={artist}
               onChangeText={(t) => {
                 setArtist(t);
+                setArtistMbid(undefined);
                 setMbOpen(true);
               }}
               placeholder="Start typing an artist..."
@@ -792,7 +793,7 @@ const filtered = safeResults.filter((item: SetlistItem) => {
 
             {mbError ? <Text style={styles.errorText}>{mbError}</Text> : null}
 
-            {mbOpen && !mbLoading && mbResults.length > 0 ? (
+            {!isDiscoverPrefill && mbOpen && !mbLoading && mbResults.length > 0 ? (
               <View style={styles.suggestCard}>
                 {mbResults.map((a) => {
                   const meta = [a.country, a.disambiguation]
@@ -863,7 +864,10 @@ const filtered = safeResults.filter((item: SetlistItem) => {
               <Text style={styles.errorText}>{venueError}</Text>
             ) : null}
 
-            {venueOpen && !venueLoading && venueResults.length > 0 ? (
+            {!isDiscoverPrefill &&
+            venueOpen &&
+            !venueLoading &&
+            venueResults.length > 0 ? (
               <View style={styles.suggestCard}>
                 {venueResults.map((place) => (
                   <Pressable
@@ -894,53 +898,63 @@ const filtered = safeResults.filter((item: SetlistItem) => {
               placeholder="Select date"
             />
 
-            <Pressable
-              onPress={runGigSearch}
-              disabled={gigSearchLoading}
-              style={({ pressed }) => [
-                styles.locationBtn,
-                pressed ? styles.rowPressed : null,
-                gigSearchLoading ? styles.saveBtnDisabled : null,
-              ]}
-            >
-              <Ionicons
-                name="search-outline"
-                size={16}
-                color={Colours.text.primary}
-              />
-              <Text style={styles.locationBtnText}>
-                {gigSearchLoading ? "Searching…" : "Search for gig"}
-              </Text>
-            </Pressable>
+            {!isDiscoverPrefill ? (
+              <>
+                <Pressable
+                  onPress={runGigSearch}
+                  disabled={gigSearchLoading}
+                  style={({ pressed }) => [
+                    styles.locationBtn,
+                    pressed ? styles.rowPressed : null,
+                    gigSearchLoading ? styles.saveBtnDisabled : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="search-outline"
+                    size={16}
+                    color={Colours.text.primary}
+                  />
+                  <Text style={styles.locationBtnText}>
+                    {gigSearchLoading ? "Searching…" : "Search for gig"}
+                  </Text>
+                </Pressable>
 
-            {gigSearchError ? (
-              <Text style={styles.errorText}>{gigSearchError}</Text>
-            ) : null}
+                {gigSearchError ? (
+                  <Text style={styles.errorText}>{gigSearchError}</Text>
+                ) : null}
 
-            {gigSearchOpen && gigSearchResults.length > 0 ? (
-              <View style={styles.suggestCard}>
-                {gigSearchResults.map((gig) => (
-                  <Pressable
-                    key={gig.id}
-                    onPress={() => chooseSetlistGig(gig)}
-                    style={({ pressed }) => [
-                      styles.suggestRow,
-                      pressed ? styles.rowPressed : null,
-                    ]}
-                  >
-                    <View style={styles.flex}>
-                      <Text style={styles.suggestTitle}>
-                        {gig.eventDate} · {gig.venueName}
-                      </Text>
-                      <Text style={styles.suggestMeta}>
-                        {[gig.cityName, gig.countryCode, `${gig.songCount} songs`]
-                          .filter(Boolean)
-                          .join(" • ")}
-                      </Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
+                {gigSearchOpen && gigSearchResults.length > 0 ? (
+                  <View style={styles.suggestCard}>
+                    {gigSearchResults.map((gig, index) => {
+                      const gigDate = getEventDate(gig);
+                      const gigVenue = gig.venueName ?? "Unknown venue";
+                      const gigCity = gig.city ?? "Unknown city";
+
+                      return (
+                        <Pressable
+                          key={`${gig.source}-${gig.sourceEventId}-${index}`}
+                          onPress={() => chooseSearchedGig(gig)}
+                          style={({ pressed }) => [
+                            styles.suggestRow,
+                            pressed ? styles.rowPressed : null,
+                          ]}
+                        >
+                          <View style={styles.flex}>
+                            <Text style={styles.suggestTitle}>
+                              {gigDate || "Date unknown"} · {gigVenue}
+                            </Text>
+                            <Text style={styles.suggestMeta}>
+                              {[gigCity, gig.countryCode, gig.source]
+                                .filter(Boolean)
+                                .join(" • ")}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
+              </>
             ) : null}
 
             {isFutureGig ? (
@@ -1143,20 +1157,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 12,
     lineHeight: 16,
-  },
-
-  scanHeaderBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(47,140,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  pressedSmall: {
-    opacity: 0.85,
-    transform: [{ scale: 0.96 }],
   },
 
   rowPressed: {

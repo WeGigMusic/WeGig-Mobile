@@ -13,12 +13,33 @@ import {
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
 import { supabase } from "../lib/supabase";
 import { posthog } from "../lib/analytics";
 
 WebBrowser.maybeCompleteAuthSession();
+
+const HAPTICS_KEY = "wegig.hapticsEnabled";
+
+async function hapticsAllowed() {
+ try {
+   const value = await AsyncStorage.getItem(HAPTICS_KEY);
+   return value == null || value === "1";
+ } catch {
+   return true;
+ }
+}
+
+async function lightImpactHaptic() {
+ if (!(await hapticsAllowed())) return;
+
+ try {
+   await lightImpactHaptic();
+ } catch {}
+}
+
 
 type SocialProvider = "google" | "apple";
 
@@ -51,7 +72,7 @@ function PremiumButton({
   async function handlePress() {
     if (disabled) return;
 
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await lightImpactHaptic();
     await onPress();
   }
 

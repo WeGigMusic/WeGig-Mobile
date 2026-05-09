@@ -1,6 +1,6 @@
 const BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://192.168.0.97:5050";
+  "http://192.168.1.47:5050";
 
 console.log("API BASE URL:", BASE_URL);
 

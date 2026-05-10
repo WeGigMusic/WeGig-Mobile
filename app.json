@@ -8,13 +8,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.WeGigMobile",
@@ -22,7 +20,6 @@
         "NSLocationWhenInUseUsageDescription": "We use your location to suggest nearby gigs and auto-fill venues."
       }
     },
-
     "android": {
       "package": "com.anonymous.WeGigMobile",
       "adaptiveIcon": {
@@ -36,11 +33,9 @@
         "android.permission.WRITE_CALENDAR"
       ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
       "@react-native-community/datetimepicker",
       "expo-notifications",
@@ -53,6 +48,11 @@
       "expo-font",
       "expo-localization",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "4a72edf6-a617-41fc-9df8-94b2e739511d"
+      }
+    }
   }
 }

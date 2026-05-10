@@ -19,10 +19,6 @@ import type { Gig } from "../shared/types/Gig";
 import { apiGet } from "../lib/api";
 import { parseYmdToUtcDate } from "../lib/date";
 
-type TmEventByIdResponse = {
-  url?: string;
-};
-
 type GigSetlistItem = {
   id: string;
   eventDate: string;
@@ -45,6 +41,25 @@ type GigSetlistMatchResponse = {
 };
 
 type GigCardVariant = "row" | "poster";
+
+const HAPTICS_KEY = "wegig.hapticsEnabled";
+
+async function hapticsAllowed() {
+  try {
+    const value = await AsyncStorage.getItem(HAPTICS_KEY);
+    return value == null || value === "1";
+  } catch {
+    return true;
+  }
+}
+
+async function selectionHaptic() {
+  if (!(await hapticsAllowed())) return;
+
+  try {
+    await Haptics.selectionAsync();
+  } catch {}
+}
 
 function formatGigDateUk(value?: string) {
   const raw = String(value ?? "").trim();
@@ -167,53 +182,34 @@ export function GigCard({
   const noteText = String(gig.notes ?? "").trim();
   const hasNotes = noteText.length > 0;
   const imageUrl = getGigImageUrl(gig);
+  const isFutureGig = isFutureGigDate(gig.date);
+  const hasRating = typeof gig.rating === "number";
+  const posterDate = formatPosterDate(gig.date);
 
-const HAPTICS_KEY = "wegig.hapticsEnabled";
-
-async function hapticsAllowed() {
- try {
-   const value = await AsyncStorage.getItem(HAPTICS_KEY);
-   return value == null || value === "1";
- } catch {
-   return true;
- }
-}
-
-async function selectionHaptic() {
- if (!(await hapticsAllowed())) return;
-
- await selectionHaptic();
-}
-
-
-  const handlePress = async () => {
-   await selectionHaptic();
+  const handlePress = () => {
+    void selectionHaptic();
     onPress?.();
   };
 
-  const handlePressArtist = async (e?: any) => {
+  const handlePressArtist = (e?: any) => {
     if (!onPressArtist) return;
 
     try {
       e?.stopPropagation?.();
     } catch {}
 
-    await selectionHaptic();
-
+    void selectionHaptic();
     onPressArtist(gig.artist);
   };
 
-  const handleOpenNotes = async (e?: any) => {
+  const handleOpenNotes = (e?: any) => {
     try {
       e?.stopPropagation?.();
     } catch {}
 
-    await selectionHaptic();
-
+    void selectionHaptic();
     setNotesOpen(true);
   };
-
-  const isFutureGig = isFutureGigDate(gig.date);
 
   const canLookupSetlist = React.useMemo(() => {
     return Boolean(
@@ -273,12 +269,12 @@ async function selectionHaptic() {
     }
   };
 
-  const handleOpenSetlist = async (e?: any) => {
+  const handleOpenSetlist = (e?: any) => {
     try {
       e?.stopPropagation?.();
     } catch {}
 
-    await selectionHaptic();
+    void selectionHaptic();
 
     if (setlistMatch?.matched && setlistMatch.setlist) {
       setSetlistOpen(true);
@@ -292,8 +288,6 @@ async function selectionHaptic() {
 
   const hasSetlist = Boolean(setlistMatch?.matched && setlistMatch.setlist);
   const showSetlistChip = canLookupSetlist && !setlistLoading && hasSetlist;
-  const hasRating = typeof gig.rating === "number";
-  const posterDate = formatPosterDate(gig.date);
 
   const renderFallbackImage = (style: any) => (
     <View style={[style, styles.imageFallback]}>
@@ -1006,4 +1000,3 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 });
-

@@ -12,13 +12,15 @@ import {
   Modal,
   Linking,
   Keyboard,
+  TextInput,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { Ionicons } from "@expo/vector-icons";
+
 import { AppHeader } from "../components/AppHeader";
-import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
 import { DateField } from "../components/DateField";
+import { CitySearchInput } from "../components/CitySearchInput";
 import { useToast } from "../components/ToastProvider";
 
 import { apiPatch, apiDelete, apiGet } from "../lib/api";
@@ -26,7 +28,6 @@ import { Colours } from "../theme/colours";
 import type { Gig, CreateGigInput } from "../shared/types/Gig";
 import { parseYmdToUtcDate } from "../lib/date";
 import { addGigToCalendar } from "../lib/calendar";
-import { searchPlaces } from "../lib/mapbox";
 import {
   createSessionToken,
   getPlaceDetails,
@@ -47,17 +48,6 @@ type MbArtistSearchResponse =
       artists?: MbArtist[];
     }
   | any;
-
-type MapboxPlace = {
-  id: string;
-  name: string;
-  placeName: string;
-  city?: string;
-  region?: string;
-  country?: string;
-  latitude: number;
-  longitude: number;
-};
 
 type GigSetlistItem = {
   id: string;
@@ -82,12 +72,53 @@ type GigSetlistMatchResponse = {
 
 const UI_COPY = {
   artistLoading: "Looking up artists…",
-  cityLoading: "Searching cities…",
   venueLoading: "Finding the venue…",
   autoCity: "City found ✓",
-  saving: "Locking it in…",
   deleting: "Removing it…",
 };
+
+function IconInput(props: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  multiline?: boolean;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  onFocus?: () => void;
+}) {
+  return (
+    <View
+      style={[
+        styles.iconInputWrap,
+        props.multiline ? styles.notesWrap : null,
+      ]}
+    >
+      <Ionicons
+        name={props.icon}
+        size={18}
+        color={Colours.text.muted}
+        style={props.multiline ? styles.notesIcon : undefined}
+      />
+
+      <TextInput
+        value={props.value}
+        onChangeText={props.onChangeText}
+        placeholder={props.placeholder}
+        placeholderTextColor="rgba(255,255,255,0.42)"
+        autoCapitalize={props.autoCapitalize ?? "words"}
+        autoCorrect={false}
+        multiline={props.multiline}
+        returnKeyType={props.multiline ? "done" : "next"}
+        blurOnSubmit={props.multiline}
+        onSubmitEditing={() => {
+          if (props.multiline) Keyboard.dismiss();
+        }}
+        onFocus={props.onFocus}
+        style={[styles.iconInput, props.multiline ? styles.notesInput : null]}
+      />
+    </View>
+  );
+}
 
 function ActionButton(props: {
   title: string;
@@ -118,6 +149,8 @@ export function EditGigScreen(props: {
 }) {
   const { showToast } = useToast();
   const scrollRef = React.useRef<any>(null);
+  const suppressNextArtistSearchRef = React.useRef(false);
+  const suppressNextVenueSearchRef = React.useRef(false);
 
   const [artist, setArtist] = React.useState(props.gig.artist);
   const [artistMbid, setArtistMbid] = React.useState<string | undefined>(
@@ -151,12 +184,6 @@ export function EditGigScreen(props: {
   const [venueSessionToken, setVenueSessionToken] = React.useState(
     createSessionToken(),
   );
-
-  const [cityLoading, setCityLoading] = React.useState(false);
-  const [cityError, setCityError] = React.useState("");
-  const [cityOpen, setCityOpen] = React.useState(false);
-  const [cityTouched, setCityTouched] = React.useState(false);
-  const [cityResults, setCityResults] = React.useState<MapboxPlace[]>([]);
 
   const [locationBias] = React.useState<
     | {
@@ -257,6 +284,14 @@ export function EditGigScreen(props: {
   React.useEffect(() => {
     if (!mbOpen) return;
 
+    if (suppressNextArtistSearchRef.current) {
+      suppressNextArtistSearchRef.current = false;
+      setMbOpen(false);
+      setMbResults([]);
+      setMbLoading(false);
+      return;
+    }
+
     const q = artist.trim();
 
     if (q.length < 2) {
@@ -274,74 +309,14 @@ export function EditGigScreen(props: {
   }, [artist, mbOpen, runMbSearch]);
 
   const chooseArtist = (a: MbArtist) => {
+    suppressNextArtistSearchRef.current = true;
     setArtist(a.name);
     setArtistMbid(a.id);
     setMbOpen(false);
     setMbResults([]);
     setMbError("");
+    setMbLoading(false);
   };
-
-  const runCitySearch = React.useCallback(async (q: string) => {
-    const query = q.trim();
-
-    if (query.length < 2) {
-      setCityResults([]);
-      setCityError("");
-      setCityLoading(false);
-      return;
-    }
-
-    setCityLoading(true);
-    setCityError("");
-
-    try {
-      const results = await searchPlaces({
-        query,
-        limit: 6,
-      });
-
-      const mapped = results.filter(
-        (place) => !!(place.city || place.region || place.name),
-      );
-
-      setCityResults(mapped);
-      setCityOpen(true);
-    } catch (e: any) {
-      setCityError(e?.message ?? "City search failed");
-      setCityResults([]);
-      setCityOpen(false);
-    } finally {
-      setCityLoading(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (!cityTouched) return;
-
-    const q = city.trim();
-
-    if (q.length < 2) {
-      setCityResults([]);
-      setCityOpen(false);
-      setCityError("");
-      return;
-    }
-
-    const t = setTimeout(() => {
-      void runCitySearch(q);
-    }, 320);
-
-    return () => clearTimeout(t);
-  }, [city, cityTouched, runCitySearch]);
-
-  const chooseCity = React.useCallback((place: MapboxPlace) => {
-    const best = place.city?.trim() || place.region?.trim() || place.name.trim();
-
-    setCity(best);
-    setCityOpen(false);
-    setCityResults([]);
-    setCityError("");
-  }, []);
 
   const runVenueSearch = React.useCallback(
     async (q: string) => {
@@ -385,6 +360,14 @@ export function EditGigScreen(props: {
   React.useEffect(() => {
     if (!venueTouched) return;
 
+    if (suppressNextVenueSearchRef.current) {
+      suppressNextVenueSearchRef.current = false;
+      setVenueResults([]);
+      setVenueOpen(false);
+      setVenueLoading(false);
+      return;
+    }
+
     const q = venue.trim();
 
     if (selectedVenuePlaceId) {
@@ -398,6 +381,7 @@ export function EditGigScreen(props: {
       setVenueResults([]);
       setVenueOpen(false);
       setVenueError("");
+      setVenueLoading(false);
       return;
     }
 
@@ -423,6 +407,7 @@ export function EditGigScreen(props: {
       setSelectedVenueLng(details.longitude);
       setSelectedVenuePlaceName(details.formattedAddress);
 
+      suppressNextVenueSearchRef.current = true;
       setVenue(details.venueName);
 
       const placeCity = details.city.trim();
@@ -498,7 +483,6 @@ export function EditGigScreen(props: {
       date: date.trim(),
       notes: notes.trim() || undefined,
       rating: isFutureGig ? null : rating ?? null,
-
       venueLatitude: selectedVenueLat,
       venueLongitude: selectedVenueLng,
       venuePlaceName: selectedVenuePlaceName,
@@ -547,8 +531,7 @@ export function EditGigScreen(props: {
       setLoading(false);
     }
   };
-
-  const confirmDelete = () => {
+    const confirmDelete = () => {
     Alert.alert("Delete gig?", "This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete", style: "destructive", onPress: deleteGig },
@@ -579,7 +562,8 @@ export function EditGigScreen(props: {
       Alert.alert("Couldn’t open link", "Setlist link could not be opened.");
     }
   };
-    return (
+
+  return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -589,7 +573,7 @@ export function EditGigScreen(props: {
         <AppHeader
           onPressLogo={props.onPressLogo}
           onPressBack={props.onBack}
-          backLabel="Gigs"
+          backLabel="Artist"
         />
 
         <KeyboardAwareScrollView
@@ -607,8 +591,8 @@ export function EditGigScreen(props: {
           </View>
 
           <View style={styles.form}>
-            <TextField
-              label="Artist"
+            <IconInput
+              icon="person-outline"
               value={artist}
               onChangeText={(value) => {
                 setArtist(value);
@@ -616,7 +600,6 @@ export function EditGigScreen(props: {
                 setMbOpen(true);
               }}
               placeholder="Start typing an artist..."
-              autoCapitalize="words"
             />
 
             {mbLoading ? (
@@ -644,7 +627,7 @@ export function EditGigScreen(props: {
                         index === mbResults.length - 1
                           ? styles.suggestRowLast
                           : null,
-                        pressed ? { opacity: 0.9 } : null,
+                        pressed ? styles.rowPressed : null,
                       ]}
                     >
                       <View style={styles.flex}>
@@ -659,8 +642,18 @@ export function EditGigScreen(props: {
               </View>
             ) : null}
 
-            <TextField
-              label="Venue"
+            <CitySearchInput
+              value={city}
+              onChangeText={setCity}
+              placeholder="Start typing a city…"
+            />
+
+            {justAutoCity ? (
+              <Text style={styles.successText}>{UI_COPY.autoCity}</Text>
+            ) : null}
+
+            <IconInput
+              icon="business-outline"
               value={venue}
               onChangeText={(t) => {
                 setVenueTouched(true);
@@ -672,8 +665,7 @@ export function EditGigScreen(props: {
                 setSelectedVenuePlaceName(undefined);
                 setSelectedVenuePlaceId(undefined);
               }}
-              placeholder="Start typing a venue…"
-              autoCapitalize="words"
+              placeholder="Start typing a venue..."
             />
 
             {venueLoading ? (
@@ -698,7 +690,7 @@ export function EditGigScreen(props: {
                       index === venueResults.length - 1
                         ? styles.suggestRowLast
                         : null,
-                      pressed ? { opacity: 0.9 } : null,
+                      pressed ? styles.rowPressed : null,
                     ]}
                   >
                     <View style={styles.flex}>
@@ -714,72 +706,7 @@ export function EditGigScreen(props: {
               </View>
             ) : null}
 
-            <TextField
-              label="City"
-              value={city}
-              onChangeText={(value) => {
-                setCityTouched(true);
-                setCity(value);
-                setCityOpen(true);
-                setCityError("");
-              }}
-              placeholder="Start typing a city…"
-              autoCapitalize="words"
-            />
-
-            {cityLoading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator />
-                <Text style={styles.muted}>{UI_COPY.cityLoading}</Text>
-              </View>
-            ) : null}
-
-            {cityError ? (
-              <Text style={styles.errorText}>{cityError}</Text>
-            ) : null}
-
-            {cityOpen && !cityLoading && cityResults.length > 0 ? (
-              <View style={styles.suggestCard}>
-                {cityResults.map((place, index) => {
-                  const label = place.city?.trim() || place.name.trim();
-                  const meta = [place.region, place.country]
-                    .filter(Boolean)
-                    .join(" • ");
-
-                  return (
-                    <Pressable
-                      key={place.id}
-                      onPress={() => chooseCity(place)}
-                      style={({ pressed }) => [
-                        styles.suggestRow,
-                        index === cityResults.length - 1
-                          ? styles.suggestRowLast
-                          : null,
-                        pressed ? { opacity: 0.9 } : null,
-                      ]}
-                    >
-                      <View style={styles.flex}>
-                        <Text style={styles.suggestTitle}>{label}</Text>
-                        {meta ? (
-                          <Text style={styles.suggestMeta}>{meta}</Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : null}
-
-            {justAutoCity ? (
-              <Text style={styles.successText}>{UI_COPY.autoCity}</Text>
-            ) : null}
-
-            <DateField
-              label="Date"
-              value={date}
-              onChange={setDate}
-              placeholder="Select date"
-            />
+            <DateField value={date} onChange={setDate} placeholder="Select date" />
 
             {dateInvalid ? (
               <Text style={styles.errorText}>Date must be YYYY-MM-DD.</Text>
@@ -790,9 +717,8 @@ export function EditGigScreen(props: {
                 Rating available after the gig date.
               </Text>
             ) : (
-              <View style={styles.ratingBlock}>
-                <Text style={styles.label}>Rating</Text>
-                <StarRating value={rating} onChange={setRating} showLabel />
+              <View style={styles.ratingPill}>
+                <StarRating value={rating} onChange={setRating} />
               </View>
             )}
 
@@ -839,16 +765,13 @@ export function EditGigScreen(props: {
               </View>
             ) : null}
 
-            <TextField
-              label="Notes"
+            <IconInput
+              icon="create-outline"
               value={notes}
               onChangeText={setNotes}
-              placeholder="Who you went with, favourite moment…"
-              autoCapitalize="sentences"
+              placeholder="Who you went with, favourite moment..."
               multiline
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={() => Keyboard.dismiss()}
+              autoCapitalize="sentences"
               onFocus={() => {
                 setTimeout(() => {
                   scrollRef.current?.scrollToEnd?.({ animated: true });
@@ -968,7 +891,7 @@ export function EditGigScreen(props: {
                       onPress={() => void openSetlistUrl()}
                       style={({ pressed }) => [
                         styles.openLinkBtn,
-                        pressed ? { opacity: 0.88 } : null,
+                        pressed ? styles.rowPressed : null,
                       ]}
                     >
                       <Text style={styles.openLinkBtnText}>
@@ -1018,7 +941,7 @@ const styles = {
     marginBottom: 18,
   },
   form: {
-    gap: 16,
+    gap: 14,
   },
   title: {
     color: Colours.text.primary,
@@ -1027,16 +950,9 @@ const styles = {
     fontWeight: "900" as const,
     letterSpacing: -0.2,
   },
-  label: {
-    color: Colours.text.secondary,
-    fontWeight: "600" as const,
-    fontSize: 13,
-    lineHeight: 17,
-    letterSpacing: 0.1,
-  },
   muted: {
     color: Colours.text.muted,
-    fontWeight: "700" as const,
+    fontWeight: "800" as const,
     fontSize: 13,
     lineHeight: 18,
   },
@@ -1077,29 +993,30 @@ const styles = {
   },
   suggestTitle: {
     color: Colours.text.primary,
-    fontWeight: "800" as const,
+    fontWeight: "900" as const,
     fontSize: 14,
     lineHeight: 18,
   },
   suggestMeta: {
     marginTop: 2,
     color: Colours.text.muted,
-    fontWeight: "600" as const,
+    fontWeight: "700" as const,
     fontSize: 12,
     lineHeight: 16,
   },
-  ratingBlock: {
-    gap: 8,
+  rowPressed: {
+    opacity: 0.9,
   },
   highlightSection: {
     marginTop: 2,
   },
   sectionTitle: {
-    color: Colours.text.secondary,
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "600" as const,
+    color: Colours.text.muted,
+    fontSize: 12,
+    fontWeight: "800" as const,
     marginBottom: 8,
+    textTransform: "uppercase" as const,
+    letterSpacing: 0.2,
   },
   highlightRow: {
     padding: 12,
@@ -1247,13 +1164,14 @@ const styles = {
     marginBottom: 4,
   },
   actionRow: {
-    flexDirection: "row" as const,
-    gap: 10,
-  },
+  flexDirection: "row" as const,
+  gap: 10,
+  marginTop: 2,
+},
   actionBtn: {
-    flex: 1,
-    height: 42,
-    borderRadius: 12,
+  flex: 1,
+  height: 48,
+  borderRadius: 17,
     alignItems: "center" as const,
     justifyContent: "center" as const,
     paddingHorizontal: 10,
@@ -1263,5 +1181,47 @@ const styles = {
   },
   deleteActionBtn: {
     backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  iconInputWrap: {
+    minHeight: 48,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.065)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.09)",
+    paddingHorizontal: 14,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 10,
+  },
+  iconInput: {
+    flex: 1,
+    color: Colours.text.primary,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "700" as const,
+    paddingVertical: Platform.OS === "ios" ? 13 : 9,
+  },
+  notesWrap: {
+    minHeight: 110,
+    alignItems: "flex-start" as const,
+    paddingTop: 14,
+  },
+  notesIcon: {
+    marginTop: 2,
+  },
+  notesInput: {
+    minHeight: 82,
+    textAlignVertical: "top" as const,
+    paddingTop: 0,
+  },
+  ratingPill: {
+    minHeight: 48,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.065)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.09)",
+    paddingHorizontal: 14,
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
   },
 };

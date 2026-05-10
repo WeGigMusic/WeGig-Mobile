@@ -803,9 +803,9 @@ export function GigsScreen(props: {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingTop: 12, paddingBottom: 120 }}
-              ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+              ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
               ListHeaderComponent={
-                <View style={{ marginBottom: 14 }}>
+                <View style={{ marginBottom: 0 }}>
                   {comingUpGigs.length > 0 ? (
                     <View style={{ marginBottom: 22 }}>
                       <View style={styles.sectionHeaderRow}>
@@ -818,7 +818,7 @@ export function GigsScreen(props: {
                         horizontal
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={{
-                          gap: 12,
+                          gap: 6,
                           paddingRight: 16,
                         }}
                       >
@@ -1031,9 +1031,9 @@ const styles = {
 
 
   yearHeader: {
-    marginTop: 8,
-    marginBottom: 2,
-    paddingVertical: 8,
+    marginTop: 0,
+    marginBottom: 0,
+    paddingVertical: 2,
     paddingHorizontal: 2,
     flexDirection: "row" as const,
     alignItems: "center" as const,

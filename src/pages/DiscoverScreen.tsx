@@ -11,11 +11,10 @@ import {
   Animated,
   Pressable,
   Keyboard,
+  TextInput,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
-import { TextField } from "../components/TextField";
 import { apiGet } from "../lib/api";
 import {
   searchFutureEvents,
@@ -24,10 +23,11 @@ import {
   getEventDate,
 } from "../lib/events";
 import { AppHeader } from "../components/AppHeader";
+import { CitySearchInput } from "../components/CitySearchInput";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput } from "../shared/types/Gig";
 
-const DISCOVER_CITY_KEY = "wegig.discoverCity";
+// City search should reset when leaving/reopening Discover.
 
 const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
 
@@ -225,6 +225,57 @@ function SectionTitle(props: { title: string; subtitle?: string }) {
   );
 }
 
+function SearchInput(props: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+}) {
+  const [focused, setFocused] = React.useState(false);
+  return (
+    <View
+  style={[
+    styles.searchInputWrap,
+    focused ? styles.searchInputWrapFocused : null,
+  ]}
+>
+      <Ionicons
+  name={props.icon}
+  size={17}
+  color={focused ? "#7EB6FF" : Colours.text.muted}
+/>
+
+      <TextInput
+        value={props.value}
+        onChangeText={props.onChangeText}
+        placeholder={props.placeholder}
+        placeholderTextColor="rgba(255,255,255,0.42)"
+        autoCapitalize={props.autoCapitalize}
+        autoCorrect={false}
+        returnKeyType="search"
+        style={styles.searchInput}
+        onFocus={() => setFocused(true)}
+onBlur={() => setFocused(false)}
+      />
+
+      {props.value.trim() ? (
+        <Pressable
+          onPress={() => props.onChangeText("")}
+          hitSlop={10}
+          style={({ pressed }) => (pressed ? styles.clearPressed : null)}
+        >
+          <Ionicons
+            name="close-circle"
+            size={18}
+            color="rgba(255,255,255,0.32)"
+          />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 function EventCard(props: {
   item: DiscoverEvent;
   cityFallback: string;
@@ -327,22 +378,6 @@ export function DiscoverScreen(props: {
   const showingSearchResults =
     trimmedQuery.length >= 2 || activeCity.length >= 2;
 
-  const loadPrefs = React.useCallback(async () => {
-    try {
-      const [savedCity] = await Promise.all([
-        AsyncStorage.getItem(DISCOVER_CITY_KEY),
-      ]);
-
-      if (savedCity?.trim()) {
-        setCityInput(savedCity.trim());
-      }
-    } catch {}
-  }, []);
-
-  React.useEffect(() => {
-    void loadPrefs();
-  }, [loadPrefs]);
-
   React.useEffect(() => {
     if (props.scrollToTopSignal == null) return;
 
@@ -351,20 +386,6 @@ export function DiscoverScreen(props: {
       animated: true,
     });
   }, [props.scrollToTopSignal]);
-
-  React.useEffect(() => {
-    const value = cityInput.trim();
-
-    const t = setTimeout(() => {
-      if (value) {
-        AsyncStorage.setItem(DISCOVER_CITY_KEY, value).catch(() => {});
-      } else {
-        AsyncStorage.removeItem(DISCOVER_CITY_KEY).catch(() => {});
-      }
-    }, 400);
-
-    return () => clearTimeout(t);
-  }, [cityInput]);
 
   const runMbSearch = React.useCallback(async (q: string) => {
     const queryValue = q.trim();
@@ -399,45 +420,57 @@ export function DiscoverScreen(props: {
       setMbLoading(false);
     }
   }, []);
-      const chooseArtist = (artist: MbArtist) => {
-    suppressNextArtistSearchRef.current = true;
-    setQuery(artist.name);
-    setSelectedArtistName(artist.name);
-    setArtistMbid(artist.id);
-    setMbOpen(false);
-    setMbResults([]);
-    setMbError("");
-    setMbLoading(false);
-    Keyboard.dismiss();
-  };
+
+  const chooseArtist = (artist: MbArtist) => {
+  suppressNextArtistSearchRef.current = true;
+  setQuery(artist.name);
+  setSelectedArtistName(artist.name);
+  setArtistMbid(artist.id);
+  setMbOpen(false);
+  setMbResults([]);
+  setMbError("");
+  setMbLoading(false);
+  Keyboard.dismiss();
+};
 
   React.useEffect(() => {
-    if (suppressNextArtistSearchRef.current) {
-      suppressNextArtistSearchRef.current = false;
-      setMbOpen(false);
-      setMbResults([]);
-      setMbLoading(false);
-      return;
-    }
+  if (suppressNextArtistSearchRef.current) {
+    suppressNextArtistSearchRef.current = false;
+    setMbOpen(false);
+    setMbResults([]);
+    setMbLoading(false);
+    return;
+  }
 
-    setArtistMbid(undefined);
-    setSelectedArtistName(undefined);
+  const q = query.trim();
 
-    const q = query.trim();
+  const isSameSelectedArtist =
+    selectedArtistName &&
+    q.toLowerCase() === selectedArtistName.trim().toLowerCase();
 
-    if (q.length < 2) {
-      setMbResults([]);
-      setMbOpen(false);
-      setMbError("");
-      return;
-    }
+  if (isSameSelectedArtist) {
+    setMbOpen(false);
+    setMbResults([]);
+    setMbLoading(false);
+    return;
+  }
 
-    const t = setTimeout(() => {
-      void runMbSearch(q);
-    }, 320);
+  setArtistMbid(undefined);
+  setSelectedArtistName(undefined);
 
-    return () => clearTimeout(t);
-  }, [query, runMbSearch]);
+  if (q.length < 2) {
+    setMbResults([]);
+    setMbOpen(false);
+    setMbError("");
+    return;
+  }
+
+  const t = setTimeout(() => {
+    void runMbSearch(q);
+  }, 320);
+
+  return () => clearTimeout(t);
+}, [query, runMbSearch, selectedArtistName]);
 
   const searchEventsForQuery = React.useCallback(async () => {
     if (trimmedQuery.length < 2 && activeCity.length < 2) {
@@ -523,30 +556,28 @@ export function DiscoverScreen(props: {
           scrollEventThrottle={16}
         >
           <View style={styles.heroWrap}>
-            <View style={styles.titleRow}>
-              <View>
-                <Text style={styles.screenTitle}>Discover</Text>
-                <Text style={styles.screenSubtitle}>
-                  Search gigs and add them in one tap.
-                </Text>
-              </View>
 
-              <View style={styles.headerIcon}>
-                <Ionicons name="sparkles" size={20} color="#7EB6FF" />
-              </View>
-            </View>
-
-            <View style={styles.searchPanel}>
-              <TextField
-                label="Artist or band"
+            <View style={styles.searchStack}>
+              <SearchInput
+                icon="search-outline"
                 value={query}
                 onChangeText={(text) => {
-                  setQuery(text);
-                  setSelectedArtistName(undefined);
-                  setArtistMbid(undefined);
-                  setMbOpen(true);
-                }}
-                placeholder=""
+  setQuery(text);
+
+  const isSameSelectedArtist =
+    selectedArtistName &&
+    text.trim().toLowerCase() === selectedArtistName.trim().toLowerCase();
+
+  if (isSameSelectedArtist) {
+    setMbOpen(false);
+    return;
+  }
+
+  setSelectedArtistName(undefined);
+  setArtistMbid(undefined);
+  setMbOpen(text.trim().length >= 2);
+}}
+                placeholder="Search artist"
                 autoCapitalize="none"
               />
 
@@ -575,6 +606,14 @@ export function DiscoverScreen(props: {
                           pressed ? styles.rowPressed : null,
                         ]}
                       >
+                        <View style={styles.artistAvatar}>
+                          <Ionicons
+                            name="musical-note"
+                            size={14}
+                            color="#7EB6FF"
+                          />
+                        </View>
+
                         <View style={styles.flex}>
                           <Text style={styles.suggestTitle}>{artist.name}</Text>
                           {meta ? (
@@ -588,27 +627,17 @@ export function DiscoverScreen(props: {
               ) : null}
 
               {artistMbid ? (
-                <Text style={styles.matchedText}>Matched artist ✓</Text>
+                <View style={styles.matchedPill}>
+                  <Ionicons name="checkmark-circle" size={14} color="#2EE59D" />
+                  <Text style={styles.matchedText}>Matched artist</Text>
+                </View>
               ) : null}
 
-              <TextField
-                label="City"
-                value={cityInput}
-                onChangeText={setCityInput}
-                placeholder=""
-                autoCapitalize="words"
-              />
-
-              <View style={styles.tipRow}>
-                <Ionicons
-                  name="search-outline"
-                  size={15}
-                  color={Colours.text.muted}
-                />
-                <Text style={styles.tipText}>
-                  Search by artist, city, or both
-                </Text>
-              </View>
+              <CitySearchInput
+  value={cityInput}
+  onChangeText={setCityInput}
+  placeholder="Search city"
+/>
 
               {showingSearchResults ? (
                 searchLoading ? (
@@ -675,7 +704,7 @@ export function DiscoverScreen(props: {
               />
               <Text style={styles.emptyTitle}>Start with a search</Text>
               <Text style={styles.emptyHint}>
-                Search by artist or city to find upcoming gigs.
+                Search by artist or city to find upcoming gigs
               </Text>
             </View>
           )}
@@ -701,13 +730,13 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 180,
-  },
+ content: {
+  paddingHorizontal: 20,
+  paddingTop: 0,
+  paddingBottom: 130,
+},
   heroWrap: {
-    marginBottom: 22,
+    marginBottom: 12,
   },
   titleRow: {
     flexDirection: "row",
@@ -715,6 +744,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 16,
     marginBottom: 18,
+  },
+  titleTextWrap: {
+    flex: 1,
   },
   screenTitle: {
     color: Colours.text.primary,
@@ -730,6 +762,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "700",
   },
+  iconOnlyRow: {
+  flexDirection: "row",
+  justifyContent: "flex-end",
+  marginBottom: 18,
+},
   headerIcon: {
     width: 44,
     height: 44,
@@ -740,29 +777,35 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(126,182,255,0.16)",
   },
-  searchPanel: {
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.045)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.075)",
-    padding: 14,
-    gap: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
-  },
-  tipRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    marginTop: -2,
-  },
-  tipText: {
-    color: Colours.text.muted,
-    fontSize: 12,
-    lineHeight: 16,
+  searchStack: {
+  gap: 10,
+},
+  searchInputWrap: {
+  minHeight: 46,
+  borderRadius: 16,
+  backgroundColor: "rgba(255,255,255,0.055)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.12)",
+  paddingHorizontal: 14,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+},
+searchInputWrapFocused: {
+  borderColor: "#2F8CFF",
+  backgroundColor: "rgba(47,140,255,0.10)",
+},
+
+  searchInput: {
+    flex: 1,
+    color: Colours.text.primary,
+    fontSize: 14,
+    lineHeight: 18,
     fontWeight: "700",
+    paddingVertical: Platform.OS === "ios" ? 13 : 9,
+  },
+  clearPressed: {
+    opacity: 0.7,
   },
   loadingRow: {
     flexDirection: "row",
@@ -782,16 +825,28 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: "800",
   },
+  matchedPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(46,229,157,0.1)",
+  },
   matchedText: {
     color: "#2EE59D",
     fontWeight: "800",
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
   },
   suggestCard: {
     backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 14,
+    borderRadius: 16,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.055)",
   },
   suggestRow: {
     paddingVertical: 10,
@@ -804,6 +859,14 @@ const styles = StyleSheet.create({
   },
   rowPressed: {
     opacity: 0.9,
+  },
+  artistAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 11,
+    backgroundColor: "rgba(126,182,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   suggestTitle: {
     color: Colours.text.primary,
@@ -819,7 +882,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   sectionBlock: {
-    marginTop: 20,
+    marginTop: 14,
   },
   sectionTitleWrap: {
     marginBottom: 10,
@@ -839,7 +902,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   cardList: {
-    gap: 12,
+    gap: 10,
   },
   cardWrap: {
     width: "100%",
@@ -847,7 +910,7 @@ const styles = StyleSheet.create({
   resultCard: {
     backgroundColor: "rgba(255,255,255,0.045)",
     borderRadius: 20,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.075)",
     shadowColor: "#000",
@@ -938,7 +1001,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyPlain: {
-    marginTop: 20,
+    marginTop: 34,
     paddingHorizontal: 18,
     paddingVertical: 18,
     alignItems: "center",

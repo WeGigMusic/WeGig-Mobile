@@ -836,7 +836,7 @@ const styles = StyleSheet.create({
   },
 
   horizontalRail: {
-    gap: 10,
+    gap: 6,
     paddingRight: 16,
   },
 

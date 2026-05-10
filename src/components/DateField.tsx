@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  Modal,
-  Platform,
-} from "react-native";
+import { View, Text, Pressable, StyleSheet, Modal, Platform } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -14,7 +7,7 @@ import { Colours } from "../theme/colours";
 import { formatDateUk, fromYmdToLocalDate, toYmdLocal } from "../lib/date";
 
 export function DateField(props: {
-  label: string;
+  label?: string;
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
@@ -45,15 +38,12 @@ export function DateField(props: {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{props.label}</Text>
-
       <Pressable
         onPress={open}
-        style={({ pressed }) => [
-          styles.field,
-          pressed ? { opacity: 0.92 } : null,
-        ]}
+        style={({ pressed }) => [styles.field, pressed ? styles.pressed : null]}
       >
+        <Ionicons name="calendar-outline" size={18} color={Colours.text.muted} />
+
         <Text
           style={[
             styles.value,
@@ -62,12 +52,6 @@ export function DateField(props: {
         >
           {displayValue}
         </Text>
-
-        <Ionicons
-          name="calendar-outline"
-          size={17}
-          color={Colours.text.muted}
-        />
       </Pressable>
 
       {Platform.OS === "android" && androidOpen ? (
@@ -96,7 +80,7 @@ export function DateField(props: {
                   onPress={() => setIosOpen(false)}
                   style={({ pressed }) => [
                     styles.sheetBtn,
-                    pressed ? { opacity: 0.8 } : null,
+                    pressed ? styles.pressed : null,
                   ]}
                 >
                   <Text style={styles.sheetBtnTextMuted}>Cancel</Text>
@@ -111,7 +95,7 @@ export function DateField(props: {
                   }}
                   style={({ pressed }) => [
                     styles.sheetBtn,
-                    pressed ? { opacity: 0.8 } : null,
+                    pressed ? styles.pressed : null,
                   ]}
                 >
                   <Text style={styles.sheetBtnText}>Done</Text>
@@ -139,39 +123,36 @@ export function DateField(props: {
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: 6,
-  },
-
-  label: {
-    color: Colours.text.secondary,
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 16,
-    letterSpacing: 0.1,
+    gap: 10,
   },
 
   field: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.065)",
     borderWidth: 1,
-    borderColor: Colours.ui.border,
-    backgroundColor: Colours.background.card,
-    paddingHorizontal: 13,
+    borderColor: "rgba(255,255,255,0.09)",
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: 10,
+  },
+
+  pressed: {
+    opacity: 0.9,
   },
 
   value: {
+    flex: 1,
     color: Colours.text.primary,
-    fontWeight: "500",
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: "700",
   },
 
   placeholder: {
-    color: Colours.text.muted,
-    fontWeight: "400",
+    color: "rgba(255,255,255,0.42)",
+    fontWeight: "700",
   },
 
   overlay: {

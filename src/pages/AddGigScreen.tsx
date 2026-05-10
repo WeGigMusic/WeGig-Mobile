@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Keyboard,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
@@ -18,6 +19,7 @@ import { TextField } from "../components/TextField";
 import { StarRating } from "../components/StarRating";
 import { AppHeader } from "../components/AppHeader";
 import { DateField } from "../components/DateField";
+import { CitySearchInput } from "../components/CitySearchInput";
 import { useToast } from "../components/ToastProvider";
 import { apiPost, apiGet } from "../lib/api";
 import {
@@ -117,6 +119,41 @@ function findDuplicate(existing: Gig[], payload: any): Gig | null {
   });
 
   return dup ?? null;
+}
+
+function IconInput(props: {
+  icon: keyof typeof Ionicons.glyphMap;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={[styles.iconInputWrap, props.multiline ? styles.notesWrap : null]}>
+      <Ionicons
+        name={props.icon}
+        size={18}
+        color={Colours.text.muted}
+        style={props.multiline ? styles.notesIcon : undefined}
+      />
+
+      <TextInput
+        value={props.value}
+        onChangeText={props.onChangeText}
+        placeholder={props.placeholder}
+        placeholderTextColor="rgba(255,255,255,0.42)"
+        autoCapitalize="words"
+        autoCorrect={false}
+        multiline={props.multiline}
+        returnKeyType={props.multiline ? "done" : "next"}
+        blurOnSubmit={props.multiline}
+        onSubmitEditing={() => {
+          if (props.multiline) Keyboard.dismiss();
+        }}
+        style={[styles.iconInput, props.multiline ? styles.notesInput : null]}
+      />
+    </View>
+  );
 }
 
 export function AddGigScreen(props: {
@@ -772,17 +809,16 @@ export function AddGigScreen(props: {
           </View>
 
           <View style={styles.form}>
-            <TextField
-              label="Artist"
-              value={artist}
-              onChangeText={(t) => {
-                setArtist(t);
-                setArtistMbid(undefined);
-                setMbOpen(true);
-              }}
-              placeholder="Start typing an artist..."
-              autoCapitalize="words"
-            />
+            <IconInput
+  icon="person-outline"
+  value={artist}
+  onChangeText={(t) => {
+    setArtist(t);
+    setArtistMbid(undefined);
+    setMbOpen(true);
+  }}
+  placeholder="Start typing an artist..."
+/>
 
             {mbLoading ? (
               <View style={styles.inlineRow}>
@@ -825,33 +861,30 @@ export function AddGigScreen(props: {
               <Text style={styles.muted}>Matched artist ✓</Text>
             ) : null}
 
-            <TextField
-              label="City"
-              value={city}
-              onChangeText={setCity}
-              placeholder="e.g. London"
-              autoCapitalize="words"
-            />
+            <CitySearchInput
+  value={city}
+  onChangeText={setCity}
+  placeholder="Start typing a city…"
+/>
 
             {justAutoCity ? (
               <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
             ) : null}
 
-            <TextField
-              label="Venue"
-              value={venue}
-              onChangeText={(t) => {
-                setVenue(t);
-                setVenueOpen(true);
-                setVenueError("");
-                setSelectedVenueLat(undefined);
-                setSelectedVenueLng(undefined);
-                setSelectedVenuePlaceName(undefined);
-                setSelectedVenuePlaceId(undefined);
-              }}
-              placeholder="Start typing a venue..."
-              autoCapitalize="words"
-            />
+            <IconInput
+  icon="business-outline"
+  value={venue}
+  onChangeText={(t) => {
+    setVenue(t);
+    setVenueOpen(true);
+    setVenueError("");
+    setSelectedVenueLat(undefined);
+    setSelectedVenueLng(undefined);
+    setSelectedVenuePlaceName(undefined);
+    setSelectedVenuePlaceId(undefined);
+  }}
+  placeholder="Start typing a venue..."
+/>
 
             {venueLoading ? (
               <View style={styles.inlineRow}>
@@ -891,12 +924,12 @@ export function AddGigScreen(props: {
               </View>
             ) : null}
 
-            <DateField
-              label="Date"
-              value={date}
-              onChange={setDate}
-              placeholder="Select date"
-            />
+           <DateField
+  label=""
+  value={date}
+  onChange={setDate}
+  placeholder="Select date"
+/>
 
             {!isDiscoverPrefill ? (
               <>
@@ -915,7 +948,7 @@ export function AddGigScreen(props: {
                     color={Colours.text.primary}
                   />
                   <Text style={styles.locationBtnText}>
-                    {gigSearchLoading ? "Searching…" : "Search for gig"}
+                    {gigSearchLoading ? "Searching…" : "Search for past gig"}
                   </Text>
                 </Pressable>
 
@@ -944,10 +977,8 @@ export function AddGigScreen(props: {
                               {gigDate || "Date unknown"} · {gigVenue}
                             </Text>
                             <Text style={styles.suggestMeta}>
-                              {[gigCity, gig.countryCode, gig.source]
-                                .filter(Boolean)
-                                .join(" • ")}
-                            </Text>
+  {[gigCity, gig.countryCode].filter(Boolean).join(" • ")}
+</Text>
                           </View>
                         </Pressable>
                       );
@@ -958,15 +989,14 @@ export function AddGigScreen(props: {
             ) : null}
 
             {isFutureGig ? (
-              <Text style={styles.muted}>
-                Rating available after the gig date.
-              </Text>
-            ) : (
-              <View style={styles.ratingBlock}>
-                <Text style={styles.label}>Rating</Text>
-                <StarRating value={rating} onChange={setRating} showLabel />
-              </View>
-            )}
+  <Text style={styles.muted}>
+    Rating available after the gig date.
+  </Text>
+) : (
+  <View style={styles.ratingPill}>
+  <StarRating value={rating} onChange={setRating} />
+</View>
+)}
 
             {canAddToCalendar ? (
               <View style={styles.highlightSection}>
@@ -1007,23 +1037,13 @@ export function AddGigScreen(props: {
               </View>
             ) : null}
 
-            <TextField
-              label="Notes (optional)"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Who you went with, favourite moment…"
-              autoCapitalize="sentences"
-              multiline
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={() => Keyboard.dismiss()}
-              onFocus={() => {
-                setTimeout(() => {
-                  scrollRef.current?.scrollToEnd?.({ animated: true });
-                }, 180);
-              }}
-              style={{ minHeight: 100 }}
-            />
+            <IconInput
+  icon="create-outline"
+  value={notes}
+  onChangeText={setNotes}
+  placeholder="Who you went with, favourite moment..."
+  multiline
+/>
 
             <Pressable
               onPress={submit}
@@ -1070,11 +1090,11 @@ const styles = StyleSheet.create({
   },
 
   hero: {
-    marginBottom: 22,
+    marginBottom: 18,
   },
 
   form: {
-    gap: 16,
+    gap: 14,
   },
 
   titleRow: {
@@ -1163,9 +1183,48 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 
+  cityLikeField: {
+  minHeight: 48,
+  borderRadius: 17,
+  backgroundColor: "rgba(255,255,255,0.065)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.09)",
+  paddingHorizontal: 14,
+  color: Colours.text.primary,
+  fontSize: 14,
+  lineHeight: 18,
+  fontWeight: "700",
+  paddingVertical: Platform.OS === "ios" ? 13 : 9,
+},
+
+notesLikeField: {
+  minHeight: 120,
+  borderRadius: 17,
+  backgroundColor: "rgba(255,255,255,0.065)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.09)",
+  paddingHorizontal: 14,
+  paddingTop: 14,
+  color: Colours.text.primary,
+  fontSize: 14,
+  lineHeight: 18,
+  fontWeight: "700",
+  textAlignVertical: "top",
+},
+
+ratingLikeField: {
+  minHeight: 48,
+  borderRadius: 17,
+  backgroundColor: "rgba(255,255,255,0.065)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.09)",
+  paddingHorizontal: 14,
+  justifyContent: "center",
+},
+
   locationBtn: {
-    height: 46,
-    borderRadius: 14,
+    height: 48,
+    borderRadius: 17,
     backgroundColor: "rgba(255,255,255,0.05)",
     alignItems: "center",
     justifyContent: "center",
@@ -1270,4 +1329,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+
+  iconInputWrap: {
+  minHeight: 48,
+  borderRadius: 17,
+  backgroundColor: "rgba(255,255,255,0.065)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.09)",
+  paddingHorizontal: 14,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 10,
+},
+
+iconInput: {
+  flex: 1,
+  color: Colours.text.primary,
+  fontSize: 14,
+  lineHeight: 18,
+  fontWeight: "700",
+  paddingVertical: Platform.OS === "ios" ? 13 : 9,
+},
+
+notesWrap: {
+  minHeight: 110,
+  alignItems: "flex-start",
+  paddingTop: 14,
+},
+
+notesIcon: {
+  marginTop: 2,
+},
+
+notesInput: {
+  minHeight: 82,
+  textAlignVertical: "top",
+  paddingTop: 0,
+},
+
+ratingPill: {
+  minHeight: 48,
+  borderRadius: 17,
+  backgroundColor: "rgba(255,255,255,0.065)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.09)",
+  paddingHorizontal: 14,
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 12,
+},
+
 });

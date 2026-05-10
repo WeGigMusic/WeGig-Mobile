@@ -33,11 +33,11 @@ async function hapticsAllowed() {
 }
 
 async function lightImpactHaptic() {
- if (!(await hapticsAllowed())) return;
+  if (!(await hapticsAllowed())) return;
 
- try {
-   await lightImpactHaptic();
- } catch {}
+  try {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  } catch {}
 }
 
 
@@ -72,7 +72,7 @@ function PremiumButton({
   async function handlePress() {
     if (disabled) return;
 
-    await lightImpactHaptic();
+    void lightImpactHaptic();
     await onPress();
   }
 

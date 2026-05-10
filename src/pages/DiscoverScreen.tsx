@@ -95,6 +95,10 @@ function normalizeSearchText(value: string) {
     .trim();
 }
 
+function sameText(a?: string, b?: string) {
+  return a?.trim().toLowerCase() === b?.trim().toLowerCase();
+}
+
 function isTributeEvent(event: DiscoverEvent) {
   const venue = pickVenue(event);
 
@@ -233,18 +237,19 @@ function SearchInput(props: {
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
   const [focused, setFocused] = React.useState(false);
+
   return (
     <View
-  style={[
-    styles.searchInputWrap,
-    focused ? styles.searchInputWrapFocused : null,
-  ]}
->
+      style={[
+        styles.searchInputWrap,
+        focused ? styles.searchInputWrapFocused : null,
+      ]}
+    >
       <Ionicons
-  name={props.icon}
-  size={17}
-  color={focused ? "#7EB6FF" : Colours.text.muted}
-/>
+        name={props.icon}
+        size={17}
+        color={focused ? "#7EB6FF" : Colours.text.muted}
+      />
 
       <TextInput
         value={props.value}
@@ -256,7 +261,7 @@ function SearchInput(props: {
         returnKeyType="search"
         style={styles.searchInput}
         onFocus={() => setFocused(true)}
-onBlur={() => setFocused(false)}
+        onBlur={() => setFocused(false)}
       />
 
       {props.value.trim() ? (
@@ -353,7 +358,10 @@ export function DiscoverScreen(props: {
 }) {
   const scrollY = React.useRef(new Animated.Value(0)).current;
   const scrollRef = React.useRef<ScrollView>(null);
-  const suppressNextArtistSearchRef = React.useRef(false);
+const suppressNextArtistSearchRef = React.useRef(false);
+const artistSearchSeqRef = React.useRef(0);
+  const selectedArtistNameRef = React.useRef<string | undefined>(undefined);
+  const artistSearchRunRef = React.useRef(0);
 
   const [cityInput, setCityInput] = React.useState("");
   const [query, setQuery] = React.useState("");
@@ -388,91 +396,122 @@ export function DiscoverScreen(props: {
   }, [props.scrollToTopSignal]);
 
   const runMbSearch = React.useCallback(async (q: string) => {
-    const queryValue = q.trim();
+  const queryValue = q.trim();
+  const searchSeq = ++artistSearchSeqRef.current;
 
-    if (queryValue.length < 2) {
+  if (queryValue.length < 2) {
+    setMbResults([]);
+    setMbError("");
+    setMbLoading(false);
+    setMbOpen(false);
+    return;
+  }
+
+  const selected = selectedArtistNameRef.current;
+
+  if (selected && queryValue.toLowerCase() === selected.trim().toLowerCase()) {
+    setMbResults([]);
+    setMbError("");
+    setMbLoading(false);
+    setMbOpen(false);
+    return;
+  }
+
+  setMbLoading(true);
+  setMbError("");
+
+  try {
+    const res = await apiGet<MbArtistSearchResponse>(
+      `/mb/artists/search?q=${encodeURIComponent(queryValue)}`,
+    );
+
+    if (searchSeq !== artistSearchSeqRef.current) return;
+
+    const currentSelected = selectedArtistNameRef.current;
+    const currentQuery = query.trim();
+
+    if (
+      currentSelected &&
+      currentQuery.toLowerCase() === currentSelected.trim().toLowerCase()
+    ) {
       setMbResults([]);
-      setMbError("");
-      setMbLoading(false);
+      setMbOpen(false);
       return;
     }
 
-    setMbLoading(true);
-    setMbError("");
+    const artists: MbArtist[] =
+      (res?.artists as MbArtist[]) ??
+      (res?._embedded?.artists as MbArtist[]) ??
+      [];
 
-    try {
-      const res = await apiGet<MbArtistSearchResponse>(
-        `/mb/artists/search?q=${encodeURIComponent(queryValue)}`,
-      );
+    setMbResults(Array.isArray(artists) ? artists.slice(0, 8) : []);
+    setMbOpen(Array.isArray(artists) && artists.length > 0);
+  } catch (e: any) {
+    if (searchSeq !== artistSearchSeqRef.current) return;
 
-      const artists: MbArtist[] =
-        (res?.artists as MbArtist[]) ??
-        (res?._embedded?.artists as MbArtist[]) ??
-        [];
-
-      setMbResults(Array.isArray(artists) ? artists.slice(0, 8) : []);
-      setMbOpen(true);
-    } catch (e: any) {
-      setMbError(e?.message ?? "Artist search failed");
-      setMbResults([]);
-      setMbOpen(false);
-    } finally {
+    setMbError(e?.message ?? "Artist search failed");
+    setMbResults([]);
+    setMbOpen(false);
+  } finally {
+    if (searchSeq === artistSearchSeqRef.current) {
       setMbLoading(false);
     }
-  }, []);
+  }
+}, []);
 
   const chooseArtist = (artist: MbArtist) => {
   suppressNextArtistSearchRef.current = true;
+  selectedArtistNameRef.current = artist.name;
+  artistSearchSeqRef.current += 1;
+
   setQuery(artist.name);
   setSelectedArtistName(artist.name);
   setArtistMbid(artist.id);
+
   setMbOpen(false);
   setMbResults([]);
   setMbError("");
   setMbLoading(false);
+
   Keyboard.dismiss();
 };
 
   React.useEffect(() => {
-  if (suppressNextArtistSearchRef.current) {
-    suppressNextArtistSearchRef.current = false;
-    setMbOpen(false);
-    setMbResults([]);
-    setMbLoading(false);
-    return;
-  }
+    if (suppressNextArtistSearchRef.current) {
+      suppressNextArtistSearchRef.current = false;
+      setMbOpen(false);
+      setMbResults([]);
+      setMbLoading(false);
+      return;
+    }
 
-  const q = query.trim();
+    const q = query.trim();
 
-  const isSameSelectedArtist =
-    selectedArtistName &&
-    q.toLowerCase() === selectedArtistName.trim().toLowerCase();
+    if (selectedArtistNameRef.current && sameText(q, selectedArtistNameRef.current)) {
+      setMbOpen(false);
+      setMbResults([]);
+      setMbLoading(false);
+      return;
+    }
 
-  if (isSameSelectedArtist) {
-    setMbOpen(false);
-    setMbResults([]);
-    setMbLoading(false);
-    return;
-  }
+    selectedArtistNameRef.current = undefined;
+    setArtistMbid(undefined);
+    setSelectedArtistName(undefined);
 
-  setArtistMbid(undefined);
-  setSelectedArtistName(undefined);
+    if (q.length < 2) {
+      setMbResults([]);
+      setMbOpen(false);
+      setMbError("");
+      return;
+    }
 
-  if (q.length < 2) {
-    setMbResults([]);
-    setMbOpen(false);
-    setMbError("");
-    return;
-  }
+    const t = setTimeout(() => {
+      void runMbSearch(q);
+    }, 320);
 
-  const t = setTimeout(() => {
-    void runMbSearch(q);
-  }, 320);
-
-  return () => clearTimeout(t);
-}, [query, runMbSearch, selectedArtistName]);
-
-  const searchEventsForQuery = React.useCallback(async () => {
+    return () => clearTimeout(t);
+  }, [query, runMbSearch]);
+    const searchEventsForQuery = React.useCallback(async () => {
     if (trimmedQuery.length < 2 && activeCity.length < 2) {
       setSearchEvents([]);
       setSearchError("");
@@ -505,12 +544,7 @@ export function DiscoverScreen(props: {
             })
           : rawEvents;
 
-      const events = filterTributeEvents(
-        cityFilteredEvents as DiscoverEvent[],
-        includeTributeActs,
-      );
-
-      setSearchEvents(events);
+      setSearchEvents(filterTributeEvents(cityFilteredEvents, includeTributeActs));
     } catch (e: any) {
       setSearchError(e?.message ?? "Search failed");
       setSearchEvents([]);
@@ -556,27 +590,32 @@ export function DiscoverScreen(props: {
           scrollEventThrottle={16}
         >
           <View style={styles.heroWrap}>
-
             <View style={styles.searchStack}>
               <SearchInput
                 icon="search-outline"
                 value={query}
                 onChangeText={(text) => {
-  setQuery(text);
+                  const isStillSelected =
+                    selectedArtistNameRef.current &&
+                    sameText(text, selectedArtistNameRef.current);
 
-  const isSameSelectedArtist =
-    selectedArtistName &&
-    text.trim().toLowerCase() === selectedArtistName.trim().toLowerCase();
+                  setQuery(text);
 
-  if (isSameSelectedArtist) {
-    setMbOpen(false);
-    return;
-  }
+                  if (isStillSelected) {
+                    setMbOpen(false);
+                    setMbResults([]);
+                    setMbLoading(false);
+                    return;
+                  }
 
-  setSelectedArtistName(undefined);
-  setArtistMbid(undefined);
-  setMbOpen(text.trim().length >= 2);
-}}
+                  selectedArtistNameRef.current = undefined;
+                  selectedArtistNameRef.current = undefined;
+artistSearchSeqRef.current += 1;
+
+setSelectedArtistName(undefined);
+setArtistMbid(undefined);
+setMbOpen(text.trim().length >= 2);
+                }}
                 placeholder="Search artist"
                 autoCapitalize="none"
               />
@@ -634,10 +673,10 @@ export function DiscoverScreen(props: {
               ) : null}
 
               <CitySearchInput
-  value={cityInput}
-  onChangeText={setCityInput}
-  placeholder="Search city"
-/>
+                value={cityInput}
+                onChangeText={setCityInput}
+                placeholder="Search city"
+              />
 
               {showingSearchResults ? (
                 searchLoading ? (
@@ -730,72 +769,32 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
   },
- content: {
-  paddingHorizontal: 20,
-  paddingTop: 0,
-  paddingBottom: 130,
-},
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 0,
+    paddingBottom: 130,
+  },
   heroWrap: {
     marginBottom: 12,
   },
-  titleRow: {
+  searchStack: {
+    gap: 10,
+  },
+  searchInputWrap: {
+    minHeight: 46,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.055)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 16,
-    marginBottom: 18,
+    gap: 10,
   },
-  titleTextWrap: {
-    flex: 1,
+  searchInputWrapFocused: {
+    borderColor: "#2F8CFF",
+    backgroundColor: "rgba(47,140,255,0.10)",
   },
-  screenTitle: {
-    color: Colours.text.primary,
-    fontSize: 22,
-    lineHeight: 28,
-    fontWeight: "900",
-    letterSpacing: -0.4,
-  },
-  screenSubtitle: {
-    color: Colours.text.muted,
-    marginTop: 4,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700",
-  },
-  iconOnlyRow: {
-  flexDirection: "row",
-  justifyContent: "flex-end",
-  marginBottom: 18,
-},
-  headerIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 15,
-    backgroundColor: "rgba(47,140,255,0.14)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(126,182,255,0.16)",
-  },
-  searchStack: {
-  gap: 10,
-},
-  searchInputWrap: {
-  minHeight: 46,
-  borderRadius: 16,
-  backgroundColor: "rgba(255,255,255,0.055)",
-  borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.12)",
-  paddingHorizontal: 14,
-  flexDirection: "row",
-  alignItems: "center",
-  gap: 10,
-},
-searchInputWrapFocused: {
-  borderColor: "#2F8CFF",
-  backgroundColor: "rgba(47,140,255,0.10)",
-},
-
   searchInput: {
     flex: 1,
     color: Colours.text.primary,

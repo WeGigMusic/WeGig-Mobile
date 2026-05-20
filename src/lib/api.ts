@@ -1,8 +1,6 @@
-const BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ||
-  "http://192.168.0.97:5050";
+import { requireApiBaseUrl } from "../config/env";
 
-console.log("API BASE URL:", BASE_URL);
+const BASE_URL = requireApiBaseUrl().replace(/\/+$/, "");
 
 const DEFAULT_TIMEOUT_MS = 45000;
 
@@ -23,6 +21,7 @@ export class ApiError extends Error {
     super(
       `HTTP ${input.status} ${input.statusText}${input.body ? ` — ${input.body}` : ""}`,
     );
+
     this.name = "ApiError";
     this.status = input.status;
     this.statusText = input.statusText;
@@ -32,9 +31,11 @@ export class ApiError extends Error {
   }
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number) {
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const id = setTimeout(() => reject(new Error("Request timed out")), ms);
+    const id = setTimeout(() => {
+      reject(new Error("Request timed out"));
+    }, ms);
 
     promise
       .then((value) => {
@@ -50,6 +51,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number) {
 
 async function getAccessToken(): Promise<string | null> {
   const { supabase } = await import("./supabase");
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -57,12 +59,31 @@ async function getAccessToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
+function buildHeaders(
+  isFormData: boolean,
+  accessToken: string | null,
+  initHeaders?: HeadersInit,
+): HeadersInit {
+  const baseHeaders: HeadersInit = isFormData
+    ? {
+        Accept: "application/json",
+      }
+    : {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      };
+
+  return {
+    ...baseHeaders,
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    ...(initHeaders || {}),
+  };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${BASE_URL}${normalizedPath}`;
   const method = init?.method ?? "GET";
-
-  console.log("API request:", url);
 
   const isFormData =
     typeof FormData !== "undefined" && init?.body instanceof FormData;
@@ -75,36 +96,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     res = await withTimeout(
       fetch(url, {
         ...init,
-        headers: isFormData
-          ? {
-              Accept: "application/json",
-              ...(accessToken
-                ? { Authorization: `Bearer ${accessToken}` }
-                : {}),
-              ...(init?.headers || {}),
-            }
-          : {
-              Accept: "application/json",
-              "Content-Type": "application/json",
-              ...(accessToken
-                ? { Authorization: `Bearer ${accessToken}` }
-                : {}),
-              ...(init?.headers || {}),
-            },
+        headers: buildHeaders(isFormData, accessToken, init?.headers),
       }),
       DEFAULT_TIMEOUT_MS,
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.log("API network error:", {
       url,
       method,
-      message: error?.message ?? String(error),
+      message: error instanceof Error ? error.message : String(error),
     });
+
     throw error;
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+
     throw new ApiError({
       url,
       method,
@@ -127,13 +135,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
-export function apiGet<T>(path: string) {
+export function apiGet<T>(path: string): Promise<T> {
   return request<T>(path, { method: "GET" });
 }
 
-export function apiPost<T>(path: string, body: unknown) {
-  const isFormData =
-    typeof FormData !== "undefined" && body instanceof FormData;
+export function apiPost<T>(path: string, body: unknown): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
   return request<T>(path, {
     method: "POST",
@@ -141,13 +148,13 @@ export function apiPost<T>(path: string, body: unknown) {
   });
 }
 
-export function apiPatch<T>(path: string, body: unknown) {
+export function apiPatch<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, {
     method: "PATCH",
     body: JSON.stringify(body),
   });
 }
 
-export function apiDelete<T>(path: string) {
+export function apiDelete<T>(path: string): Promise<T> {
   return request<T>(path, { method: "DELETE" });
 }

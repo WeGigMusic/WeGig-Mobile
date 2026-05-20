@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "WeGig-Mobile",
+    "name": "WeGig",
     "slug": "WeGig-Mobile",
     "version": "1.0.0",
     "scheme": "wegig",
@@ -15,13 +15,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.WeGigMobile",
+      "bundleIdentifier": "com.wegig.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to suggest nearby gigs and auto-fill venues."
       }
     },
     "android": {
-      "package": "com.anonymous.WeGigMobile",
+      "package": "com.wegig.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

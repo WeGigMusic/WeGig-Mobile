@@ -22,14 +22,29 @@ import { posthog } from "../lib/analytics";
 WebBrowser.maybeCompleteAuthSession();
 
 const HAPTICS_KEY = "wegig.hapticsEnabled";
+const APPLE_LOGIN_ENABLED = false;
+
+type SocialProvider = "google" | "apple";
+
+type AuthFields = {
+  email: string;
+  password: string;
+};
+
+type PremiumButtonProps = {
+  children: ReactNode;
+  onPress: () => void | Promise<void>;
+  disabled?: boolean;
+  style?: object;
+};
 
 async function hapticsAllowed() {
- try {
-   const value = await AsyncStorage.getItem(HAPTICS_KEY);
-   return value == null || value === "1";
- } catch {
-   return true;
- }
+  try {
+    const value = await AsyncStorage.getItem(HAPTICS_KEY);
+    return value == null || value === "1";
+  } catch {
+    return true;
+  }
 }
 
 async function lightImpactHaptic() {
@@ -39,18 +54,6 @@ async function lightImpactHaptic() {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   } catch {}
 }
-
-
-type SocialProvider = "google" | "apple";
-
-const APPLE_LOGIN_ENABLED = false;
-
-type PremiumButtonProps = {
-  children: ReactNode;
-  onPress: () => void | Promise<void>;
-  disabled?: boolean;
-  style?: object;
-};
 
 function PremiumButton({
   children,
@@ -99,13 +102,33 @@ export default function AuthScreen() {
     "email" | "password" | null
   >(null);
 
+  function getAuthFields(): AuthFields {
+    const nextEmail = email.trim().toLowerCase();
+    const nextPassword = password.trim();
+
+    if (!nextEmail || !nextEmail.includes("@")) {
+      throw new Error("Please enter a valid email address.");
+    }
+
+    if (!nextPassword || nextPassword.length < 6) {
+      throw new Error("Password must be at least 6 characters.");
+    }
+
+    return {
+      email: nextEmail,
+      password: nextPassword,
+    };
+  }
+
   async function signUp() {
     try {
       setLoading(true);
 
+      const fields = getAuthFields();
+
       const { error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
+        email: fields.email,
+        password: fields.password,
       });
 
       if (error) throw error;
@@ -113,9 +136,9 @@ export default function AuthScreen() {
       posthog.capture("sign_up_started");
       void posthog.flush();
 
-      Alert.alert("Success", "Check your email to confirm your account.");
+      Alert.alert("Success", "Account created. You can now log in.");
     } catch (e: any) {
-      Alert.alert("Sign Up Failed", e.message);
+      Alert.alert("Sign Up Failed", e?.message ?? "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -125,9 +148,11 @@ export default function AuthScreen() {
     try {
       setLoading(true);
 
+      const fields = getAuthFields();
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
+        email: fields.email,
+        password: fields.password,
       });
 
       if (error) throw error;
@@ -146,7 +171,7 @@ export default function AuthScreen() {
         void posthog.flush();
       }
     } catch (e: any) {
-      Alert.alert("Login Failed", e.message);
+      Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -181,10 +206,7 @@ export default function AuthScreen() {
         throw new Error("No OAuth URL returned.");
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        redirectTo
-      );
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
 
       if (result.type === "success") {
         const { data: sessionData, error: sessionError } =
@@ -207,7 +229,7 @@ export default function AuthScreen() {
         void posthog.flush();
       }
     } catch (e: any) {
-      Alert.alert("Login Failed", e.message);
+      Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
     } finally {
       setLoading(false);
     }
@@ -313,25 +335,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 24,
   },
-
   card: {
     width: "100%",
   },
-
   logoWrap: {
     alignItems: "center",
     marginBottom: 24,
   },
-
   logoImage: {
     width: 94,
     height: 94,
   },
-
   form: {
     gap: 10,
   },
-
   input: {
     height: 52,
     backgroundColor: "#15151B",
@@ -343,7 +360,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
   },
-
   inputFocused: {
     borderColor: "#2F8CFF",
     shadowColor: "#2F8CFF",
@@ -351,7 +367,6 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
     shadowOffset: { width: 0, height: 0 },
   },
-
   primaryBtn: {
     height: 52,
     backgroundColor: "#2F8CFF",
@@ -367,7 +382,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 7 },
     elevation: 5,
   },
-
   secondaryBtn: {
     height: 52,
     backgroundColor: "#15151B",
@@ -377,7 +391,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.14)",
   },
-
   providerBtnLight: {
     height: 50,
     borderRadius: 15,
@@ -389,7 +402,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
   },
-
   providerBtnDark: {
     height: 50,
     borderRadius: 15,
@@ -401,11 +413,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 9,
   },
-
   disabledBtn: {
     opacity: 0.5,
   },
-
   primaryBtnText: {
     textAlign: "center",
     fontWeight: "900",
@@ -413,7 +423,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     letterSpacing: 0.1,
   },
-
   secondaryBtnText: {
     textAlign: "center",
     fontWeight: "900",
@@ -421,34 +430,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     letterSpacing: 0.1,
   },
-
   providerTextDark: {
     color: "#050507",
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: 0.05,
   },
-
   providerTextLight: {
     color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "900",
     letterSpacing: 0.05,
   },
-
   dividerWrap: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
     marginVertical: 7,
   },
-
   dividerLine: {
     flex: 1,
     height: 1,
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-
   dividerText: {
     color: "#8E8E98",
     fontSize: 13,

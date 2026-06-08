@@ -159,26 +159,19 @@ function buildGigCsv(params: {
     "City",
     "Rating",
     "Notes",
-    "First Gig",
-    "Favourite Gig",
     "Source",
-    "External ID",
     "Ticket URL",
   ];
 
   const rows = gigs.map((gig) => [
-    gig.date ?? "",
-    gig.artist ?? "",
-    gig.venue ?? "",
-    gig.city ?? "",
-    typeof gig.rating === "number" ? String(gig.rating) : "",
-    gig.notes ?? "",
-    gig.id === firstGigId ? "Yes" : "",
-    gig.id === favouriteGigId ? "Yes" : "",
-    gig.externalSource ?? "Manual",
-    gig.externalId ?? "",
-    gig.ticketUrl ?? "",
-  ]);
+  gig.date ?? "",
+  gig.artist ?? "",
+  gig.venue ?? "",
+  gig.city ?? "",
+  typeof gig.rating === "number" ? String(gig.rating) : "",
+  gig.notes ?? "",
+  gig.ticketUrl ?? "",
+]);
 
   return [headers, ...rows]
     .map((row) => row.map(csvCell).join(","))

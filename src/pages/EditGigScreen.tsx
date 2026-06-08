@@ -105,7 +105,9 @@ function IconInput(props: {
         onChangeText={props.onChangeText}
         placeholder={props.placeholder}
         placeholderTextColor="rgba(255,255,255,0.42)"
-        autoCapitalize={props.autoCapitalize ?? "words"}
+        autoCapitalize={
+  props.autoCapitalize ?? (props.multiline ? "sentences" : "words")
+}
         autoCorrect={false}
         multiline={props.multiline}
         returnKeyType={props.multiline ? "done" : "next"}

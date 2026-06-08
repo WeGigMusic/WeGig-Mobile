@@ -127,6 +127,7 @@ function IconInput(props: {
   onChangeText: (value: string) => void;
   placeholder: string;
   multiline?: boolean;
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
   return (
     <View style={[styles.iconInputWrap, props.multiline ? styles.notesWrap : null]}>
@@ -142,7 +143,9 @@ function IconInput(props: {
         onChangeText={props.onChangeText}
         placeholder={props.placeholder}
         placeholderTextColor="rgba(255,255,255,0.42)"
-        autoCapitalize="words"
+        autoCapitalize={
+  props.autoCapitalize ?? (props.multiline ? "sentences" : "words")
+}
         autoCorrect={false}
         multiline={props.multiline}
         returnKeyType={props.multiline ? "done" : "next"}

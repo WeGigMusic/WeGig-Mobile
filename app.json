@@ -15,9 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.wegig.app",
+      "bundleIdentifier": "com.wegig.mobile",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "We use your location to suggest nearby gigs and auto-fill venues."
+        "NSLocationWhenInUseUsageDescription": "We use your location to suggest nearby gigs and auto-fill venues.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

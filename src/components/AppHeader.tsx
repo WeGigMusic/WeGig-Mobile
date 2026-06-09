@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Animated,
   Text,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colours } from "../theme/colours";
@@ -13,8 +14,6 @@ type AppHeaderProps = {
   onPressLogo?: () => void;
   right?: React.ReactNode;
   scrollY?: Animated.Value;
-
-  /** NEW */
   onPressBack?: () => void;
   backLabel?: string;
 };
@@ -28,13 +27,13 @@ export function AppHeader(props: AppHeaderProps) {
       })
     : 56;
 
-const animatedLogoWidth = props.scrollY
-  ? props.scrollY.interpolate({
-      inputRange: [-60, 0, 120],
-      outputRange: [172, 154, 102],
-      extrapolate: "clamp",
-    })
-  : 154;
+  const animatedLogoWidth = props.scrollY
+    ? props.scrollY.interpolate({
+        inputRange: [-60, 0, 120],
+        outputRange: [172, 154, 102],
+        extrapolate: "clamp",
+      })
+    : 154;
 
   const animatedTranslateY = props.scrollY
     ? props.scrollY.interpolate({
@@ -69,9 +68,7 @@ const animatedLogoWidth = props.scrollY
               size={20}
               color={Colours.text.primary}
             />
-            <Text style={styles.backText}>
-              {props.backLabel ?? "Back"}
-            </Text>
+            <Text style={styles.backText}>{props.backLabel ?? "Back"}</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -109,7 +106,7 @@ const animatedLogoWidth = props.scrollY
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingTop: 6,
+    paddingTop: Platform.OS === "android" ? 14 : 6,
     paddingBottom: 4,
     paddingHorizontal: 16,
     backgroundColor: Colours.background.app,
@@ -121,10 +118,10 @@ const styles = StyleSheet.create({
     height: 56,
   },
 
- logoBtn: {
-  justifyContent: "center",
-  marginLeft: -40, // 👈 tweak between -4 and -8
-},
+  logoBtn: {
+    justifyContent: "center",
+    marginLeft: Platform.OS === "android" ? -12 : -40,
+  },
 
   backBtn: {
     flexDirection: "row",

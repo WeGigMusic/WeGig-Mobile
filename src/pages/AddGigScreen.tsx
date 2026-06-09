@@ -149,10 +149,10 @@ function IconInput(props: {
         autoCorrect={false}
         multiline={props.multiline}
         returnKeyType={props.multiline ? "done" : "next"}
-        blurOnSubmit={props.multiline}
-        onSubmitEditing={() => {
-          if (props.multiline) Keyboard.dismiss();
-        }}
+blurOnSubmit={true}
+onSubmitEditing={() => {
+  Keyboard.dismiss();
+}}
         style={[styles.iconInput, props.multiline ? styles.notesInput : null]}
       />
     </View>
@@ -868,6 +868,7 @@ export function AddGigScreen(props: {
   value={city}
   onChangeText={setCity}
   placeholder="Start typing a city…"
+  suppressSuggestions={isDiscoverPrefill}
 />
 
             {justAutoCity ? (
@@ -1046,6 +1047,7 @@ export function AddGigScreen(props: {
   onChangeText={setNotes}
   placeholder="Who you went with, favourite moment..."
   multiline
+  autoCapitalize="sentences"
 />
 
             <Pressable

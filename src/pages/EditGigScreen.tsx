@@ -111,10 +111,10 @@ function IconInput(props: {
         autoCorrect={false}
         multiline={props.multiline}
         returnKeyType={props.multiline ? "done" : "next"}
-        blurOnSubmit={props.multiline}
-        onSubmitEditing={() => {
-          if (props.multiline) Keyboard.dismiss();
-        }}
+blurOnSubmit={true}
+onSubmitEditing={() => {
+  Keyboard.dismiss();
+}}
         onFocus={props.onFocus}
         style={[styles.iconInput, props.multiline ? styles.notesInput : null]}
       />
@@ -768,18 +768,18 @@ export function EditGigScreen(props: {
             ) : null}
 
             <IconInput
-              icon="create-outline"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Who you went with, favourite moment..."
-              multiline
-              autoCapitalize="sentences"
-              onFocus={() => {
-                setTimeout(() => {
-                  scrollRef.current?.scrollToEnd?.({ animated: true });
-                }, 180);
-              }}
-            />
+  icon="create-outline"
+  value={notes}
+  onChangeText={setNotes}
+  placeholder="Who you went with, favourite moment..."
+  multiline
+  autoCapitalize="sentences"
+  onFocus={() => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd?.({ animated: true });
+    }, 180);
+  }}
+/>
 
             {requiredMissing ? (
               <Text style={styles.errorText}>

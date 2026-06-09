@@ -290,6 +290,10 @@ function EventCard(props: {
 }) {
   const eventName = getEventName(props.item);
   const date = getEventDate(props.item);
+  const displayDate =
+  date && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? `${date.slice(8, 10)}-${date.slice(5, 7)}-${date.slice(0, 4)}`
+    : date;
   const v = pickVenue(props.item);
 
   const artistName =
@@ -321,7 +325,7 @@ function EventCard(props: {
             size={13}
             color={Colours.text.muted}
           />
-          <Text style={styles.resultDate}>{date}</Text>
+          <Text style={styles.resultDate}>{displayDate}</Text>
         </View>
       ) : null}
 

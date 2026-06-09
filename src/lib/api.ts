@@ -1,8 +1,10 @@
 import { requireApiBaseUrl } from "../config/env";
 
 const BASE_URL = requireApiBaseUrl().replace(/\/+$/, "");
-
 const DEFAULT_TIMEOUT_MS = 45000;
+
+export const FRIENDLY_API_ERROR =
+  "Looks like we're having a soundcheck issue. Please try again later.";
 
 export class ApiError extends Error {
   status: number;
@@ -18,9 +20,7 @@ export class ApiError extends Error {
     url: string;
     method: string;
   }) {
-    super(
-      `HTTP ${input.status} ${input.statusText}${input.body ? ` — ${input.body}` : ""}`,
-    );
+    super(FRIENDLY_API_ERROR);
 
     this.name = "ApiError";
     this.status = input.status;
@@ -34,7 +34,7 @@ export class ApiError extends Error {
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const id = setTimeout(() => {
-      reject(new Error("Request timed out"));
+      reject(new Error(FRIENDLY_API_ERROR));
     }, ms);
 
     promise
@@ -65,9 +65,7 @@ function buildHeaders(
   initHeaders?: HeadersInit,
 ): HeadersInit {
   const baseHeaders: HeadersInit = isFormData
-    ? {
-        Accept: "application/json",
-      }
+    ? { Accept: "application/json" }
     : {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -107,11 +105,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       message: error instanceof Error ? error.message : String(error),
     });
 
-    throw error;
+    throw new Error(FRIENDLY_API_ERROR);
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+
+    console.log("API response error:", {
+      url,
+      method,
+      status: res.status,
+      statusText: res.statusText,
+      body: text,
+    });
 
     throw new ApiError({
       url,
@@ -131,7 +137,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    throw new Error("Invalid JSON response from API");
+    console.log("API JSON parse error:", { url, method, text });
+    throw new Error(FRIENDLY_API_ERROR);
   }
 }
 

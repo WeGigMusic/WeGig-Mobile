@@ -25,6 +25,7 @@ export function CitySearchInput(props: {
   value: string;
   onChangeText: (value: string) => void;
   placeholder?: string;
+  suppressSuggestions?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [focused, setFocused] = React.useState(false);
@@ -39,6 +40,13 @@ export function CitySearchInput(props: {
   }, []);
 
   React.useEffect(() => {
+    if (props.suppressSuggestions) {
+      setResults([]);
+      setOpen(false);
+      setLoading(false);
+      return;
+    }
+
     const q = props.value.trim();
     const selected = selectedCityRef.current.trim();
 
@@ -72,7 +80,7 @@ export function CitySearchInput(props: {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [props.value]);
+  }, [props.value, props.suppressSuggestions]);
 
   return (
     <View style={styles.wrap}>
@@ -94,6 +102,14 @@ export function CitySearchInput(props: {
             }
 
             props.onChangeText(text);
+
+            if (props.suppressSuggestions) {
+              setOpen(false);
+              setResults([]);
+              setLoading(false);
+              return;
+            }
+
             setOpen(next.length >= 2 && !selectedCityRef.current);
           }}
           onFocus={() => setFocused(true)}
@@ -128,7 +144,7 @@ export function CitySearchInput(props: {
         ) : null}
       </View>
 
-      {open && results.length > 0 ? (
+      {!props.suppressSuggestions && open && results.length > 0 ? (
         <View style={styles.suggestCard}>
           {results.map((city) => (
             <Pressable

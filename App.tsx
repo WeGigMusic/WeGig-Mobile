@@ -215,28 +215,50 @@ function AppShell() {
   }, [runSync]);
 
   React.useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(
-      (response) => {
-        const data = response.notification.request.content.data as {
+  const openFromNotification = (data: {
+    type?: string;
+    gigId?: string;
+  }) => {
+    if (data.type !== "rate_reminder" || !data.gigId) {
+      return;
+    }
+
+    setPrefill(null);
+    setAutoCreatePrefill(false);
+    setProfileRoute("home");
+    setTab("gigs");
+    setOpenGigIdFromNotification(data.gigId);
+    setRefreshKey((k) => k + 1);
+  };
+
+  const sub = Notifications.addNotificationResponseReceivedListener(
+    (response) => {
+      const data = response.notification.request.content.data as {
+        type?: string;
+        gigId?: string;
+      };
+
+      openFromNotification(data);
+    },
+  );
+
+  void Notifications.getLastNotificationResponseAsync().then((response) => {
+    const data = response?.notification.request.content.data as
+      | {
           type?: string;
           gigId?: string;
-        };
-
-        if (data.type === "rate_reminder" && data.gigId) {
-          setPrefill(null);
-          setAutoCreatePrefill(false);
-          setProfileRoute("home");
-          setTab("gigs");
-          setOpenGigIdFromNotification(data.gigId);
-          setRefreshKey((k) => k + 1);
         }
-      },
-    );
+      | undefined;
 
-    return () => {
-      sub.remove();
-    };
-  }, []);
+    if (data) {
+      openFromNotification(data);
+    }
+  });
+
+  return () => {
+    sub.remove();
+  };
+}, []);
 
   const pressTab = React.useCallback(
     (next: Tab) => {

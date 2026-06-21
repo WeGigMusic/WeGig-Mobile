@@ -32,6 +32,12 @@ export function DateField(props: {
     setAndroidOpen(true);
   };
 
+  const clearDate = () => {
+    setIosOpen(false);
+    setAndroidOpen(false);
+    props.onChange("");
+  };
+
   const displayValue = props.value?.trim()
     ? formatDateUk(props.value)
     : props.placeholder ?? "Select date";
@@ -49,9 +55,30 @@ export function DateField(props: {
             styles.value,
             !props.value?.trim() ? styles.placeholder : null,
           ]}
+          numberOfLines={1}
         >
           {displayValue}
         </Text>
+
+        {props.value?.trim() ? (
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              clearDate();
+            }}
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.clearBtn,
+              pressed ? styles.pressed : null,
+            ]}
+          >
+            <Ionicons
+              name="close-circle"
+              size={20}
+              color="rgba(255,255,255,0.42)"
+            />
+          </Pressable>
+        ) : null}
       </Pressable>
 
       {Platform.OS === "android" && androidOpen ? (
@@ -153,6 +180,11 @@ const styles = StyleSheet.create({
   placeholder: {
     color: "rgba(255,255,255,0.42)",
     fontWeight: "700",
+  },
+
+  clearBtn: {
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   overlay: {

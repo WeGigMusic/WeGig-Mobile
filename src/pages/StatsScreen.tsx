@@ -157,28 +157,6 @@ function buildStats(gigs: Gig[]) {
   const topArtistCount = topArtist?.[1] ?? 0;
   const hasFiveStarGig = gigs.some((g) => g.rating === 5);
 
-  let statusLabel = "New Fan";
-  let statusColor = "#6B7280";
-  let statusIcon = "✨";
-
-  if (total >= 50) {
-    statusLabel = "Headliner";
-    statusColor = "#FFB703";
-    statusIcon = "🎤";
-  } else if (total >= 30) {
-    statusLabel = "Scene Fixture";
-    statusColor = "#8A5BFF";
-    statusIcon = "🏟️";
-  } else if (total >= 15) {
-    statusLabel = "Scene Regular";
-    statusColor = "#2F8CFF";
-    statusIcon = "🔥";
-  } else if (total >= 1) {
-    statusLabel = "Setlist Opener";
-    statusColor = "#2F8CFF";
-    statusIcon = "🎟️";
-  }
-
   const years = gigs.reduce<Record<string, number>>((acc, g) => {
     const year = parseGigYear(g.date);
     if (!year) return acc;
@@ -265,9 +243,6 @@ function buildStats(gigs: Gig[]) {
     topArtistCount,
     timeline,
     badges,
-    statusLabel,
-    statusColor,
-    statusIcon,
     onTourProgress: clampProgress(cityCount, 5),
     dieHardProgress: clampProgress(topArtistCount, 5),
     touringProgress: clampProgress(venueCount, 7),
@@ -425,41 +400,6 @@ function BadgeInfoModal(props: {
   );
 }
 
-function getStatusInfo(total: number, statusLabel: string) {
-  if (total >= 50) {
-    return {
-      title: `Status: ${statusLabel}`,
-      description: `You’ve logged ${total} gigs. Headliner unlocked at 50 gigs.`,
-    };
-  }
-
-  if (total >= 30) {
-    return {
-      title: `Status: ${statusLabel}`,
-      description: `You’ve logged ${total} gigs. Scene Fixture unlocked at 30 gigs. Keep gigging to reach Headliner at 50 gigs.`,
-    };
-  }
-
-  if (total >= 15) {
-    return {
-      title: `Status: ${statusLabel}`,
-      description: `Nice one — you’ve logged ${total} gigs. Scene Regular unlocked at 15 gigs. Keep gigging to reach Scene Fixture at 30 gigs.`,
-    };
-  }
-
-  if (total >= 1) {
-    return {
-      title: `Status: ${statusLabel}`,
-      description: `Well done for logging your first gig. Keep gigging to reach Scene Regular at 15 gigs.`,
-    };
-  }
-
-  return {
-    title: "Status: New Fan",
-    description: "Log your first gig to unlock Setlist Opener.",
-  };
-}
-
 export function StatsScreen(props: {
   onPressLogo?: () => void;
   scrollToTopSignal?: number;
@@ -609,17 +549,6 @@ export function StatsScreen(props: {
           </View>
         ) : (
           <>
-            <Pressable
-  onLongPress={() =>
-    setSelectedBadgeInfo(getStatusInfo(stats.total, stats.statusLabel))
-  }
-  delayLongPress={320}
-  style={({ pressed }) => (pressed ? { opacity: 0.82 } : null)}
->
-  <Text style={styles.statusText}>
-    Status: {stats.statusIcon} {stats.statusLabel}
-  </Text>
-</Pressable>
 
             <SectionHeader title="Your highlights" />
             <ScrollView
@@ -808,15 +737,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
-  },
-
-  statusText: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 16,
-    lineHeight: 23,
-    letterSpacing: -0.15,
-    marginBottom: 2,
   },
 
   sectionHeaderRow: {

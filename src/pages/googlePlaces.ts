@@ -1,16 +1,7 @@
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-console.log(
-  "GOOGLE PLACES API KEY:",
-  API_KEY ? `${API_KEY.slice(0, 8)}...` : "MISSING",
-);
-
-function requireApiKey(): string {
-  if (!API_KEY) {
-    throw new Error("Missing EXPO_PUBLIC_GOOGLE_MAPS_API_KEY");
-  }
-
-  return API_KEY;
+function getApiKey(): string | null {
+  return API_KEY?.trim() || null;
 }
 
 export type PlaceSuggestion = {
@@ -46,10 +37,17 @@ export const searchVenues = async (
   sessionToken: string,
   options?: VenueSearchOptions,
 ): Promise<PlaceSuggestion[]> => {
-  if (!input.trim()) return [];
+  const trimmedInput = input.trim();
+  if (!trimmedInput) return [];
+
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    return [];
+  }
 
   const cityHint = options?.cityHint?.trim();
-  const fullInput = cityHint ? `${input} ${cityHint}` : input;
+  const fullInput = cityHint ? `${trimmedInput} ${cityHint}` : trimmedInput;
 
   const body: Record<string, any> = {
     input: fullInput,
@@ -81,15 +79,14 @@ export const searchVenues = async (
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Goog-Api-Key": requireApiKey(),
+        "X-Goog-Api-Key": apiKey,
       },
       body: JSON.stringify(body),
     },
   );
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Autocomplete failed: ${response.status} ${errorText}`);
+    return [];
   }
 
   const data = await response.json();
@@ -108,12 +105,18 @@ export const getPlaceDetails = async (
   placeId: string,
   sessionToken: string,
 ): Promise<PlaceDetails> => {
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    throw new Error("Venue details unavailable");
+  }
+
   const response = await fetch(
     `https://places.googleapis.com/v1/places/${placeId}`,
     {
       method: "GET",
       headers: {
-        "X-Goog-Api-Key": requireApiKey(),
+        "X-Goog-Api-Key": apiKey,
         "X-Goog-Session-Token": sessionToken,
         "X-Goog-FieldMask":
           "id,displayName,formattedAddress,addressComponents,location",
@@ -122,8 +125,7 @@ export const getPlaceDetails = async (
   );
 
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Place details failed: ${response.status} ${errorText}`);
+    throw new Error("Venue details unavailable");
   }
 
   const data = await response.json();

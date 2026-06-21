@@ -600,6 +600,16 @@ export function AddGigScreen(props: {
     }
   };
 
+  const formatDisplayDate = (dateString: string) => {
+  const [year, month, day] = dateString.split("-");
+
+  if (!year || !month || !day) {
+    return dateString;
+  }
+
+  return `${day}-${month}-${year}`;
+};
+
   const chooseSearchedGig = (gig: AppEvent) => {
     const eventDate = getEventDate(gig);
     const artistName = getEventArtistName(gig) || artist.trim() || gig.title;
@@ -875,20 +885,54 @@ export function AddGigScreen(props: {
               <Text style={styles.muted}>{UI_COPY.autoCity}</Text>
             ) : null}
 
-            <IconInput
-  icon="business-outline"
-  value={venue}
-  onChangeText={(t) => {
-    setVenue(t);
-    setVenueOpen(true);
-    setVenueError("");
-    setSelectedVenueLat(undefined);
-    setSelectedVenueLng(undefined);
-    setSelectedVenuePlaceName(undefined);
-    setSelectedVenuePlaceId(undefined);
-  }}
-  placeholder="Start typing a venue..."
-/>
+            <View style={styles.iconInputWrap}>
+  <Ionicons
+    name="business-outline"
+    size={18}
+    color={Colours.text.muted}
+  />
+
+  <TextInput
+    value={venue}
+    onChangeText={(t) => {
+      setVenue(t);
+      setVenueOpen(true);
+      setVenueError("");
+      setSelectedVenueLat(undefined);
+      setSelectedVenueLng(undefined);
+      setSelectedVenuePlaceName(undefined);
+      setSelectedVenuePlaceId(undefined);
+    }}
+    placeholder="Start typing a venue..."
+    placeholderTextColor="rgba(255,255,255,0.42)"
+    autoCapitalize="words"
+    autoCorrect={false}
+    returnKeyType="next"
+    style={styles.iconInput}
+  />
+
+  {venue ? (
+    <Pressable
+      onPress={() => {
+        setVenue("");
+        setVenueOpen(false);
+        setVenueError("");
+        setVenueResults([]);
+        setSelectedVenueLat(undefined);
+        setSelectedVenueLng(undefined);
+        setSelectedVenuePlaceName(undefined);
+        setSelectedVenuePlaceId(undefined);
+      }}
+      hitSlop={10}
+    >
+      <Ionicons
+        name="close-circle"
+        size={20}
+        color="rgba(255,255,255,0.42)"
+      />
+    </Pressable>
+  ) : null}
+</View>
 
             {venueLoading ? (
               <View style={styles.inlineRow}>
@@ -963,7 +1007,7 @@ export function AddGigScreen(props: {
                 {gigSearchOpen && gigSearchResults.length > 0 ? (
                   <View style={styles.suggestCard}>
                     {gigSearchResults.map((gig, index) => {
-                      const gigDate = getEventDate(gig);
+                      const gigDate = formatDisplayDate(getEventDate(gig));
                       const gigVenue = gig.venueName ?? "Unknown venue";
                       const gigCity = gig.city ?? "Unknown city";
 

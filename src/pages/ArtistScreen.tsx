@@ -91,7 +91,12 @@ function formatDuration(durationMs: number | null | undefined) {
 
 function formatReleaseDate(value: string | null | undefined) {
   if (!value) return "Unknown date";
-  return value;
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!match) return value;
+
+  return `${match[3]}-${match[2]}-${match[1]}`;
 }
 
 function formatGigDateUk(value?: string) {
@@ -265,7 +270,11 @@ function SetlistRow(props: {
         </Text>
       </View>
 
-      <Text style={styles.spotifyRowMeta}>{props.item.songCount} songs</Text>
+      <Text style={styles.spotifyRowMeta}>
+  {props.item.songCount > 0
+    ? `${props.item.songCount} songs`
+    : "Setlist unavailable"}
+</Text>
     </Pressable>
   );
 }
@@ -518,11 +527,12 @@ export function ArtistScreen(props: {
           ) : null}
 
           {spotifyError ? (
-            <View style={styles.spotifyFallbackBox}>
-              <Text style={styles.spotifyFallbackTitle}>Spotify lookup failed</Text>
-              <Text style={styles.spotifyFallbackText}>{spotifyError}</Text>
-            </View>
-          ) : null}
+  <View style={styles.spotifyFallbackBox}>
+    <Text style={styles.spotifyFallbackText}>
+      🎤 We're doing a soundcheck. Come back shortly.
+    </Text>
+  </View>
+) : null}
 
           {showSpotifyFallback ? (
             <View style={styles.spotifyFallbackBox}>
@@ -633,10 +643,12 @@ export function ArtistScreen(props: {
         ) : null}
 
         {similarArtistsError ? (
-          <View style={styles.card}>
-            <Text style={styles.spotifyFallbackText}>{similarArtistsError}</Text>
-          </View>
-        ) : null}
+  <View style={styles.card}>
+    <Text style={styles.spotifyFallbackText}>
+      The artist insights will be back on stage soon.
+    </Text>
+  </View>
+) : null}
       </ScrollView>
 
       <Modal
@@ -695,7 +707,9 @@ export function ArtistScreen(props: {
                           </Text>
                         ))
                       ) : (
-                        <Text style={styles.notesModalBody}>No songs listed.</Text>
+                        <Text style={styles.notesModalBody}>
+  Setlist details aren't available for this show yet.
+</Text>
                       )}
                     </View>
                   ))}

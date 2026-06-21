@@ -6,6 +6,7 @@ import {
   Animated,
   Text,
   Platform,
+  StatusBar,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colours } from "../theme/colours";
@@ -106,7 +107,8 @@ export function AppHeader(props: AppHeaderProps) {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingTop: Platform.OS === "android" ? 14 : 6,
+    paddingTop:
+      Platform.OS === "android" ? (StatusBar.currentHeight ?? 24) + 14 : 6,
     paddingBottom: 4,
     paddingHorizontal: 16,
     backgroundColor: Colours.background.app,

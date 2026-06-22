@@ -40,11 +40,6 @@ const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 const NOTIFY_GIG_REMINDER_KEY = "wegig.notifyGigReminder";
 const NOTIFY_RATE_REMINDER_KEY = "wegig.notifyRateReminder";
 
-const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
-const [newPassword, setNewPassword] = React.useState("");
-const [confirmPassword, setConfirmPassword] = React.useState("");
-const [changingPassword, setChangingPassword] = React.useState(false);
-
 const WEGIG_INSTAGRAM_URL = "https://www.instagram.com/wegigmusic/";
 const WEGIG_FACEBOOK_URL =
   "https://www.facebook.com/profile.php?id=61584065319390&sk=about";
@@ -210,7 +205,10 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
 
   const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
-
+const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
+const [newPassword, setNewPassword] = React.useState("");
+const [confirmPassword, setConfirmPassword] = React.useState("");
+const [changingPassword, setChangingPassword] = React.useState(false);
   const loadPrefs = React.useCallback(async () => {
     try {
       const [dn, preset, uri, notifyGig, notifyRate] = await Promise.all([

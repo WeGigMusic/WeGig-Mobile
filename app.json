@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.wegig.mobile",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to suggest nearby gigs and auto-fill venues.",
         "ITSAppUsesNonExemptEncryption": false

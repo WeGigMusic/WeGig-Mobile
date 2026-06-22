@@ -22,7 +22,7 @@ import { posthog } from "../lib/analytics";
 WebBrowser.maybeCompleteAuthSession();
 
 const HAPTICS_KEY = "wegig.hapticsEnabled";
-const APPLE_LOGIN_ENABLED = false;
+const APPLE_LOGIN_ENABLED = true;
 
 type SocialProvider = "google" | "apple";
 
@@ -287,7 +287,7 @@ export default function AuthScreen() {
             disabled={loading}
           >
             <Text style={styles.primaryBtnText}>
-              {loading ? "Loading..." : "Continue"}
+              {loading ? "Loading…" : "Continue"}
             </Text>
           </PremiumButton>
 

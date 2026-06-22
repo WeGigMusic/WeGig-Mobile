@@ -14,6 +14,7 @@ import {
   Share,
   Linking,
   TextInput,
+  Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
@@ -38,6 +39,11 @@ const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 const NOTIFY_GIG_REMINDER_KEY = "wegig.notifyGigReminder";
 const NOTIFY_RATE_REMINDER_KEY = "wegig.notifyRateReminder";
+
+const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
+const [newPassword, setNewPassword] = React.useState("");
+const [confirmPassword, setConfirmPassword] = React.useState("");
+const [changingPassword, setChangingPassword] = React.useState(false);
 
 const WEGIG_INSTAGRAM_URL = "https://www.instagram.com/wegigmusic/";
 const WEGIG_FACEBOOK_URL =
@@ -393,8 +399,48 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
   }, []);
 
   const handleChangePassword = React.useCallback(() => {
-    Alert.alert("Change password", "This will be available soon.");
-  }, []);
+  setNewPassword("");
+  setConfirmPassword("");
+  setPasswordModalOpen(true);
+}, []);
+
+const submitPasswordChange = React.useCallback(async () => {
+  const password = newPassword.trim();
+  const confirm = confirmPassword.trim();
+
+  if (password.length < 6) {
+    Alert.alert("Password too short", "Password must be at least 6 characters.");
+    return;
+  }
+
+  if (password !== confirm) {
+    Alert.alert("Passwords don't match", "Please enter the same password twice.");
+    return;
+  }
+
+  setChangingPassword(true);
+
+  try {
+    const { error } = await supabase.auth.updateUser({
+      password,
+    });
+
+    if (error) throw error;
+
+    posthog.capture("password_changed");
+    void posthog.flush();
+
+    setPasswordModalOpen(false);
+    setNewPassword("");
+    setConfirmPassword("");
+
+    Alert.alert("Password updated", "Your password has been changed.");
+  } catch (e: any) {
+    Alert.alert("Update failed", e?.message ?? "Please try again.");
+  } finally {
+    setChangingPassword(false);
+  }
+}, [confirmPassword, newPassword]);
 
   const handleLogout = React.useCallback(() => {
     Alert.alert("Log out", "Are you sure you want to log out?", [
@@ -659,7 +705,7 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
         <View style={styles.card}>
           <ActionRow
             title="Change password"
-            subtitle="Email login only (coming soon)"
+            subtitle="Update your email login password"
             onPress={handleChangePassword}
           />
           <ActionRow
@@ -804,6 +850,66 @@ export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
         </ViewShot>
       </View>
 
+<Modal
+  visible={passwordModalOpen}
+  transparent
+  animationType="fade"
+  onRequestClose={() => setPasswordModalOpen(false)}
+>
+  <View style={styles.passwordModalOverlay}>
+    <View style={styles.passwordModalCard}>
+      <Text style={styles.passwordModalTitle}>Change password</Text>
+
+      <Text style={styles.passwordModalText}>
+        This updates your email login password.
+      </Text>
+
+      <TextInput
+        value={newPassword}
+        onChangeText={setNewPassword}
+        placeholder="New password"
+        placeholderTextColor="rgba(255,255,255,0.42)"
+        secureTextEntry
+        autoCapitalize="none"
+        style={styles.passwordInput}
+      />
+
+      <TextInput
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
+        placeholder="Confirm password"
+        placeholderTextColor="rgba(255,255,255,0.42)"
+        secureTextEntry
+        autoCapitalize="none"
+        style={styles.passwordInput}
+      />
+
+      <View style={styles.passwordModalActions}>
+        <Pressable
+          onPress={() => setPasswordModalOpen(false)}
+          disabled={changingPassword}
+          style={styles.passwordCancelBtn}
+        >
+          <Text style={styles.passwordCancelText}>Cancel</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => void submitPasswordChange()}
+          disabled={changingPassword}
+          style={[
+            styles.passwordSaveBtn,
+            changingPassword ? styles.passwordBtnDisabled : null,
+          ]}
+        >
+          <Text style={styles.passwordSaveText}>
+            {changingPassword ? "Updating…" : "Update"}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  </View>
+</Modal>
+
       <AvatarPickerModal
         visible={avatarPickerVisible}
         onClose={() => setAvatarPickerVisible(false)}
@@ -839,6 +945,88 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+
+  passwordModalOverlay: {
+  flex: 1,
+  backgroundColor: "rgba(0,0,0,0.78)",
+  alignItems: "center",
+  justifyContent: "center",
+  paddingHorizontal: 20,
+},
+
+passwordModalCard: {
+  width: "100%",
+  maxWidth: 380,
+  backgroundColor: "#17191C",
+  borderRadius: 18,
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.14)",
+  padding: 18,
+},
+
+passwordModalTitle: {
+  color: Colours.text.primary,
+  fontSize: 18,
+  fontWeight: "800",
+  marginBottom: 8,
+},
+
+passwordModalText: {
+  color: Colours.text.muted,
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "600",
+  marginBottom: 14,
+},
+
+passwordInput: {
+  height: 48,
+  borderRadius: 14,
+  backgroundColor: "rgba(255,255,255,0.065)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.10)",
+  color: Colours.text.primary,
+  paddingHorizontal: 14,
+  fontSize: 14,
+  fontWeight: "700",
+  marginBottom: 10,
+},
+
+passwordModalActions: {
+  flexDirection: "row",
+  justifyContent: "flex-end",
+  gap: 10,
+  marginTop: 6,
+},
+
+passwordCancelBtn: {
+  paddingVertical: 9,
+  paddingHorizontal: 12,
+  borderRadius: 12,
+},
+
+passwordCancelText: {
+  color: Colours.text.muted,
+  fontWeight: "700",
+  fontSize: 13,
+},
+
+passwordSaveBtn: {
+  backgroundColor: "#2F8CFF",
+  paddingVertical: 9,
+  paddingHorizontal: 14,
+  borderRadius: 12,
+},
+
+passwordSaveText: {
+  color: "#FFFFFF",
+  fontWeight: "800",
+  fontSize: 13,
+},
+
+passwordBtnDisabled: {
+  opacity: 0.6,
+},
   avatar: {
     width: 76,
     height: 76,

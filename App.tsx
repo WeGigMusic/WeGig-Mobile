@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(255,255,255,0.05)",
     paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 30 : 14,
+    paddingBottom: Platform.OS === "ios" ? 30 : 32,
     paddingHorizontal: 8,
   },
 

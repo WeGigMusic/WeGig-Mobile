@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
+import * as AppleAuthentication from "expo-apple-authentication";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
@@ -22,9 +23,9 @@ import { posthog } from "../lib/analytics";
 WebBrowser.maybeCompleteAuthSession();
 
 const HAPTICS_KEY = "wegig.hapticsEnabled";
-const APPLE_LOGIN_ENABLED = true;
+const APPLE_LOGIN_ENABLED = Platform.OS === "ios";
 
-type SocialProvider = "google" | "apple";
+type SocialProvider = "google";
 
 type AuthFields = {
   email: string;
@@ -120,6 +121,20 @@ export default function AuthScreen() {
     };
   }
 
+  async function handleSuccessfulLogin(user: any, method: string) {
+    if (user) {
+      posthog.identify(user.id, {
+        email: user.email ?? null,
+      });
+    }
+
+    posthog.capture("login_completed", {
+      method,
+    });
+
+    void posthog.flush();
+  }
+
   async function signUp() {
     try {
       setLoading(true);
@@ -157,19 +172,7 @@ export default function AuthScreen() {
 
       if (error) throw error;
 
-      if (data.session?.user) {
-        const user = data.session.user;
-
-        posthog.identify(user.id, {
-          email: user.email ?? null,
-        });
-
-        posthog.capture("login_completed", {
-          method: "email",
-        });
-
-        void posthog.flush();
-      }
+      await handleSuccessfulLogin(data.session?.user, "email");
     } catch (e: any) {
       Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
     } finally {
@@ -177,12 +180,43 @@ export default function AuthScreen() {
     }
   }
 
-  async function signInWithProvider(provider: SocialProvider) {
-    if (provider === "apple" && !APPLE_LOGIN_ENABLED) {
-      Alert.alert("Coming soon", "Apple login will be enabled before launch.");
-      return;
-    }
+  async function signInWithApple() {
+    try {
+      setLoading(true);
 
+      posthog.capture("login_method_selected", {
+        provider: "apple",
+      });
+
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error("Apple login did not return an identity token.");
+      }
+
+      const { data, error } = await supabase.auth.signInWithIdToken({
+        provider: "apple",
+        token: credential.identityToken,
+      });
+
+      if (error) throw error;
+
+      await handleSuccessfulLogin(data.session?.user, "apple");
+    } catch (e: any) {
+      if (e?.code === "ERR_REQUEST_CANCELED") return;
+
+      Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function signInWithProvider(provider: SocialProvider) {
     try {
       setLoading(true);
 
@@ -214,19 +248,7 @@ export default function AuthScreen() {
 
         if (sessionError) throw sessionError;
 
-        const user = sessionData.session?.user;
-
-        if (user) {
-          posthog.identify(user.id, {
-            email: user.email ?? null,
-          });
-        }
-
-        posthog.capture("login_completed", {
-          method: provider,
-        });
-
-        void posthog.flush();
+        await handleSuccessfulLogin(sessionData.session?.user, provider);
       }
     } catch (e: any) {
       Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
@@ -316,7 +338,7 @@ export default function AuthScreen() {
 
           <PremiumButton
             style={styles.providerBtnDark}
-            onPress={() => signInWithProvider("apple")}
+            onPress={signInWithApple}
             disabled={loading || !APPLE_LOGIN_ENABLED}
           >
             <Ionicons name="logo-apple" size={21} color="#FFFFFF" />

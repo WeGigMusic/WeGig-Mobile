@@ -791,10 +791,10 @@ export function AddGigScreen(props: {
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={20}
-      >
+  style={styles.flex}
+  behavior={Platform.OS === "ios" ? "padding" : undefined}
+  keyboardVerticalOffset={0}
+>
         <AppHeader
           onPressLogo={props.onPressLogo}
           onPressBack={props.onBack}
@@ -802,15 +802,16 @@ export function AddGigScreen(props: {
         />
 
         <KeyboardAwareScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.body}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid
-          enableAutomaticScroll={false}
-          extraScrollHeight={0}
-        >
+  ref={scrollRef}
+  contentContainerStyle={styles.body}
+  keyboardShouldPersistTaps="handled"
+  keyboardDismissMode="on-drag"
+  showsVerticalScrollIndicator={false}
+  enableOnAndroid
+  enableAutomaticScroll
+  extraScrollHeight={140}
+  extraHeight={140}
+>
           <View style={styles.hero}>
             <View style={styles.titleRow}>
               <Text style={styles.title}>Log a gig</Text>

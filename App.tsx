@@ -16,7 +16,7 @@ import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
 import type { Session } from "@supabase/supabase-js";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "./src/lib/analytics";
-
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
 import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
@@ -467,18 +467,22 @@ export default function App() {
 
   if (!session) {
     return (
-      <PostHogProvider client={posthog} autocapture={false}>
-        <AuthScreen />
-      </PostHogProvider>
+      <SafeAreaProvider>
+  <PostHogProvider client={posthog} autocapture={false}>
+    <AuthScreen />
+  </PostHogProvider>
+</SafeAreaProvider>
     );
   }
 
   return (
-    <PostHogProvider client={posthog} autocapture={false}>
-      <ToastProvider>
-        <AppShell />
-      </ToastProvider>
-    </PostHogProvider>
+    <SafeAreaProvider>
+  <PostHogProvider client={posthog} autocapture={false}>
+    <ToastProvider>
+      <AppShell />
+    </ToastProvider>
+  </PostHogProvider>
+</SafeAreaProvider>
   );
 }
 

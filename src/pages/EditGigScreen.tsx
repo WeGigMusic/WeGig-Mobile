@@ -579,15 +579,16 @@ export function EditGigScreen(props: {
         />
 
         <KeyboardAwareScrollView
-          ref={scrollRef}
-          contentContainerStyle={styles.body}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
-          enableOnAndroid
-          enableAutomaticScroll
-          extraScrollHeight={130}
-        >
+  ref={scrollRef}
+  contentContainerStyle={styles.body}
+  keyboardShouldPersistTaps="handled"
+  keyboardDismissMode="on-drag"
+  showsVerticalScrollIndicator={false}
+  enableOnAndroid
+  enableAutomaticScroll
+  extraScrollHeight={180}
+  extraHeight={180}
+>
           <View style={styles.hero}>
             <Text style={styles.title}>Edit gig</Text>
           </View>
@@ -777,7 +778,7 @@ export function EditGigScreen(props: {
   onFocus={() => {
     setTimeout(() => {
       scrollRef.current?.scrollToEnd?.({ animated: true });
-    }, 180);
+    }, 350);
   }}
 />
 

@@ -526,13 +526,7 @@ export function ArtistScreen(props: {
             <Text style={styles.muted}>{UI_COPY.empty}</Text>
           ) : null}
 
-          {spotifyError ? (
-  <View style={styles.spotifyFallbackBox}>
-    <Text style={styles.spotifyFallbackText}>
-      🎤 We're doing a soundcheck. Come back shortly.
-    </Text>
-  </View>
-) : null}
+          {spotifyError ? null : null}
 
           {showSpotifyFallback ? (
             <View style={styles.spotifyFallbackBox}>

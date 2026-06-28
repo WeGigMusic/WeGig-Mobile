@@ -663,82 +663,89 @@ const releases = spotifyData?.releases ?? [];
             style={styles.setlistModalCard}
             onPress={(e) => e.stopPropagation()}
           >
-            <Text style={styles.notesModalTitle}>Setlist</Text>
-
             {selectedSetlist ? (
-              <>
-                <Text style={styles.setlistModalMetaTitle}>
-                  {selectedSetlist.venueName}
-                </Text>
+  <>
+    <Text style={styles.setlistVenueTitle}>
+      {selectedSetlist.venueName}
+    </Text>
 
-                <Text style={styles.setlistModalMetaText}>
-                  {selectedSetlist.cityName} • {selectedSetlist.eventDate}
-                </Text>
+    <Text style={styles.setlistVenueMeta}>
+      {selectedSetlist.cityName} • {selectedSetlist.eventDate}
+    </Text>
 
-                <Text style={styles.setlistModalMetaText}>
-                  {selectedSetlist.songCount} songs
-                </Text>
-
-                <ScrollView
-                  style={{ maxHeight: 320, marginTop: 14 }}
-                  showsVerticalScrollIndicator={false}
-                >
-                  {selectedSetlist.sets.map((set, setIndex) => (
-                    <View
-                      key={`${set.name}-${setIndex}`}
-                      style={styles.setBlock}
-                    >
-                      <Text style={styles.setBlockTitle}>
-                        {set.name ||
-                          (set.encore > 0 ? `Encore ${set.encore}` : "Set")}
-                      </Text>
-
-                      <View style={{ height: 8 }} />
-
-                      {set.songs.length > 0 ? (
-                        set.songs.map((song, songIndex) => (
-                          <Text
-                            key={`${song}-${songIndex}`}
-                            style={styles.songRow}
-                          >
-                            {songIndex + 1}. {song}
-                          </Text>
-                        ))
-                      ) : (
-                        <Text style={styles.notesModalBody}>
-  Setlist details aren't available for this show yet.
+    <Text style={styles.setlistSongCount}>
+  {selectedSetlist.songCount} tracks
 </Text>
-                      )}
-                    </View>
-                  ))}
-                </ScrollView>
 
-                <View style={{ gap: 8, marginTop: 14 }}>
-                  {selectedSetlist.url ? (
-                    <Pressable
-                      onPress={() => void handleOpenUrl(selectedSetlist.url)}
-                      style={({ pressed }) => [
-                        styles.notesCloseBtn,
-                        styles.openSetlistBtn,
-                        pressed ? styles.pressed : null,
-                      ]}
-                    >
-                      <Text style={styles.smallBtnText}>Open on Setlist.fm</Text>
-                    </Pressable>
-                  ) : null}
+    <View style={styles.setlistDivider} />
 
-                  <Pressable
-                    onPress={() => setSelectedSetlist(null)}
-                    style={({ pressed }) => [
-                      styles.notesCloseBtn,
-                      pressed ? styles.pressed : null,
-                    ]}
-                  >
-                    <Text style={styles.smallBtnText}>Close</Text>
-                  </Pressable>
-                </View>
-              </>
-            ) : null}
+    <ScrollView
+      style={styles.setlistScroll}
+      showsVerticalScrollIndicator={false}
+    >
+      {selectedSetlist.sets.map((set, setIndex) => (
+        <View key={`${set.name}-${setIndex}`} style={styles.setBlock}>
+          <Text style={styles.setBlockTitle}>
+            {set.name
+              ? set.name.toUpperCase()
+              : set.encore > 0
+                ? `ENCORE ${set.encore}`
+                : setIndex === 0
+                  ? "SET ONE"
+                  : `SET ${setIndex + 1}`}
+          </Text>
+
+          <View style={styles.setSongsWrap}>
+            {set.songs.length > 0 ? (
+              set.songs.map((song, songIndex) => {
+                const number = String(songIndex + 1).padStart(2, "0");
+
+                return (
+                  <View key={`${song}-${songIndex}`} style={styles.songRowWrap}>
+                    <Text style={styles.songNumber}>{number}</Text>
+                    <Text style={styles.songTitle}>{song}</Text>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={styles.notesModalBody}>
+                Setlist details aren't available for this show yet.
+              </Text>
+            )}
+          </View>
+
+          {setIndex < selectedSetlist.sets.length - 1 ? (
+            <View style={styles.setlistDivider} />
+          ) : null}
+        </View>
+      ))}
+    </ScrollView>
+
+    <View style={styles.setlistActions}>
+      {selectedSetlist.url ? (
+        <Pressable
+          onPress={() => void handleOpenUrl(selectedSetlist.url)}
+          style={({ pressed }) => [
+            styles.setlistTextButton,
+            pressed ? styles.pressed : null,
+          ]}
+        >
+          <Text style={styles.setlistTextButtonText}>Open on Setlist.fm ↗</Text>
+        </Pressable>
+      ) : null}
+
+      <Pressable
+        onPress={() => setSelectedSetlist(null)}
+        style={({ pressed }) => [
+          styles.setlistTextButton,
+          pressed ? styles.pressed : null,
+        ]}
+      >
+        <Text style={styles.setlistTextButtonTextMuted}>Close</Text>
+      </Pressable>
+    </View>
+  </>
+) : null}
           </Pressable>
         </Pressable>
       </Modal>
@@ -1213,12 +1220,13 @@ releaseFallbackLogo: {
     borderBottomColor: "rgba(255,255,255,0.06)",
   },
 
-  setBlockTitle: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 13,
-    lineHeight: 17,
-  },
+setBlockTitle: {
+  color: "#2F8CFF",
+  fontWeight: "900",
+  fontSize: 12,
+  lineHeight: 16,
+  letterSpacing: 0.8,
+},
 
   songRow: {
     color: Colours.text.secondary,
@@ -1227,6 +1235,92 @@ releaseFallbackLogo: {
     lineHeight: 19,
     marginBottom: 4,
   },
+
+  setlistVenueTitle: {
+  color: Colours.text.primary,
+  fontSize: 22,
+  lineHeight: 27,
+  fontWeight: "900",
+  letterSpacing: -0.3,
+},
+
+setlistVenueMeta: {
+  marginTop: 8,
+  color: Colours.text.muted,
+  fontSize: 14,
+  lineHeight: 19,
+  fontWeight: "700",
+},
+
+setlistSongCount: {
+  marginTop: 6,
+  color: Colours.text.secondary,
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "800",
+},
+
+setlistDivider: {
+  height: 1,
+  backgroundColor: "rgba(255,255,255,0.09)",
+  marginVertical: 16,
+},
+
+setlistScroll: {
+  maxHeight: 360,
+},
+
+setSongsWrap: {
+  gap: 10,
+  marginTop: 12,
+},
+
+songRowWrap: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  gap: 12,
+},
+
+songNumber: {
+  width: 26,
+  color: Colours.text.muted,
+  fontSize: 13,
+  lineHeight: 19,
+  fontWeight: "800",
+  fontVariant: ["tabular-nums"],
+},
+
+songTitle: {
+  flex: 1,
+  color: Colours.text.secondary,
+  fontSize: 15,
+  lineHeight: 20,
+  fontWeight: "700",
+},
+
+setlistActions: {
+  marginTop: 16,
+  gap: 10,
+  alignItems: "flex-start",
+},
+
+setlistTextButton: {
+  paddingVertical: 5,
+},
+
+setlistTextButtonText: {
+  color: Colours.text.primary,
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "800",
+},
+
+setlistTextButtonTextMuted: {
+  color: Colours.text.muted,
+  fontSize: 13,
+  lineHeight: 18,
+  fontWeight: "800",
+},
 
   pressed: {
     opacity: 0.82,

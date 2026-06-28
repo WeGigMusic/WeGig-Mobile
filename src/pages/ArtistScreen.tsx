@@ -20,6 +20,15 @@ import { posthog } from "../lib/analytics";
 import { Colours } from "../theme/colours";
 import type { Gig, GigsResponse } from "../shared/types/Gig";
 
+type MusicBrainzRelease = {
+  id: string;
+  title: string;
+  type?: string;
+  firstReleaseDate?: string;
+  coverImageUrl?: string | null;
+  musicBrainzUrl: string;
+};
+
 type SpotifyArtistPageResponse = {
   artist: {
     id: string;
@@ -38,23 +47,7 @@ type SpotifyArtistPageResponse = {
     spotifyUrl: string | null;
     durationMs: number | null;
   }>;
-  releases: Array<{
-    id: string;
-    name: string;
-    imageUrl: string | null;
-    releaseDate: string | null;
-    spotifyUrl: string | null;
-    albumType: string | null;
-  }>;
-};
-
-type MusicBrainzRelease = {
-  id: string;
-  title: string;
-  type?: string;
-  firstReleaseDate?: string;
-  coverImageUrl?: string | null;
-  musicBrainzUrl: string;
+  releases: MusicBrainzRelease[];
 };
 
 type SetlistItem = {
@@ -313,8 +306,6 @@ export function ArtistScreen(props: {
   const [spotifyData, setSpotifyData] =
     React.useState<SpotifyArtistPageResponse | null>(null);
 
-    const [releasesLoading, setReleasesLoading] = React.useState(true);
-const [releases, setReleases] = React.useState<MusicBrainzRelease[]>([]);
   const [setlistLoading, setSetlistLoading] = React.useState(true);
   const [setlists, setSetlists] = React.useState<SetlistItem[]>([]);
   const [selectedSetlist, setSelectedSetlist] =
@@ -371,29 +362,6 @@ const [releases, setReleases] = React.useState<MusicBrainzRelease[]>([]);
     }
   }, [props.artist]);
 
-const loadMusicBrainzReleases = React.useCallback(async () => {
-  setReleasesLoading(true);
-
-  try {
-    const artistMbid = gigs.find((gig) => gig.artistMbid)?.artistMbid;
-
-    if (!artistMbid) {
-      setReleases([]);
-      return;
-    }
-
-    const res = await apiGet<{ releases: MusicBrainzRelease[] }>(
-      `/mb/artists/${encodeURIComponent(artistMbid)}/releases`,
-    );
-
-    setReleases(res.releases ?? []);
-  } catch {
-    setReleases([]);
-  } finally {
-    setReleasesLoading(false);
-  }
-}, [gigs]);
-
   const loadSetlists = React.useCallback(async () => {
     setSetlistLoading(true);
 
@@ -443,13 +411,9 @@ const loadMusicBrainzReleases = React.useCallback(async () => {
     void loadSimilarArtists();
   }, [load, loadSpotifyArtistPage, loadSetlists, loadSimilarArtists]);
 
-React.useEffect(() => {
-  void loadMusicBrainzReleases();
-}, [loadMusicBrainzReleases]);
-
   const spotifyArtist = spotifyData?.artist ?? null;
   const topTracks = spotifyData?.topTracks ?? [];
-
+const releases = spotifyData?.releases ?? [];
   const sortedGigs = React.useMemo(
     () =>
       [...gigs].sort((a, b) => {
@@ -613,7 +577,7 @@ React.useEffect(() => {
           </SectionCard>
         ) : null}
 
-        {!releasesLoading && releases.length > 0 ? (
+        {!spotifyLoading && releases.length > 0 ? (
           <SectionCard title="Releases">
             <View style={styles.spotifyList}>
               {releases.slice(0, 5).map((item) => (

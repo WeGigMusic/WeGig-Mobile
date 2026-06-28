@@ -56,6 +56,25 @@ async function lightImpactHaptic() {
   } catch {}
 }
 
+function getFriendlyAuthError(error: any) {
+  const message = String(error?.message ?? "").toLowerCase();
+
+  if (
+    message.includes("network") ||
+    message.includes("fetch") ||
+    message.includes("request failed") ||
+    message.includes("failed to fetch")
+  ) {
+    return "You’re offline. Connect to the internet to log in.";
+  }
+
+  if (message.includes("invalid login credentials")) {
+    return "Email or password is incorrect.";
+  }
+
+  return error?.message ?? "Something went wrong.";
+}
+
 function PremiumButton({
   children,
   onPress,
@@ -153,7 +172,7 @@ export default function AuthScreen() {
 
       Alert.alert("Success", "Account created. You can now log in.");
     } catch (e: any) {
-      Alert.alert("Sign Up Failed", e?.message ?? "Something went wrong.");
+      Alert.alert("Sign Up Failed", getFriendlyAuthError(e));
     } finally {
       setLoading(false);
     }
@@ -174,7 +193,7 @@ export default function AuthScreen() {
 
       await handleSuccessfulLogin(data.session?.user, "email");
     } catch (e: any) {
-      Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
+      Alert.alert("Login Failed", getFriendlyAuthError(e));
     } finally {
       setLoading(false);
     }
@@ -210,7 +229,7 @@ export default function AuthScreen() {
     } catch (e: any) {
       if (e?.code === "ERR_REQUEST_CANCELED") return;
 
-      Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
+      Alert.alert("Login Failed", getFriendlyAuthError(e));
     } finally {
       setLoading(false);
     }
@@ -251,7 +270,7 @@ export default function AuthScreen() {
         await handleSuccessfulLogin(sessionData.session?.user, provider);
       }
     } catch (e: any) {
-      Alert.alert("Login Failed", e?.message ?? "Something went wrong.");
+      Alert.alert("Login Failed", getFriendlyAuthError(e));
     } finally {
       setLoading(false);
     }

@@ -422,19 +422,29 @@ export default function App() {
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
+    supabase.auth
+  .getSession()
+  .then(({ data }) => {
+    if (!mounted) return;
 
-      const nextSession = data.session ?? null;
-      setSession(nextSession);
-      setAuthLoading(false);
+    const nextSession = data.session ?? null;
+    setSession(nextSession);
 
-      if (nextSession?.user) {
-        posthog.identify(nextSession.user.id, {
-          email: nextSession.user.email ?? null,
-        });
-      }
-    });
+    if (nextSession?.user) {
+      posthog.identify(nextSession.user.id, {
+        email: nextSession.user.email ?? null,
+      });
+    }
+  })
+  .catch((error) => {
+    console.log("[auth] getSession failed", error);
+    if (!mounted) return;
+    setSession(null);
+  })
+  .finally(() => {
+    if (!mounted) return;
+    setAuthLoading(false);
+  });
 
     const {
       data: { subscription },

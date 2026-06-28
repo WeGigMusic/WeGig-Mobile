@@ -48,6 +48,15 @@ type SpotifyArtistPageResponse = {
   }>;
 };
 
+type MusicBrainzRelease = {
+  id: string;
+  title: string;
+  type?: string;
+  firstReleaseDate?: string;
+  coverImageUrl?: string | null;
+  musicBrainzUrl: string;
+};
+
 type SetlistItem = {
   id: string;
   eventDate: string;
@@ -219,30 +228,39 @@ function SpotifyTrackRow(props: {
 }
 
 function ReleaseCard(props: {
-  item: SpotifyArtistPageResponse["releases"][number];
+  item: MusicBrainzRelease;
   onPress: (url: string | null) => void;
 }) {
   return (
     <Pressable
-      onPress={() => props.onPress(props.item.spotifyUrl)}
+      onPress={() => props.onPress(props.item.musicBrainzUrl)}
       style={({ pressed }) => [
         styles.releaseCard,
         pressed ? styles.pressed : null,
       ]}
     >
-      {props.item.imageUrl ? (
-        <Image source={{ uri: props.item.imageUrl }} style={styles.releaseImage} />
+      {props.item.coverImageUrl ? (
+        <Image
+          source={{ uri: props.item.coverImageUrl }}
+          style={styles.releaseImage}
+        />
       ) : (
-        <View style={[styles.releaseImage, styles.trackImagePlaceholder]} />
+        <View style={[styles.releaseImage, styles.trackImagePlaceholder]}>
+          <Image
+            source={require("../../assets/logo-symbol.png")}
+            style={styles.releaseFallbackLogo}
+            resizeMode="cover"
+          />
+        </View>
       )}
 
       <View style={styles.releaseBody}>
         <Text style={styles.spotifyRowTitle} numberOfLines={1}>
-          {props.item.name}
+          {props.item.title}
         </Text>
         <Text style={styles.spotifyRowMeta} numberOfLines={1}>
-          {props.item.albumType ?? "release"} •{" "}
-          {formatReleaseDate(props.item.releaseDate)}
+          {props.item.type ?? "Release"} •{" "}
+          {formatReleaseDate(props.item.firstReleaseDate)}
         </Text>
       </View>
     </Pressable>
@@ -295,6 +313,8 @@ export function ArtistScreen(props: {
   const [spotifyData, setSpotifyData] =
     React.useState<SpotifyArtistPageResponse | null>(null);
 
+    const [releasesLoading, setReleasesLoading] = React.useState(true);
+const [releases, setReleases] = React.useState<MusicBrainzRelease[]>([]);
   const [setlistLoading, setSetlistLoading] = React.useState(true);
   const [setlists, setSetlists] = React.useState<SetlistItem[]>([]);
   const [selectedSetlist, setSelectedSetlist] =
@@ -351,6 +371,29 @@ export function ArtistScreen(props: {
     }
   }, [props.artist]);
 
+const loadMusicBrainzReleases = React.useCallback(async () => {
+  setReleasesLoading(true);
+
+  try {
+    const artistMbid = gigs.find((gig) => gig.artistMbid)?.artistMbid;
+
+    if (!artistMbid) {
+      setReleases([]);
+      return;
+    }
+
+    const res = await apiGet<{ releases: MusicBrainzRelease[] }>(
+      `/mb/artists/${encodeURIComponent(artistMbid)}/releases`,
+    );
+
+    setReleases(res.releases ?? []);
+  } catch {
+    setReleases([]);
+  } finally {
+    setReleasesLoading(false);
+  }
+}, [gigs]);
+
   const loadSetlists = React.useCallback(async () => {
     setSetlistLoading(true);
 
@@ -400,9 +443,12 @@ export function ArtistScreen(props: {
     void loadSimilarArtists();
   }, [load, loadSpotifyArtistPage, loadSetlists, loadSimilarArtists]);
 
+React.useEffect(() => {
+  void loadMusicBrainzReleases();
+}, [loadMusicBrainzReleases]);
+
   const spotifyArtist = spotifyData?.artist ?? null;
   const topTracks = spotifyData?.topTracks ?? [];
-  const releases = spotifyData?.releases ?? [];
 
   const sortedGigs = React.useMemo(
     () =>
@@ -567,7 +613,7 @@ export function ArtistScreen(props: {
           </SectionCard>
         ) : null}
 
-        {!spotifyLoading && releases.length > 0 ? (
+        {!releasesLoading && releases.length > 0 ? (
           <SectionCard title="Releases">
             <View style={styles.spotifyList}>
               {releases.slice(0, 5).map((item) => (
@@ -1094,6 +1140,12 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 12,
   },
+
+releaseFallbackLogo: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 12,
+},
 
   releaseBody: {
     flex: 1,

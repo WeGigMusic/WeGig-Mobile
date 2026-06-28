@@ -388,13 +388,20 @@ function BadgeInfoModal(props: {
     >
       <Pressable onPress={props.onClose} style={styles.badgeModalOverlay}>
         <Pressable
-          onPress={(e) => e.stopPropagation()}
-          style={styles.badgeModalCard}
-        >
-          <Text style={styles.badgeModalTitle}>{props.title}</Text>
-          <Text style={styles.badgeModalDescription}>{props.description}</Text>
-          <Text style={styles.badgeModalHint}>Tap outside to close</Text>
-        </Pressable>
+  onPress={(e) => e.stopPropagation()}
+  style={styles.badgeModalCard}
+>
+  <View style={styles.badgeModalTopCut} />
+
+  <Text style={styles.badgeModalTitle}>{props.title}</Text>
+  <Text style={styles.badgeModalDescription}>{props.description}</Text>
+  <Text style={styles.badgeModalHint}>Tap outside to close</Text>
+
+  <View style={styles.badgeModalRibbonRow}>
+    <View style={styles.badgeModalRibbonLeft} />
+    <View style={styles.badgeModalRibbonRight} />
+  </View>
+</Pressable>
       </Pressable>
     </Modal>
   );
@@ -994,32 +1001,83 @@ const styles = StyleSheet.create({
   },
 
   badgeModalCard: {
-    width: "100%",
-    maxWidth: 360,
-    borderRadius: 18,
-    padding: 18,
-    backgroundColor: "#17191C",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.14)",
-  },
+  width: "100%",
+  maxWidth: 320,
+  minHeight: 150,
+
+  borderTopLeftRadius: 26,
+  borderTopRightRadius: 26,
+  borderBottomLeftRadius: 14,
+  borderBottomRightRadius: 14,
+
+  paddingHorizontal: 22,
+  paddingTop: 36,
+  paddingBottom: 24,
+
+  backgroundColor: "#17191C",
+
+  borderWidth: 1.5,
+  borderColor: "rgba(255,183,3,0.9)",
+
+  alignItems: "center",
+  justifyContent: "center",
+  overflow: "hidden",
+},
+
+badgeModalTopCut: {
+  position: "absolute",
+  top: -13,
+  width: 26,
+  height: 26,
+  borderRadius: 13,
+  backgroundColor: Colours.background.app,
+  borderWidth: 1,
+  borderColor: "rgba(255,183,3,0.42)",
+},
+
+badgeModalRibbonRow: {
+  position: "absolute",
+  bottom: -1,
+  flexDirection: "row",
+},
+
+badgeModalRibbonLeft: {
+  width: 34,
+  height: 24,
+  backgroundColor: "rgba(255,183,3,0.18)",
+  transform: [{ skewX: "-16deg" }],
+},
+
+badgeModalRibbonRight: {
+  width: 34,
+  height: 24,
+  backgroundColor: "rgba(255,183,3,0.14)",
+  transform: [{ skewX: "16deg" }],
+},
 
   badgeModalTitle: {
-    color: Colours.text.primary,
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
+  color: Colours.text.primary,
+  fontSize: 20,
+  lineHeight: 25,
+  fontWeight: "900",
+  textAlign: "center",
+  marginBottom: 10,
+},
 
   badgeModalDescription: {
-    color: Colours.text.secondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  color: Colours.text.primary,
+  fontSize: 15,
+  lineHeight: 21,
+  fontWeight: "500",
+  textAlign: "center",
+},
 
   badgeModalHint: {
-    marginTop: 14,
-    color: Colours.text.muted,
-    fontSize: 12,
-    fontWeight: "600",
-  },
+  marginTop: 18,
+  color: Colours.text.secondary,
+  fontSize: 13,
+  lineHeight: 17,
+  fontWeight: "800",
+  textAlign: "center",
+},
 });

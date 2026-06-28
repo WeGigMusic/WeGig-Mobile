@@ -636,13 +636,7 @@ export function ArtistScreen(props: {
           </SectionCard>
         ) : null}
 
-        {similarArtistsError ? (
-  <View style={styles.card}>
-    <Text style={styles.spotifyFallbackText}>
-      The artist insights will be back on stage soon.
-    </Text>
-  </View>
-) : null}
+        {similarArtistsError ? null : null}
       </ScrollView>
 
       <Modal

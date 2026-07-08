@@ -68,11 +68,33 @@ function getFriendlyAuthError(error: any) {
     return "You’re offline. Connect to the internet to log in.";
   }
 
-  if (message.includes("invalid login credentials")) {
+  if (
+    message.includes("invalid login credentials") ||
+    message.includes("email not confirmed")
+  ) {
     return "Email or password is incorrect.";
   }
 
+  if (message.includes("unacceptable audience")) {
+    return "Apple login is not configured correctly yet.";
+  }
+
+  if (message.includes("auth code") || message.includes("code verifier")) {
+    return "Google login could not complete. Please try again.";
+  }
+
   return error?.message ?? "Something went wrong.";
+}
+
+function getCodeFromUrl(url: string) {
+  const parsedUrl = new URL(url);
+  const code = parsedUrl.searchParams.get("code");
+
+  if (!code) {
+    throw new Error("No OAuth code returned.");
+  }
+
+  return code;
 }
 
 function PremiumButton({
@@ -124,7 +146,7 @@ export default function AuthScreen() {
 
   function getAuthFields(): AuthFields {
     const nextEmail = email.trim().toLowerCase();
-    const nextPassword = password.trim();
+    const nextPassword = password;
 
     if (!nextEmail || !nextEmail.includes("@")) {
       throw new Error("Please enter a valid email address.");
@@ -261,14 +283,14 @@ export default function AuthScreen() {
 
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
 
-      if (result.type === "success") {
-        const { data: sessionData, error: sessionError } =
-          await supabase.auth.exchangeCodeForSession(result.url);
+      if (result.type !== "success") return;
 
-        if (sessionError) throw sessionError;
+      const { data: sessionData, error: sessionError } =
+  await supabase.auth.exchangeCodeForSession(result.url);
 
-        await handleSuccessfulLogin(sessionData.session?.user, provider);
-      }
+      if (sessionError) throw sessionError;
+
+      await handleSuccessfulLogin(sessionData.session?.user, provider);
     } catch (e: any) {
       Alert.alert("Login Failed", getFriendlyAuthError(e));
     } finally {

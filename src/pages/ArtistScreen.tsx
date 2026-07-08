@@ -91,14 +91,13 @@ function formatDuration(durationMs: number | null | undefined) {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function formatReleaseDate(value: string | null | undefined) {
-  if (!value) return "Unknown date";
+function formatReleaseYear(value: string | null | undefined) {
+  if (!value) return "Unknown year";
 
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const match = value.match(/^(\d{4})/);
+  if (!match) return "Unknown year";
 
-  if (!match) return value;
-
-  return `${match[3]}-${match[2]}-${match[1]}`;
+  return match[1];
 }
 
 function formatGigDateUk(value?: string) {
@@ -252,8 +251,7 @@ function ReleaseCard(props: {
           {props.item.title}
         </Text>
         <Text style={styles.spotifyRowMeta} numberOfLines={1}>
-          {props.item.type ?? "Release"} •{" "}
-          {formatReleaseDate(props.item.firstReleaseDate)}
+          {props.item.type ?? "Release"} • {formatReleaseYear(props.item.firstReleaseDate)}
         </Text>
       </View>
     </Pressable>

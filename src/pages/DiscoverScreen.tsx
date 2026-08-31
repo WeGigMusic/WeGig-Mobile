@@ -886,20 +886,25 @@ export function DiscoverScreen(props: {
         setMbError("");
 
         try {
-          const queryVariants =
-            Array.from(
-              new Set([
-                queryValue,
-                queryValue.replace(
-                  /\bn\b/gi,
-                  "'n'",
-                ),
-                queryValue.replace(
-                  /\bn\b/gi,
-                  "’n’",
-                ),
-              ]),
-            );
+          const baseQuery = queryValue
+  .replace(/[’']/g, " ")
+  .replace(/\s+/g, " ")
+  .trim();
+
+const queryVariants = Array.from(
+  new Set([
+    queryValue,
+    baseQuery,
+    baseQuery.replace(
+      /\bn\b/gi,
+      "'n'",
+    ),
+    baseQuery.replace(
+      /\bn\b/gi,
+      "’n’",
+    ),
+  ]),
+);
 
           let artists: MbArtist[] = [];
 

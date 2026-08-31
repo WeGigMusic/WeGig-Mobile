@@ -124,9 +124,46 @@ function normalizeSearchText(value: string) {
 }
 
 function sameText(a?: string, b?: string) {
+  if (!a || !b) {
+    return false;
+  }
+
   return (
-    a?.trim().toLowerCase() ===
-    b?.trim().toLowerCase()
+    normalizeSearchText(a) ===
+    normalizeSearchText(b)
+  );
+}
+
+function artistNamesMatch(
+  a?: string,
+  b?: string,
+) {
+  if (!a || !b) {
+    return false;
+  }
+
+  const left =
+    normalizeSearchText(a);
+
+  const right =
+    normalizeSearchText(b);
+
+  if (!left || !right) {
+    return false;
+  }
+
+  if (left === right) {
+    return true;
+  }
+
+  const stripLeadingThe = (
+    value: string,
+  ) =>
+    value.replace(/^the\s+/, "");
+
+  return (
+    stripLeadingThe(left) ===
+    stripLeadingThe(right)
   );
 }
 
@@ -290,6 +327,32 @@ function getResultArtistName(
   return getEventName(item).trim();
 }
 
+function eventMatchesArtistSearch(
+  event: DiscoverEvent,
+  searchArtist: string,
+) {
+  if (!searchArtist.trim()) {
+    return true;
+  }
+
+  const candidates = [
+    getEventArtistName(event),
+    event._embedded?.attractions?.[0]?.name,
+    event.title,
+    event.name,
+  ].filter(
+    (value): value is string =>
+      Boolean(value?.trim()),
+  );
+
+  return candidates.some((candidate) =>
+    artistNamesMatch(
+      candidate,
+      searchArtist,
+    ),
+  );
+}
+
 async function fetchArtistImage(
   artistName: string,
 ): Promise<string | null> {
@@ -328,19 +391,11 @@ async function fetchArtistImage(
       const returnedArtistName =
         response.artist?.name?.trim() ?? "";
 
-      const requestedNormalized =
-        normalizeSearchText(trimmed);
-
-      const returnedNormalized =
-        normalizeSearchText(
+      const isMatchingArtist =
+        artistNamesMatch(
+          trimmed,
           returnedArtistName,
         );
-
-      const isMatchingArtist =
-        requestedNormalized &&
-        returnedNormalized &&
-        requestedNormalized ===
-          returnedNormalized;
 
       if (!isMatchingArtist) {
         artistImageCache.set(
@@ -802,9 +857,7 @@ export function DiscoverScreen(props: {
         const searchSeq =
           ++artistSearchSeqRef.current;
 
-        if (
-          queryValue.length < 2
-        ) {
+        if (queryValue.length < 2) {
           setMbResults([]);
           setMbError("");
           setMbLoading(false);
@@ -817,10 +870,10 @@ export function DiscoverScreen(props: {
 
         if (
           selected &&
-          queryValue.toLowerCase() ===
-            selected
-              .trim()
-              .toLowerCase()
+          sameText(
+            queryValue,
+            selected,
+          )
         ) {
           setMbResults([]);
           setMbError("");
@@ -833,12 +886,74 @@ export function DiscoverScreen(props: {
         setMbError("");
 
         try {
-          const res =
-            await apiGet<MbArtistSearchResponse>(
-              `/mb/artists/search?q=${encodeURIComponent(
+          const queryVariants =
+            Array.from(
+              new Set([
                 queryValue,
-              )}`,
+                queryValue.replace(
+                  /\bn\b/gi,
+                  "'n'",
+                ),
+                queryValue.replace(
+                  /\bn\b/gi,
+                  "’n’",
+                ),
+              ]),
             );
+
+          let artists: MbArtist[] = [];
+
+          for (
+            const variant of
+            queryVariants
+          ) {
+            try {
+              const res =
+                await apiGet<MbArtistSearchResponse>(
+                  `/mb/artists/search?q=${encodeURIComponent(
+                    variant,
+                  )}`,
+                );
+
+              if (
+                searchSeq !==
+                artistSearchSeqRef.current
+              ) {
+                return;
+              }
+
+              const foundArtists:
+                MbArtist[] =
+                (res?.artists as MbArtist[]) ??
+                (res?._embedded
+                  ?.artists as MbArtist[]) ??
+                [];
+
+              if (
+                Array.isArray(
+                  foundArtists,
+                ) &&
+                foundArtists.length > 0
+              ) {
+                artists =
+                  foundArtists;
+                break;
+              }
+            } catch (error) {
+              console.warn(
+                "[discover] MusicBrainz variant lookup failed",
+                {
+                  query: variant,
+                  message:
+                    error instanceof Error
+                      ? error.message
+                      : String(
+                          error,
+                        ),
+                },
+              );
+            }
+          }
 
           if (
             searchSeq !==
@@ -855,31 +970,22 @@ export function DiscoverScreen(props: {
 
           if (
             currentSelected &&
-            currentQuery.toLowerCase() ===
-              currentSelected
-                .trim()
-                .toLowerCase()
+            sameText(
+              currentQuery,
+              currentSelected,
+            )
           ) {
             setMbResults([]);
             setMbOpen(false);
             return;
           }
 
-          const artists: MbArtist[] =
-            (res?.artists as MbArtist[]) ??
-            (res?._embedded
-              ?.artists as MbArtist[]) ??
-            [];
-
           setMbResults(
-            Array.isArray(artists)
-              ? artists.slice(0, 8)
-              : [],
+            artists.slice(0, 8),
           );
 
           setMbOpen(
-            Array.isArray(artists) &&
-              artists.length > 0,
+            artists.length > 0,
           );
         } catch (e: any) {
           if (
@@ -889,11 +995,17 @@ export function DiscoverScreen(props: {
             return;
           }
 
-          setMbError(
-            e?.message ??
-              "Artist search failed",
+          console.warn(
+            "[discover] MusicBrainz artist lookup failed",
+            {
+              query: queryValue,
+              message:
+                e?.message ??
+                "Artist search failed",
+            },
           );
 
+          setMbError("");
           setMbResults([]);
           setMbOpen(false);
         } finally {
@@ -1043,11 +1155,29 @@ export function DiscoverScreen(props: {
               )
             : rawEvents;
 
-        setSearchEvents(
+        const tributeFilteredEvents =
           filterTributeEvents(
             cityFilteredEvents,
             includeTributeActs,
-          ),
+          );
+
+        const artistNameToMatch =
+          selectedArtistNameRef.current ??
+          trimmedQuery;
+
+        const artistFilteredEvents =
+          trimmedQuery.length >= 2
+            ? tributeFilteredEvents.filter(
+                (event) =>
+                  eventMatchesArtistSearch(
+                    event,
+                    artistNameToMatch,
+                  ),
+              )
+            : tributeFilteredEvents;
+
+        setSearchEvents(
+          artistFilteredEvents,
         );
       } catch (e: any) {
         setSearchError(

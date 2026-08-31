@@ -64,12 +64,10 @@ const ARTIST_LOAD_BATCH =
 const ARTIST_REQUEST_CONCURRENCY =
   1;
 
-type SpotifyArtistPageResponse = {
-  artist: {
-    imageUrl:
-      | string
-      | null;
-  } | null;
+type ArtistImageResponse = {
+  artistName: string;
+  imageUrl: string | null;
+  source: string | null;
 };
 
 type PastGigListItem =
@@ -375,8 +373,7 @@ function buildUnlockableBadges(
       (acc, gig) => {
         const key =
           (
-            gig.artist ??
-            ""
+            gig.artist ?? ""
           ).trim() ||
           "Unknown";
 
@@ -1212,6 +1209,75 @@ export function GigsScreen(
     let cancelled =
       false;
 
+    const fetchArtistImage =
+      async (
+        artist: string,
+      ) => {
+        const key =
+          artist
+            .trim()
+            .toLowerCase();
+
+        if (cancelled) {
+          return;
+        }
+
+        try {
+          const res =
+            await apiGet<ArtistImageResponse>(
+              `/artists/image?name=${encodeURIComponent(
+                artist,
+              )}`,
+            );
+
+          if (cancelled) {
+            return;
+          }
+
+          const imageUrl =
+            res.imageUrl?.trim() ??
+            "";
+
+          if (!imageUrl) {
+            console.warn(
+              "[gigs] No artist image returned",
+              {
+                artist,
+              },
+            );
+
+            return;
+          }
+
+          updateArtistImages(
+            (previous) => ({
+              ...previous,
+              [key]:
+                imageUrl,
+            }),
+          );
+
+          void setArtistImageCacheEntry(
+            artist,
+            imageUrl,
+          );
+        } catch (e: any) {
+          if (cancelled) {
+            return;
+          }
+
+          console.warn(
+            "[gigs] Artist image lookup failed",
+            {
+              artist,
+              message:
+                e?.message ??
+                "Unknown error",
+            },
+          );
+        }
+      };
+
     const loadImages =
       async () => {
         await runWithConcurrency(
@@ -1220,69 +1286,9 @@ export function GigsScreen(
           async (
             artist,
           ) => {
-            if (cancelled) {
-              return;
-            }
-
-            const key =
-              artist
-                .trim()
-                .toLowerCase();
-
-            try {
-              const res =
-                await apiGet<SpotifyArtistPageResponse>(
-                  `/spotify/artist-page?name=${encodeURIComponent(
-                    artist,
-                  )}`,
-                );
-
-              if (
-                cancelled
-              ) {
-                return;
-              }
-
-              const imageUrl =
-                String(
-                  res.artist
-                    ?.imageUrl ??
-                    "",
-                ).trim();
-
-              if (!imageUrl) {
-                return;
-              }
-
-              updateArtistImages(
-                (previous) => ({
-                  ...previous,
-                  [key]:
-                    imageUrl,
-                }),
-              );
-
-              void setArtistImageCacheEntry(
-                artist,
-                imageUrl,
-              );
-            } catch (e: any) {
-              if (
-                cancelled
-              ) {
-                return;
-              }
-
-              console.warn(
-                "[gigs] Artist image lookup failed",
-                {
-                  artist,
-                  message:
-                    e?.message ??
-                    "Unknown error",
-                },
-              );
-            }
+            await fetchArtistImage(
+              artist,
+            );
           },
         );
       };
@@ -1622,11 +1628,23 @@ export function GigsScreen(
         onPressLogo={
           props.onPressLogo
         }
-        onBack={() =>
+        onBack={async () => {
           setArtistView(
             null,
-          )
-        }
+          );
+
+          await hydrateArtistImageCache();
+
+          const cachedImages =
+            getArtistImageCache();
+
+          artistImageRef.current =
+            cachedImages;
+
+          setArtistImageByName(
+            cachedImages,
+          );
+        }}
         onEditGig={(
           gig: Gig,
         ) =>
@@ -1673,7 +1691,9 @@ export function GigsScreen(
     comingUpGigs,
     pastGigs,
   } =
-    splitGigs(gigs);
+    splitGigs(
+      gigs,
+    );
 
   const pastGigItems =
     buildPastGigItems(
@@ -1707,7 +1727,8 @@ export function GigsScreen(
 
       <View
         style={{
-          paddingHorizontal: 16,
+          paddingHorizontal:
+            16,
           flex: 1,
         }}
       >
@@ -1716,7 +1737,8 @@ export function GigsScreen(
           0 ? (
           <ActivityIndicator
             style={{
-              marginTop: 16,
+              marginTop:
+                16,
             }}
           />
         ) : error &&
@@ -1724,7 +1746,8 @@ export function GigsScreen(
             0 ? (
           <View
             style={{
-              paddingTop: 16,
+              paddingTop:
+                16,
             }}
           >
             <Text
@@ -1742,7 +1765,8 @@ export function GigsScreen(
 
             <View
               style={{
-                height: 10,
+                height:
+                  10,
               }}
             />
 
@@ -1758,7 +1782,8 @@ export function GigsScreen(
             style={{
               alignItems:
                 "center",
-              marginTop: 60,
+              marginTop:
+                60,
               gap: 12,
             }}
           >
@@ -1768,7 +1793,8 @@ export function GigsScreen(
                   Colours
                     .text
                     .muted,
-                fontSize: 16,
+                fontSize:
+                  16,
                 fontWeight:
                   "700",
                 textAlign:
@@ -1786,7 +1812,8 @@ export function GigsScreen(
                     .muted,
                 textAlign:
                   "center",
-                lineHeight: 20,
+                lineHeight:
+                  20,
               }}
             >
               Start by adding
@@ -1797,9 +1824,12 @@ export function GigsScreen(
 
             <View
               style={{
-                width: "100%",
-                maxWidth: 240,
-                marginTop: 4,
+                width:
+                  "100%",
+                maxWidth:
+                  240,
+                marginTop:
+                  4,
               }}
             >
               <PrimaryButton
@@ -1815,7 +1845,9 @@ export function GigsScreen(
         ) : (
           <>
             <AnimatedFlatList
-              ref={listRef}
+              ref={
+                listRef
+              }
               data={
                 pastGigItems
               }
@@ -1825,21 +1857,24 @@ export function GigsScreen(
                 item.type ===
                 "year"
                   ? `year-${item.year}`
-                  : item.gig.id
+                  : item.gig
+                      .id
               }
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={
                 false
               }
               contentContainerStyle={{
-                paddingTop: 12,
+                paddingTop:
+                  12,
                 paddingBottom:
                   120,
               }}
               ItemSeparatorComponent={() => (
                 <View
                   style={{
-                    height: 4,
+                    height:
+                      4,
                   }}
                 />
               )}
@@ -1879,7 +1914,8 @@ export function GigsScreen(
                           false
                         }
                         contentContainerStyle={{
-                          gap: 6,
+                          gap:
+                            6,
                           paddingRight:
                             16,
                         }}
@@ -1892,7 +1928,9 @@ export function GigsScreen(
                               key={
                                 gig.id
                               }
-                              gig={gig}
+                              gig={
+                                gig
+                              }
                               variant="poster"
                               onPress={() =>
                                 setArtistView(
@@ -1960,7 +1998,8 @@ export function GigsScreen(
                         Colours
                           .ui
                           .border,
-                      padding: 14,
+                      padding:
+                        14,
                     }}
                   >
                     <Text
@@ -2010,7 +2049,9 @@ export function GigsScreen(
                           ? styles.yearHeaderPressed
                           : null,
                       ]}
-                      hitSlop={8}
+                      hitSlop={
+                        8
+                      }
                     >
                       <View
                         style={
@@ -2023,7 +2064,9 @@ export function GigsScreen(
                               ? "chevron-forward"
                               : "chevron-down"
                           }
-                          size={16}
+                          size={
+                            16
+                          }
                           color={
                             Colours
                               .text
@@ -2100,7 +2143,9 @@ export function GigsScreen(
               maxToRenderPerBatch={
                 8
               }
-              windowSize={7}
+              windowSize={
+                7
+              }
               removeClippedSubviews={
                 true
               }
@@ -2138,10 +2183,14 @@ export function GigsScreen(
                 {
                   position:
                     "absolute",
-                  right: 20,
-                  bottom: 96,
-                  width: 58,
-                  height: 58,
+                  right:
+                    20,
+                  bottom:
+                    96,
+                  width:
+                    58,
+                  height:
+                    58,
                   borderRadius:
                     29,
                   alignItems:
@@ -2164,10 +2213,13 @@ export function GigsScreen(
                     10,
                   shadowOffset:
                     {
-                      width: 0,
-                      height: 6,
+                      width:
+                        0,
+                      height:
+                        6,
                     },
-                  elevation: 8,
+                  elevation:
+                    8,
                 },
 
                 pressed
@@ -2184,13 +2236,18 @@ export function GigsScreen(
                     }
                   : null,
               ]}
-              hitSlop={10}
+              hitSlop={
+                10
+              }
             >
               <Ionicons
                 name="add"
-                size={28}
+                size={
+                  28
+                }
                 color={
-                  Colours.text
+                  Colours
+                    .text
                     .primary
                 }
               />
@@ -2224,24 +2281,34 @@ const styles = {
       "center" as const,
     justifyContent:
       "space-between" as const,
-    marginBottom: 12,
+    marginBottom:
+      12,
   },
 
   bigSectionTitle: {
     color:
-      Colours.text.primary,
+      Colours
+        .text
+        .primary,
     fontWeight:
       "800" as const,
-    fontSize: 17,
-    lineHeight: 22,
-    letterSpacing: -0.1,
+    fontSize:
+      17,
+    lineHeight:
+      22,
+    letterSpacing:
+      -0.1,
   },
 
   ticketStub: {
-    minWidth: 34,
-    height: 20,
-    paddingHorizontal: 10,
-    borderRadius: 3,
+    minWidth:
+      34,
+    height:
+      20,
+    paddingHorizontal:
+      10,
+    borderRadius:
+      3,
     backgroundColor:
       "rgba(47,140,255,0.12)",
     alignItems:
@@ -2252,16 +2319,22 @@ const styles = {
       "relative" as const,
     overflow:
       "hidden" as const,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 2,
+    shadowColor:
+      "#000",
+    shadowOpacity:
+      0.12,
+    shadowRadius:
+      2,
     shadowOffset: {
-      width: 0,
-      height: 1,
+      width:
+        0,
+      height:
+        1,
     },
     transform: [
       {
-        rotate: "-0.6deg",
+        rotate:
+          "-0.6deg",
       },
     ],
   },
@@ -2269,46 +2342,73 @@ const styles = {
   ticketStubNotchLeft: {
     position:
       "absolute" as const,
-    left: -4,
-    top: "50%" as const,
-    marginTop: -4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    left:
+      -4,
+    top:
+      "50%" as const,
+    marginTop:
+      -4,
+    width:
+      8,
+    height:
+      8,
+    borderRadius:
+      4,
     backgroundColor:
-      Colours.background.app,
-    opacity: 0.9,
+      Colours
+        .background
+        .app,
+    opacity:
+      0.9,
   },
 
   ticketStubNotchRight: {
     position:
       "absolute" as const,
-    right: -4,
-    top: "50%" as const,
-    marginTop: -4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    right:
+      -4,
+    top:
+      "50%" as const,
+    marginTop:
+      -4,
+    width:
+      8,
+    height:
+      8,
+    borderRadius:
+      4,
     backgroundColor:
-      Colours.background.app,
-    opacity: 0.9,
+      Colours
+        .background
+        .app,
+    opacity:
+      0.9,
   },
 
   ticketStubText: {
     color:
-      Colours.text.primary,
+      Colours
+        .text
+        .primary,
     fontWeight:
       "800" as const,
-    fontSize: 11,
-    lineHeight: 13,
-    letterSpacing: 0.4,
+    fontSize:
+      11,
+    lineHeight:
+      13,
+    letterSpacing:
+      0.4,
   },
 
   yearHeader: {
-    marginTop: 0,
-    marginBottom: 0,
-    paddingVertical: 2,
-    paddingHorizontal: 2,
+    marginTop:
+      0,
+    marginBottom:
+      0,
+    paddingVertical:
+      2,
+    paddingHorizontal:
+      2,
     flexDirection:
       "row" as const,
     alignItems:
@@ -2318,7 +2418,8 @@ const styles = {
   },
 
   yearHeaderPressed: {
-    opacity: 0.78,
+    opacity:
+      0.78,
   },
 
   yearTitleRow: {
@@ -2326,15 +2427,20 @@ const styles = {
       "row" as const,
     alignItems:
       "center" as const,
-    gap: 6,
+    gap:
+      6,
   },
 
   yearTitle: {
     color:
-      Colours.text.primary,
+      Colours
+        .text
+        .primary,
     fontWeight:
       "800" as const,
-    fontSize: 16,
-    lineHeight: 21,
+    fontSize:
+      16,
+    lineHeight:
+      21,
   },
 };

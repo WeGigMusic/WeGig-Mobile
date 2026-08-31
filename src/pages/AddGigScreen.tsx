@@ -997,7 +997,7 @@ extraHeight={30}
                     color={Colours.text.primary}
                   />
                   <Text style={styles.locationBtnText}>
-                    {gigSearchLoading ? "Searching…" : "Search for past gig"}
+                    {gigSearchLoading ? "Searching…" : "Search for gig"}
                   </Text>
                 </Pressable>
 

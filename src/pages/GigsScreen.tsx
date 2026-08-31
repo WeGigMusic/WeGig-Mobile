@@ -56,10 +56,10 @@ const HAPTICS_KEY =
   "wegig.hapticsEnabled";
 
 const INITIAL_PAST_ARTIST_LIMIT =
-  8;
+  25;
 
 const ARTIST_LOAD_BATCH =
-  8;
+  15;
 
 const ARTIST_REQUEST_CONCURRENCY =
   1;

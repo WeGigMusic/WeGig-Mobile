@@ -4,42 +4,17 @@ import {
   Text,
   StyleSheet,
   View,
-  Linking,
-  Alert,
   Modal,
-  ScrollView,
-  Image,
   Animated,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 
 import { Colours } from "../theme/colours";
 import type { Gig } from "../shared/types/Gig";
-import { apiGet } from "../lib/api";
 import { parseYmdToUtcDate } from "../lib/date";
-
-type GigSetlistItem = {
-  id: string;
-  eventDate: string;
-  venueName: string;
-  cityName: string;
-  countryCode: string | null;
-  url: string | null;
-  songCount: number;
-  sets: Array<{
-    name: string;
-    encore: number;
-    songs: string[];
-  }>;
-};
-
-type GigSetlistMatchResponse = {
-  matched: boolean;
-  confidence: number;
-  setlist: GigSetlistItem | null;
-};
 
 type GigCardVariant =
   | "row"
@@ -65,7 +40,9 @@ async function hapticsAllowed() {
 }
 
 async function selectionHaptic() {
-  if (!(await hapticsAllowed())) {
+  if (
+    !(await hapticsAllowed())
+  ) {
     return;
   }
 
@@ -77,15 +54,19 @@ async function selectionHaptic() {
 function formatGigDateUk(
   value?: string,
 ) {
-  const raw = String(
-    value ?? "",
-  ).trim();
+  const raw =
+    String(
+      value ?? "",
+    ).trim();
 
-  const match = raw.match(
-    /^(\d{4})-(\d{2})-(\d{2})$/,
-  );
+  const match =
+    raw.match(
+      /^(\d{4})-(\d{2})-(\d{2})$/,
+    );
 
-  if (!match) return raw;
+  if (!match) {
+    return raw;
+  }
 
   return `${match[3]}-${match[2]}-${match[1]}`;
 }
@@ -93,9 +74,10 @@ function formatGigDateUk(
 function formatPosterDate(
   value?: string,
 ) {
-  const raw = String(
-    value ?? "",
-  ).trim();
+  const raw =
+    String(
+      value ?? "",
+    ).trim();
 
   const d =
     parseYmdToUtcDate(raw);
@@ -105,14 +87,19 @@ function formatPosterDate(
       day: "--",
       month: "---",
       label:
-        formatGigDateUk(raw),
+        formatGigDateUk(
+          raw,
+        ),
     };
   }
 
   return {
     day: String(
       d.getUTCDate(),
-    ).padStart(2, "0"),
+    ).padStart(
+      2,
+      "0",
+    ),
 
     month: d
       .toLocaleDateString(
@@ -135,42 +122,6 @@ function formatPosterDate(
         },
       ),
   };
-}
-
-function isFutureGigDate(
-  value?: string,
-) {
-  const d =
-    parseYmdToUtcDate(
-      String(
-        value ?? "",
-      ).trim(),
-    );
-
-  if (!d) return false;
-
-  const today = new Date();
-
-  const todayUtc = new Date(
-    Date.UTC(
-      today.getUTCFullYear(),
-      today.getUTCMonth(),
-      today.getUTCDate(),
-    ),
-  );
-
-  return (
-    d.getTime() >
-    todayUtc.getTime()
-  );
-}
-
-function formatConfidence(
-  value: number,
-) {
-  return `${Math.round(
-    value * 100,
-  )}%`;
 }
 
 function RatingStars({
@@ -197,19 +148,27 @@ function RatingStars({
 
   const animate = () => {
     Animated.sequence([
-      Animated.spring(scale, {
-        toValue: 1.12,
-        useNativeDriver: true,
-        speed: 22,
-        bounciness: 8,
-      }),
+      Animated.spring(
+        scale,
+        {
+          toValue: 1.12,
+          useNativeDriver:
+            true,
+          speed: 22,
+          bounciness: 8,
+        },
+      ),
 
-      Animated.spring(scale, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 20,
-        bounciness: 6,
-      }),
+      Animated.spring(
+        scale,
+        {
+          toValue: 1,
+          useNativeDriver:
+            true,
+          speed: 20,
+          bounciness: 6,
+        },
+      ),
     ]).start();
   };
 
@@ -232,28 +191,31 @@ function RatingStars({
       >
         {Array.from({
           length: 5,
-        }).map((_, i) => {
-          const icon =
-            i < fullStars
-              ? "star"
-              : i ===
-                    fullStars &&
-                  hasHalfStar
-                ? "star-half"
-                : i <
-                    roundedStars
-                  ? "star"
-                  : "star-outline";
+        }).map(
+          (_, i) => {
+            const icon =
+              i <
+              fullStars
+                ? "star"
+                : i ===
+                      fullStars &&
+                    hasHalfStar
+                  ? "star-half"
+                  : i <
+                      roundedStars
+                    ? "star"
+                    : "star-outline";
 
-          return (
-            <Ionicons
-              key={i}
-              name={icon}
-              size={14}
-              color="#FFD166"
-            />
-          );
-        })}
+            return (
+              <Ionicons
+                key={i}
+                name={icon}
+                size={14}
+                color="#FFD166"
+              />
+            );
+          },
+        )}
       </Animated.View>
     </Pressable>
   );
@@ -269,16 +231,19 @@ function getGigImageUrl(
       .spotifyArtistImageUrl ??
     (gig as any)
       .spotifyImageUrl ??
-    (gig as any).imageUrl ??
+    (gig as any)
+      .imageUrl ??
     (gig as any).artist
       ?.imageUrl ??
     (gig as any).artist
-      ?.images?.[0]?.url ??
+      ?.images?.[0]
+      ?.url ??
     null;
 
-  const value = String(
-    candidate ?? "",
-  ).trim();
+  const value =
+    String(
+      candidate ?? "",
+    ).trim();
 
   return value.length > 0
     ? value
@@ -298,45 +263,28 @@ export function GigCard({
   onPressArtist?: (
     artist: string,
   ) => void;
-  onShare?: (gig: Gig) => void;
+  onShare?: (
+    gig: Gig,
+  ) => void;
   isFavouriteGig?: boolean;
   variant?: GigCardVariant;
 }) {
   const [
     notesOpen,
     setNotesOpen,
-  ] = React.useState(false);
-
-  const [
-    setlistOpen,
-    setSetlistOpen,
-  ] = React.useState(false);
-
-  const [
-    setlistLoading,
-    setSetlistLoading,
-  ] = React.useState(false);
-
-  const [
-    setlistMatch,
-    setSetlistMatch,
   ] =
-    React.useState<GigSetlistMatchResponse | null>(
-      null,
-    );
+    React.useState(false);
 
-  const noteText = String(
-    gig.notes ?? "",
-  ).trim();
+  const noteText =
+    String(
+      gig.notes ?? "",
+    ).trim();
 
   const hasNotes =
     noteText.length > 0;
 
   const imageUrl =
     getGigImageUrl(gig);
-
-  const isFutureGig =
-    isFutureGigDate(gig.date);
 
   const hasRating =
     typeof gig.rating ===
@@ -394,170 +342,6 @@ export function GigCard({
     setNotesOpen(true);
   };
 
-  const canLookupSetlist =
-    React.useMemo(() => {
-      return Boolean(
-        !isFutureGig &&
-          String(
-            gig.artist ?? "",
-          ).trim() &&
-          String(
-            gig.venue ?? "",
-          ).trim() &&
-          String(
-            gig.city ?? "",
-          ).trim() &&
-          String(
-            gig.date ?? "",
-          ).trim(),
-      );
-    }, [
-      gig.artist,
-      gig.city,
-      gig.date,
-      gig.venue,
-      isFutureGig,
-    ]);
-
-  React.useEffect(() => {
-    if (!canLookupSetlist) {
-      setSetlistMatch(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    const loadSetlistMatch =
-      async () => {
-        setSetlistLoading(true);
-
-        try {
-          const qs =
-            new URLSearchParams();
-
-          qs.set(
-            "artist",
-            String(
-              gig.artist ?? "",
-            ).trim(),
-          );
-
-          qs.set(
-            "date",
-            String(
-              gig.date ?? "",
-            ).trim(),
-          );
-
-          qs.set(
-            "city",
-            String(
-              gig.city ?? "",
-            ).trim(),
-          );
-
-          qs.set(
-            "venue",
-            String(
-              gig.venue ?? "",
-            ).trim(),
-          );
-
-          const res =
-            await apiGet<GigSetlistMatchResponse>(
-              `/setlist/gig-match?${qs.toString()}`,
-            );
-
-          if (!cancelled) {
-            setSetlistMatch(
-              res,
-            );
-          }
-        } catch {
-          if (!cancelled) {
-            setSetlistMatch(
-              null,
-            );
-          }
-        } finally {
-          if (!cancelled) {
-            setSetlistLoading(
-              false,
-            );
-          }
-        }
-      };
-
-    void loadSetlistMatch();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    canLookupSetlist,
-    gig.artist,
-    gig.city,
-    gig.date,
-    gig.venue,
-  ]);
-
-  const openSetlistUrl =
-    async () => {
-      const url =
-        setlistMatch?.setlist?.url?.trim();
-
-      if (!url) return;
-
-      try {
-        await Linking.openURL(
-          url,
-        );
-      } catch {
-        Alert.alert(
-          "Couldn’t open link",
-          "That setlist link looks invalid.",
-        );
-      }
-    };
-
-  const handleOpenSetlist = (
-    e?: any,
-  ) => {
-    try {
-      e?.stopPropagation?.();
-    } catch {}
-
-    void selectionHaptic();
-
-    if (
-      setlistMatch?.matched &&
-      setlistMatch.setlist
-    ) {
-      setSetlistOpen(true);
-      return;
-    }
-
-    if (setlistLoading) {
-      return;
-    }
-
-    Alert.alert(
-      "No setlist yet",
-      "No reliable setlist match was found for this gig.",
-    );
-  };
-
-  const hasSetlist =
-    Boolean(
-      setlistMatch?.matched &&
-        setlistMatch.setlist,
-    );
-
-  const showSetlistChip =
-    canLookupSetlist &&
-    !setlistLoading &&
-    hasSetlist;
-
   const renderFallbackImage = (
     style: any,
   ) => (
@@ -572,338 +356,87 @@ export function GigCard({
         style={
           styles.fallbackLogo
         }
-        resizeMode="cover"
+        contentFit="cover"
       />
     </View>
   );
 
   const modalContent = (
-    <>
-      <Modal
-        visible={notesOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
-          setNotesOpen(false)
+    <Modal
+      visible={notesOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() =>
+        setNotesOpen(
+          false,
+        )
+      }
+    >
+      <Pressable
+        style={
+          styles.modalOverlay
+        }
+        onPress={() =>
+          setNotesOpen(
+            false,
+          )
         }
       >
         <Pressable
           style={
-            styles.modalOverlay
+            styles.notesModalCard
           }
-          onPress={() =>
-            setNotesOpen(false)
+          onPress={(e) =>
+            e.stopPropagation()
           }
         >
-          <Pressable
+          <Text
             style={
-              styles.notesModalCard
+              styles.notesModalTitle
             }
-            onPress={(e) =>
-              e.stopPropagation()
+          >
+            Notes
+          </Text>
+
+          <Text
+            style={
+              styles.notesModalBody
             }
+          >
+            {noteText}
+          </Text>
+
+          <Pressable
+            onPress={() =>
+              setNotesOpen(
+                false,
+              )
+            }
+            style={({
+              pressed,
+            }) => [
+              styles.notesCloseBtn,
+              pressed
+                ? styles.smallBtnPressed
+                : null,
+            ]}
           >
             <Text
               style={
-                styles.notesModalTitle
+                styles.smallBtnText
               }
             >
-              Notes
+              Close
             </Text>
-
-            <Text
-              style={
-                styles.notesModalBody
-              }
-            >
-              {noteText}
-            </Text>
-
-            <Pressable
-              onPress={() =>
-                setNotesOpen(false)
-              }
-              style={({
-                pressed,
-              }) => [
-                styles.notesCloseBtn,
-                pressed
-                  ? styles.smallBtnPressed
-                  : null,
-              ]}
-            >
-              <Text
-                style={
-                  styles.smallBtnText
-                }
-              >
-                Close
-              </Text>
-            </Pressable>
           </Pressable>
         </Pressable>
-      </Modal>
-
-      <Modal
-        visible={setlistOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() =>
-          setSetlistOpen(false)
-        }
-      >
-        <Pressable
-          style={
-            styles.modalOverlay
-          }
-          onPress={() =>
-            setSetlistOpen(false)
-          }
-        >
-          <Pressable
-            style={
-              styles.setlistModalCard
-            }
-            onPress={(e) =>
-              e.stopPropagation()
-            }
-          >
-            <Text
-              style={
-                styles.notesModalTitle
-              }
-            >
-              Setlist
-            </Text>
-
-            {setlistMatch?.setlist ? (
-              <>
-                <Text
-                  style={
-                    styles.setlistModalMetaTitle
-                  }
-                >
-                  {
-                    setlistMatch
-                      .setlist
-                      .venueName
-                  }
-                </Text>
-
-                <Text
-                  style={
-                    styles.setlistModalMetaText
-                  }
-                >
-                  {
-                    setlistMatch
-                      .setlist
-                      .cityName
-                  }{" "}
-                  •{" "}
-                  {
-                    setlistMatch
-                      .setlist
-                      .eventDate
-                  }
-                </Text>
-
-                <Text
-                  style={
-                    styles.setlistModalMetaText
-                  }
-                >
-                  Confidence{" "}
-                  {formatConfidence(
-                    setlistMatch.confidence,
-                  )}{" "}
-                  •{" "}
-                  {
-                    setlistMatch
-                      .setlist
-                      .songCount
-                  }{" "}
-                  songs
-                </Text>
-
-                <ScrollView
-                  style={{
-                    maxHeight:
-                      320,
-                    marginTop: 14,
-                  }}
-                  showsVerticalScrollIndicator={
-                    false
-                  }
-                >
-                  {setlistMatch.setlist.sets.map(
-                    (
-                      set,
-                      setIndex,
-                    ) => (
-                      <View
-                        key={`${set.name}-${setIndex}`}
-                        style={
-                          styles.setBlock
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.setBlockTitle
-                          }
-                        >
-                          {set.name ||
-                            (set.encore >
-                            0
-                              ? `Encore ${set.encore}`
-                              : "Set")}
-                        </Text>
-
-                        <View
-                          style={{
-                            height: 8,
-                          }}
-                        />
-
-                        {set.songs
-                          .length >
-                        0 ? (
-                          set.songs.map(
-                            (
-                              song,
-                              songIndex,
-                            ) => (
-                              <Text
-                                key={`${song}-${songIndex}`}
-                                style={
-                                  styles.songRow
-                                }
-                              >
-                                {songIndex +
-                                  1}
-                                .{" "}
-                                {song}
-                              </Text>
-                            ),
-                          )
-                        ) : (
-                          <Text
-                            style={
-                              styles.notesModalBody
-                            }
-                          >
-                            No songs
-                            listed.
-                          </Text>
-                        )}
-                      </View>
-                    ),
-                  )}
-                </ScrollView>
-
-                <View
-                  style={{
-                    gap: 8,
-                    marginTop:
-                      14,
-                  }}
-                >
-                  {setlistMatch
-                    .setlist
-                    .url ? (
-                    <Pressable
-                      onPress={() =>
-                        void openSetlistUrl()
-                      }
-                      style={({
-                        pressed,
-                      }) => [
-                        styles.notesCloseBtn,
-                        styles.openSetlistBtn,
-                        pressed
-                          ? styles.smallBtnPressed
-                          : null,
-                      ]}
-                    >
-                      <Text
-                        style={
-                          styles.smallBtnText
-                        }
-                      >
-                        Open on
-                        Setlist.fm
-                      </Text>
-                    </Pressable>
-                  ) : null}
-
-                  <Pressable
-                    onPress={() =>
-                      setSetlistOpen(
-                        false,
-                      )
-                    }
-                    style={({
-                      pressed,
-                    }) => [
-                      styles.notesCloseBtn,
-                      pressed
-                        ? styles.smallBtnPressed
-                        : null,
-                    ]}
-                  >
-                    <Text
-                      style={
-                        styles.smallBtnText
-                      }
-                    >
-                      Close
-                    </Text>
-                  </Pressable>
-                </View>
-              </>
-            ) : (
-              <>
-                <Text
-                  style={
-                    styles.notesModalBody
-                  }
-                >
-                  No matched
-                  setlist available.
-                </Text>
-
-                <Pressable
-                  onPress={() =>
-                    setSetlistOpen(
-                      false,
-                    )
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.notesCloseBtn,
-                    pressed
-                      ? styles.smallBtnPressed
-                      : null,
-                  ]}
-                >
-                  <Text
-                    style={
-                      styles.smallBtnText
-                    }
-                  >
-                    Close
-                  </Text>
-                </Pressable>
-              </>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
-    </>
+      </Pressable>
+    </Modal>
   );
 
-  if (variant === "poster") {
+  if (
+    variant === "poster"
+  ) {
     return (
       <>
         <Pressable
@@ -927,12 +460,13 @@ export function GigCard({
           >
             {imageUrl ? (
               <Image
-                source={{
-                  uri: imageUrl,
-                }}
+                source={imageUrl}
                 style={
                   styles.posterImage
                 }
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={120}
               />
             ) : (
               renderFallbackImage(
@@ -966,7 +500,9 @@ export function GigCard({
                   styles.posterDay
                 }
               >
-                {posterDate.day}
+                {
+                  posterDate.day
+                }
               </Text>
             </View>
 
@@ -1018,7 +554,9 @@ export function GigCard({
                 }
                 numberOfLines={2}
               >
-                {gig.artist}
+                {
+                  gig.artist
+                }
               </Text>
 
               <Text
@@ -1053,7 +591,9 @@ export function GigCard({
     <>
       <Pressable
         onPress={handlePress}
-        style={({ pressed }) => [
+        style={({
+          pressed,
+        }) => [
           styles.rowCard,
           isFavouriteGig
             ? styles.favouriteGigCard
@@ -1065,10 +605,13 @@ export function GigCard({
       >
         {imageUrl ? (
           <Image
-            source={{
-              uri: imageUrl,
-            }}
-            style={styles.rowImage}
+            source={imageUrl}
+            style={
+              styles.rowImage
+            }
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
           />
         ) : (
           renderFallbackImage(
@@ -1077,10 +620,14 @@ export function GigCard({
         )}
 
         <View
-          style={styles.rowBody}
+          style={
+            styles.rowBody
+          }
         >
           <View
-            style={styles.topRow}
+            style={
+              styles.topRow
+            }
           >
             <View
               style={
@@ -1143,7 +690,9 @@ export function GigCard({
                       1
                     }
                   >
-                    {gig.artist}
+                    {
+                      gig.artist
+                    }
                   </Text>
 
                   {isFavouriteGig ? (
@@ -1209,7 +758,9 @@ export function GigCard({
           </View>
 
           <Text
-            style={styles.meta}
+            style={
+              styles.meta
+            }
             numberOfLines={1}
           >
             {gig.venue} •{" "}
@@ -1222,7 +773,9 @@ export function GigCard({
             }
           >
             <Text
-              style={styles.date}
+              style={
+                styles.date
+              }
             >
               {formatGigDateUk(
                 gig.date,
@@ -1237,52 +790,6 @@ export function GigCard({
               />
             ) : null}
           </View>
-
-          {showSetlistChip ? (
-            <View
-              style={
-                styles.socialRow
-              }
-            >
-              <View
-                style={
-                  styles.socialRight
-                }
-              >
-                <Pressable
-                  onPress={
-                    handleOpenSetlist
-                  }
-                  style={({
-                    pressed,
-                  }) => [
-                    styles.inlineAction,
-                    pressed
-                      ? styles.smallBtnPressed
-                      : null,
-                  ]}
-                  hitSlop={8}
-                >
-                  <Ionicons
-                    name="musical-notes-outline"
-                    size={12}
-                    color={
-                      Colours.text
-                        .muted
-                    }
-                  />
-
-                  <Text
-                    style={
-                      styles.inlineActionText
-                    }
-                  >
-                    Setlist
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-          ) : null}
         </View>
       </Pressable>
 
@@ -1297,8 +804,7 @@ const styles =
       flexDirection: "row",
       gap: 12,
       backgroundColor:
-        Colours.background
-          .card,
+        Colours.background.card,
       borderRadius: 16,
       padding: 10,
       borderWidth: 0,
@@ -1319,8 +825,7 @@ const styles =
     favouriteGigCard: {
       borderWidth: 0,
       backgroundColor:
-        Colours.background
-          .card,
+        Colours.background.card,
     },
 
     pressed: {
@@ -1337,18 +842,8 @@ const styles =
     imageFallback: {
       backgroundColor:
         "rgba(47,140,255,0.16)",
-      borderWidth: 0,
       alignItems: "center",
-      justifyContent:
-        "center",
-    },
-
-    rowFallbackText: {
-      color:
-        Colours.text
-          .primary,
-      fontWeight: "900",
-      fontSize: 24,
+      justifyContent: "center",
     },
 
     rowBody: {
@@ -1371,7 +866,6 @@ const styles =
     artistPressable: {
       alignSelf:
         "flex-start",
-      borderBottomWidth: 0,
       paddingBottom: 1,
       maxWidth: "100%",
     },
@@ -1389,8 +883,7 @@ const styles =
 
     artist: {
       color:
-        Colours.text
-          .primary,
+        Colours.text.primary,
       fontSize: 16,
       lineHeight: 20,
       fontWeight: "800",
@@ -1419,8 +912,7 @@ const styles =
     meta: {
       marginTop: 3,
       color:
-        Colours.text
-          .secondary,
+        Colours.text.secondary,
       fontSize: 13,
       lineHeight: 17,
       fontWeight: "600",
@@ -1437,68 +929,10 @@ const styles =
 
     date: {
       color:
-        Colours.text
-          .muted,
+        Colours.text.muted,
       fontSize: 12,
       lineHeight: 16,
       fontWeight: "500",
-    },
-
-    socialRow: {
-      marginTop: 8,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "space-between",
-      gap: 8,
-    },
-
-    socialLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      flex: 1,
-      minWidth: 0,
-    },
-
-    socialInlineText: {
-      flex: 1,
-      color:
-        Colours.text
-          .muted,
-      fontWeight: "500",
-      fontSize: 11,
-      lineHeight: 14,
-    },
-
-    socialRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent:
-        "flex-end",
-      gap: 8,
-      flexShrink: 0,
-    },
-
-    inlineAction: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 4,
-      paddingVertical: 3,
-      paddingHorizontal: 0,
-      borderRadius: 0,
-      backgroundColor:
-        "transparent",
-      borderWidth: 0,
-    },
-
-    inlineActionText: {
-      color:
-        Colours.text
-          .muted,
-      fontWeight: "600",
-      fontSize: 11,
-      lineHeight: 14,
     },
 
     posterCard: {
@@ -1507,9 +941,7 @@ const styles =
       borderRadius: 20,
       overflow: "hidden",
       backgroundColor:
-        Colours.background
-          .card,
-      borderWidth: 0,
+        Colours.background.card,
     },
 
     posterImageWrap: {
@@ -1521,14 +953,6 @@ const styles =
     posterImage: {
       width: "100%",
       height: "100%",
-    },
-
-    posterFallbackText: {
-      color:
-        Colours.text
-          .primary,
-      fontWeight: "900",
-      fontSize: 42,
     },
 
     posterGradient: {
@@ -1547,10 +971,6 @@ const styles =
       top: 10,
       width: 48,
       height: 58,
-      borderRadius: 0,
-      backgroundColor:
-        "transparent",
-      borderWidth: 0,
       alignItems: "center",
       justifyContent:
         "center",
@@ -1558,8 +978,7 @@ const styles =
 
     posterMonth: {
       color:
-        Colours.text
-          .secondary,
+        Colours.text.secondary,
       fontWeight: "900",
       fontSize: 10,
       lineHeight: 13,
@@ -1568,8 +987,7 @@ const styles =
 
     posterDay: {
       color:
-        Colours.text
-          .primary,
+        Colours.text.primary,
       fontWeight: "900",
       fontSize: 24,
       lineHeight: 27,
@@ -1621,8 +1039,7 @@ const styles =
 
     posterArtist: {
       color:
-        Colours.text
-          .primary,
+        Colours.text.primary,
       fontWeight: "900",
       fontSize: 20,
       lineHeight: 23,
@@ -1632,8 +1049,7 @@ const styles =
     posterMeta: {
       marginTop: 5,
       color:
-        Colours.text
-          .secondary,
+        Colours.text.secondary,
       fontWeight: "700",
       fontSize: 12,
       lineHeight: 15,
@@ -1642,8 +1058,7 @@ const styles =
     posterDateText: {
       marginTop: 2,
       color:
-        Colours.text
-          .muted,
+        Colours.text.muted,
       fontWeight: "700",
       fontSize: 11,
       lineHeight: 14,
@@ -1655,12 +1070,10 @@ const styles =
 
     smallBtnText: {
       color:
-        Colours.text
-          .secondary,
+        Colours.text.secondary,
       fontWeight: "600",
       fontSize: 11,
       lineHeight: 14,
-      letterSpacing: 0,
     },
 
     modalOverlay: {
@@ -1677,33 +1090,17 @@ const styles =
       width: "100%",
       maxWidth: 360,
       backgroundColor:
-        Colours.background
-          .card,
+        Colours.background.card,
       borderRadius: 18,
       borderWidth: 1,
       borderColor:
         Colours.ui.border,
       padding: 16,
-    },
-
-    setlistModalCard: {
-      width: "100%",
-      maxWidth: 380,
-      backgroundColor:
-        Colours.background
-          .card,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor:
-        Colours.ui.border,
-      padding: 16,
-      maxHeight: "82%",
     },
 
     notesModalTitle: {
       color:
-        Colours.text
-          .primary,
+        Colours.text.primary,
       fontSize: 17,
       lineHeight: 22,
       fontWeight: "700",
@@ -1712,8 +1109,7 @@ const styles =
     notesModalBody: {
       marginTop: 10,
       color:
-        Colours.text
-          .secondary,
+        Colours.text.secondary,
       fontSize: 14,
       lineHeight: 20,
       fontWeight: "400",
@@ -1731,56 +1127,5 @@ const styles =
       paddingVertical: 7,
       paddingHorizontal: 12,
       borderRadius: 12,
-    },
-
-    openSetlistBtn: {
-      marginTop: 0,
-    },
-
-    setlistModalMetaTitle: {
-      marginTop: 10,
-      color:
-        Colours.text
-          .primary,
-      fontSize: 14,
-      lineHeight: 18,
-      fontWeight: "700",
-    },
-
-    setlistModalMetaText: {
-      marginTop: 4,
-      color:
-        Colours.text
-          .muted,
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: "600",
-    },
-
-    setBlock: {
-      marginBottom: 14,
-      paddingBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor:
-        "rgba(255,255,255,0.06)",
-    },
-
-    setBlockTitle: {
-      color:
-        Colours.text
-          .primary,
-      fontWeight: "800",
-      fontSize: 13,
-      lineHeight: 17,
-    },
-
-    songRow: {
-      color:
-        Colours.text
-          .secondary,
-      fontWeight: "600",
-      fontSize: 13,
-      lineHeight: 19,
-      marginBottom: 4,
     },
   });

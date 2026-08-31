@@ -28,32 +28,41 @@ import { CitySearchInput } from "../components/CitySearchInput";
 import { Colours } from "../theme/colours";
 import type { CreateGigInput } from "../shared/types/Gig";
 
-// City search should reset when leaving/reopening Discover.
-
 const AnimatedScrollView =
-  Animated.createAnimatedComponent(ScrollView);
+  Animated.createAnimatedComponent(
+    ScrollView,
+  );
 
-type DiscoverEvent = AppEvent & {
-  id?: string;
-  name?: string;
-  url?: string;
-  _embedded?: {
-    venues?: Array<{
-      name?: string;
-      city?: { name?: string };
-    }>;
-    attractions?: Array<{
-      name?: string;
-      type?: string;
-      subType?: string;
-      classifications?: Array<{
-        segment?: { name?: string };
-        genre?: { name?: string };
-        subGenre?: { name?: string };
+type DiscoverEvent =
+  AppEvent & {
+    id?: string;
+    name?: string;
+    url?: string;
+    _embedded?: {
+      venues?: Array<{
+        name?: string;
+        city?: {
+          name?: string;
+        };
       }>;
-    }>;
+      attractions?: Array<{
+        name?: string;
+        type?: string;
+        subType?: string;
+        classifications?: Array<{
+          segment?: {
+            name?: string;
+          };
+          genre?: {
+            name?: string;
+          };
+          subGenre?: {
+            name?: string;
+          };
+        }>;
+      }>;
+    };
   };
-};
 
 type MbArtist = {
   id: string;
@@ -62,11 +71,10 @@ type MbArtist = {
   country?: string;
 };
 
-type MbArtistSearchResponse =
-  | {
-      artists?: MbArtist[];
-    }
-  | any;
+type MbArtistSearchResponse = {
+  count?: number;
+  artists?: MbArtist[];
+};
 
 type ArtistPageResponse = {
   artist?: {
@@ -82,55 +90,77 @@ type GigDraftWithArtistImage =
   };
 
 const UI_COPY = {
-  searching: "Searching gigs…",
-  artistLoading: "Looking up artists…",
+  searching:
+    "Searching gigs…",
+  artistLoading:
+    "Looking up artists…",
   emptySearch:
     "No gigs found. Try another artist, band or city.",
 };
 
 const artistImageCache =
-  new Map<string, string | null>();
+  new Map<
+    string,
+    string | null
+  >();
 
 const artistImageRequests =
-  new Map<string, Promise<string | null>>();
+  new Map<
+    string,
+    Promise<string | null>
+  >();
 
-function getEventName(item: DiscoverEvent) {
-  return item.title ?? item.name ?? "Untitled event";
+function getEventName(
+  item: DiscoverEvent,
+) {
+  return (
+    item.title ??
+    item.name ??
+    "Untitled event"
+  );
 }
 
-function pickVenue(e: DiscoverEvent) {
-  const v = e._embedded?.venues?.[0];
+function pickVenue(
+  event: DiscoverEvent,
+) {
+  const venue =
+    event._embedded
+      ?.venues?.[0];
 
   return {
     venue:
-      e.venueName ??
-      v?.name ??
+      event.venueName ??
+      venue?.name ??
       "Unknown venue",
+
     city:
-      e.city ??
-      v?.city?.name ??
+      event.city ??
+      venue?.city?.name ??
       "Unknown city",
   };
 }
 
-function normalizeSearchText(value: string) {
+function normalizeSearchText(
+  value: string,
+) {
   return value
     .toLowerCase()
-    .replace(/[’']/g, "")
+    .replace(/[’']/g, " ")
     .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(
+      /[^a-z0-9]+/g,
+      " ",
+    )
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function sameText(a?: string, b?: string) {
-  if (!a || !b) {
-    return false;
-  }
-
-  return (
-    normalizeSearchText(a) ===
-    normalizeSearchText(b)
+function stripLeadingThe(
+  value: string,
+) {
+  return value.replace(
+    /^the\s+/,
+    "",
   );
 }
 
@@ -148,7 +178,10 @@ function artistNamesMatch(
   const right =
     normalizeSearchText(b);
 
-  if (!left || !right) {
+  if (
+    !left ||
+    !right
+  ) {
     return false;
   }
 
@@ -156,40 +189,61 @@ function artistNamesMatch(
     return true;
   }
 
-  const stripLeadingThe = (
-    value: string,
-  ) =>
-    value.replace(/^the\s+/, "");
-
   return (
     stripLeadingThe(left) ===
     stripLeadingThe(right)
   );
 }
 
-function isTributeEvent(event: DiscoverEvent) {
-  const venue = pickVenue(event);
+function sameText(
+  a?: string,
+  b?: string,
+) {
+  return artistNamesMatch(
+    a,
+    b,
+  );
+}
+
+function isTributeEvent(
+  event: DiscoverEvent,
+) {
+  const venue =
+    pickVenue(event);
 
   const attractionText =
-    event._embedded?.attractions
-      ?.map((a) => {
+    event._embedded
+      ?.attractions
+      ?.map((attraction) => {
         const classifications =
-          a.classifications
-            ?.map((c) =>
-              [
-                c.segment?.name,
-                c.genre?.name,
-                c.subGenre?.name,
-              ]
-                .filter(Boolean)
-                .join(" "),
+          attraction.classifications
+            ?.map(
+              (
+                classification,
+              ) =>
+                [
+                  classification
+                    .segment
+                    ?.name,
+                  classification
+                    .genre
+                    ?.name,
+                  classification
+                    .subGenre
+                    ?.name,
+                ]
+                  .filter(
+                    Boolean,
+                  )
+                  .join(" "),
             )
-            .join(" ") ?? "";
+            .join(" ") ??
+          "";
 
         return [
-          a.name,
-          a.type,
-          a.subType,
+          attraction.name,
+          attraction.type,
+          attraction.subType,
           classifications,
         ]
           .filter(Boolean)
@@ -197,18 +251,19 @@ function isTributeEvent(event: DiscoverEvent) {
       })
       .join(" ") ?? "";
 
-  const text = normalizeSearchText(
-    [
-      event.name,
-      event.title,
-      event.venueName,
-      venue.venue,
-      venue.city,
-      attractionText,
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
+  const text =
+    normalizeSearchText(
+      [
+        event.name,
+        event.title,
+        event.venueName,
+        venue.venue,
+        venue.city,
+        attractionText,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    );
 
   const tributeTerms = [
     "tribute",
@@ -236,7 +291,9 @@ function isTributeEvent(event: DiscoverEvent) {
     "a night of",
     "an evening of",
     "homage",
-  ].map(normalizeSearchText);
+  ].map(
+    normalizeSearchText,
+  );
 
   const knownTributeActs = [
     "definitely oasis",
@@ -273,12 +330,16 @@ function isTributeEvent(event: DiscoverEvent) {
     "the rolling clones",
     "the doors alive",
     "the elvis years",
-  ].map(normalizeSearchText);
+  ].map(
+    normalizeSearchText,
+  );
 
   return [
     ...tributeTerms,
     ...knownTributeActs,
-  ].some((term) => text.includes(term));
+  ].some((term) =>
+    text.includes(term),
+  );
 }
 
 function filterTributeEvents(
@@ -290,7 +351,8 @@ function filterTributeEvents(
   }
 
   return events.filter(
-    (event) => !isTributeEvent(event),
+    (event) =>
+      !isTributeEvent(event),
   );
 }
 
@@ -298,7 +360,10 @@ function getEventKey(
   item: DiscoverEvent,
   index: number,
 ) {
-  return `${item.source ?? "event"}-${
+  return `${
+    item.source ??
+    "event"
+  }-${
     item.sourceEventId ??
     item.id ??
     item.title ??
@@ -311,135 +376,172 @@ function getResultArtistName(
   item: DiscoverEvent,
 ) {
   const directArtist =
-    getEventArtistName(item)?.trim();
+    getEventArtistName(
+      item,
+    )?.trim();
 
   if (directArtist) {
     return directArtist;
   }
 
   const attractionArtist =
-    item._embedded?.attractions?.[0]?.name?.trim();
+    item._embedded
+      ?.attractions?.[0]
+      ?.name?.trim();
 
   if (attractionArtist) {
     return attractionArtist;
   }
 
-  return getEventName(item).trim();
+  return getEventName(
+    item,
+  ).trim();
 }
 
 function eventMatchesArtistSearch(
   event: DiscoverEvent,
   searchArtist: string,
 ) {
-  if (!searchArtist.trim()) {
+  if (
+    !searchArtist.trim()
+  ) {
     return true;
   }
 
   const candidates = [
-    getEventArtistName(event),
-    event._embedded?.attractions?.[0]?.name,
+    getEventArtistName(
+      event,
+    ),
+    event._embedded
+      ?.attractions?.[0]
+      ?.name,
     event.title,
     event.name,
   ].filter(
-    (value): value is string =>
-      Boolean(value?.trim()),
+    (
+      value,
+    ): value is string =>
+      Boolean(
+        value?.trim(),
+      ),
   );
 
-  return candidates.some((candidate) =>
-    artistNamesMatch(
-      candidate,
-      searchArtist,
-    ),
+  return candidates.some(
+    (candidate) =>
+      artistNamesMatch(
+        candidate,
+        searchArtist,
+      ),
   );
 }
 
 async function fetchArtistImage(
   artistName: string,
-): Promise<string | null> {
-  const trimmed = artistName.trim();
+): Promise<
+  string | null
+> {
+  const trimmed =
+    artistName.trim();
 
   if (!trimmed) {
     return null;
   }
 
   const cacheKey =
-    normalizeSearchText(trimmed);
+    normalizeSearchText(
+      trimmed,
+    );
 
-  if (artistImageCache.has(cacheKey)) {
+  if (
+    artistImageCache.has(
+      cacheKey,
+    )
+  ) {
     return (
-      artistImageCache.get(cacheKey) ??
-      null
+      artistImageCache.get(
+        cacheKey,
+      ) ?? null
     );
   }
 
   const existingRequest =
-    artistImageRequests.get(cacheKey);
+    artistImageRequests.get(
+      cacheKey,
+    );
 
   if (existingRequest) {
     return existingRequest;
   }
 
-  const request = (async () => {
-    try {
-      const response =
-        await apiGet<ArtistPageResponse>(
-          `/spotify/artist-page?name=${encodeURIComponent(
+  const request =
+    (async () => {
+      try {
+        const response =
+          await apiGet<ArtistPageResponse>(
+            `/spotify/artist-page?name=${encodeURIComponent(
+              trimmed,
+            )}`,
+          );
+
+        const returnedArtistName =
+          response.artist
+            ?.name?.trim() ??
+          "";
+
+        if (
+          !artistNamesMatch(
             trimmed,
-          )}`,
+            returnedArtistName,
+          )
+        ) {
+          artistImageCache.set(
+            cacheKey,
+            null,
+          );
+
+          return null;
+        }
+
+        const imageUrl =
+          response.artist
+            ?.imageUrl
+            ?.trim() ||
+          null;
+
+        artistImageCache.set(
+          cacheKey,
+          imageUrl,
         );
 
-      const returnedArtistName =
-        response.artist?.name?.trim() ?? "";
-
-      const isMatchingArtist =
-        artistNamesMatch(
-          trimmed,
-          returnedArtistName,
+        return imageUrl;
+      } catch (error) {
+        console.warn(
+          "[discover] artist image lookup failed",
+          {
+            artistName:
+              trimmed,
+            message:
+              error instanceof
+              Error
+                ? error.message
+                : String(
+                    error,
+                  ),
+          },
         );
 
-      if (!isMatchingArtist) {
         artistImageCache.set(
           cacheKey,
           null,
         );
 
         return null;
+      } finally {
+        artistImageRequests.delete(
+          cacheKey,
+        );
       }
-
-      const imageUrl =
-        response.artist?.imageUrl?.trim() ||
-        null;
-
-      artistImageCache.set(
-        cacheKey,
-        imageUrl,
-      );
-
-      return imageUrl;
-    } catch (error) {
-      console.warn(
-        "[discover] artist image lookup failed",
-        {
-          artistName: trimmed,
-          message:
-            error instanceof Error
-              ? error.message
-              : String(error),
-        },
-      );
-
-      artistImageCache.set(
-        cacheKey,
-        null,
-      );
-
-      return null;
-    } finally {
-      artistImageRequests.delete(
-        cacheKey,
-      );
-    }
-  })();
+    })();
 
   artistImageRequests.set(
     cacheKey,
@@ -452,14 +554,21 @@ async function fetchArtistImage(
 function useArtistImage(
   artistName: string,
 ) {
-  const [imageUrl, setImageUrl] =
-    React.useState<string | null>(
-      null,
-    );
+  const [
+    imageUrl,
+    setImageUrl,
+  ] =
+    React.useState<
+      string | null
+    >(null);
 
-  const [loading, setLoading] =
+  const [
+    loading,
+    setLoading,
+  ] =
     React.useState(
-      artistName.trim().length > 0,
+      artistName.trim()
+        .length > 0,
     );
 
   React.useEffect(() => {
@@ -487,7 +596,10 @@ function useArtistImage(
         return;
       }
 
-      setImageUrl(resolved);
+      setImageUrl(
+        resolved,
+      );
+
       setLoading(false);
     });
 
@@ -502,18 +614,32 @@ function useArtistImage(
   };
 }
 
-function SectionTitle(props: {
-  title: string;
-  subtitle?: string;
-}) {
+function SectionTitle(
+  props: {
+    title: string;
+    subtitle?: string;
+  },
+) {
   return (
-    <View style={styles.sectionTitleWrap}>
-      <Text style={styles.sectionTitle}>
+    <View
+      style={
+        styles.sectionTitleWrap
+      }
+    >
+      <Text
+        style={
+          styles.sectionTitle
+        }
+      >
         {props.title}
       </Text>
 
       {props.subtitle ? (
-        <Text style={styles.sectionSubtitle}>
+        <Text
+          style={
+            styles.sectionSubtitle
+          }
+        >
           {props.subtitle}
         </Text>
       ) : null}
@@ -521,18 +647,25 @@ function SectionTitle(props: {
   );
 }
 
-function SearchInput(props: {
-  icon: keyof typeof Ionicons.glyphMap;
-  value: string;
-  onChangeText: (value: string) => void;
-  placeholder: string;
-  autoCapitalize?:
-    | "none"
-    | "sentences"
-    | "words"
-    | "characters";
-}) {
-  const [focused, setFocused] =
+function SearchInput(
+  props: {
+    icon: keyof typeof Ionicons.glyphMap;
+    value: string;
+    onChangeText: (
+      value: string,
+    ) => void;
+    placeholder: string;
+    autoCapitalize?:
+      | "none"
+      | "sentences"
+      | "words"
+      | "characters";
+  },
+) {
+  const [
+    focused,
+    setFocused,
+  ] =
     React.useState(false);
 
   return (
@@ -550,30 +683,49 @@ function SearchInput(props: {
         color={
           focused
             ? "#7EB6FF"
-            : Colours.text.muted
+            : Colours.text
+                .muted
         }
       />
 
       <TextInput
-        value={props.value}
-        onChangeText={props.onChangeText}
-        placeholder={props.placeholder}
+        value={
+          props.value
+        }
+        onChangeText={
+          props.onChangeText
+        }
+        placeholder={
+          props.placeholder
+        }
         placeholderTextColor="rgba(255,255,255,0.42)"
-        autoCapitalize={props.autoCapitalize}
+        autoCapitalize={
+          props.autoCapitalize
+        }
         autoCorrect={false}
         returnKeyType="search"
-        style={styles.searchInput}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        style={
+          styles.searchInput
+        }
+        onFocus={() =>
+          setFocused(true)
+        }
+        onBlur={() =>
+          setFocused(false)
+        }
       />
 
       {props.value.trim() ? (
         <Pressable
           onPress={() =>
-            props.onChangeText("")
+            props.onChangeText(
+              "",
+            )
           }
           hitSlop={10}
-          style={({ pressed }) =>
+          style={({
+            pressed,
+          }) =>
             pressed
               ? styles.clearPressed
               : null
@@ -590,32 +742,46 @@ function SearchInput(props: {
   );
 }
 
-function EventCard(props: {
-  item: DiscoverEvent;
-  cityFallback: string;
-  onAddToGigs: (
-    draft: Partial<CreateGigInput>,
-  ) => void;
-}) {
+function EventCard(
+  props: {
+    item: DiscoverEvent;
+    cityFallback: string;
+    onAddToGigs: (
+      draft: Partial<CreateGigInput>,
+    ) => void;
+  },
+) {
   const eventName =
-    getEventName(props.item);
+    getEventName(
+      props.item,
+    );
 
   const date =
-    getEventDate(props.item);
+    getEventDate(
+      props.item,
+    );
 
   const displayDate =
     date &&
-    /^\d{4}-\d{2}-\d{2}$/.test(date)
+    /^\d{4}-\d{2}-\d{2}$/.test(
+      date,
+    )
       ? `${date.slice(
           8,
           10,
         )}-${date.slice(
           5,
           7,
-        )}-${date.slice(0, 4)}`
+        )}-${date.slice(
+          0,
+          4,
+        )}`
       : date;
 
-  const v = pickVenue(props.item);
+  const venue =
+    pickVenue(
+      props.item,
+    );
 
   const artistName =
     getResultArtistName(
@@ -623,52 +789,79 @@ function EventCard(props: {
     );
 
   const {
-    imageUrl: artistImageUrl,
-    loading: artistImageLoading,
-  } = useArtistImage(
-    artistName,
-  );
+    imageUrl:
+      artistImageUrl,
+    loading:
+      artistImageLoading,
+  } =
+    useArtistImage(
+      artistName,
+    );
 
   const city =
-    v.city &&
-    v.city !== "Unknown city"
-      ? v.city
+    venue.city &&
+    venue.city !==
+      "Unknown city"
+      ? venue.city
       : props.cityFallback;
 
-  const handleAddGig = () => {
-    Keyboard.dismiss();
+  const handleAddGig =
+    () => {
+      Keyboard.dismiss();
 
-    const draft: GigDraftWithArtistImage =
-      {
-        artist: artistName,
-        venue: v.venue,
-        city:
-          city || "Unknown city",
-        date:
-          date ||
-          new Date()
-            .toISOString()
-            .slice(0, 10),
-        externalSource:
-          props.item.source,
-        externalId:
-          props.item.sourceEventId,
-        ticketUrl:
-          props.item.ticketUrl ??
-          props.item.url,
-      };
+      const draft:
+        GigDraftWithArtistImage =
+        {
+          artist:
+            artistName,
+          venue:
+            venue.venue,
+          city:
+            city ||
+            "Unknown city",
+          date:
+            date ||
+            new Date()
+              .toISOString()
+              .slice(
+                0,
+                10,
+              ),
+          externalSource:
+            props.item
+              .source,
+          externalId:
+            props.item
+              .sourceEventId,
+          ticketUrl:
+            props.item
+              .ticketUrl ??
+            props.item.url,
+        };
 
-    if (artistImageUrl) {
-      draft.artistImageUrl =
-        artistImageUrl;
-    }
+      if (
+        artistImageUrl
+      ) {
+        draft.artistImageUrl =
+          artistImageUrl;
+      }
 
-    props.onAddToGigs(draft);
-  };
+      props.onAddToGigs(
+        draft,
+      );
+    };
 
   return (
-    <View style={styles.resultCard}>
-      <View style={styles.resultTopRow}>
+    <View
+      style={
+        styles.resultCard
+      }
+    >
+      <View
+        style={
+          styles.resultTopRow
+        }
+      >
         {artistImageUrl ? (
           <Image
             source={{
@@ -680,7 +873,11 @@ function EventCard(props: {
             resizeMode="cover"
           />
         ) : (
-          <View style={styles.resultIcon}>
+          <View
+            style={
+              styles.resultIcon
+            }
+          >
             {artistImageLoading ? (
               <ActivityIndicator
                 size="small"
@@ -697,33 +894,49 @@ function EventCard(props: {
         )}
 
         <View
-          style={styles.resultTitleWrap}
+          style={
+            styles.resultTitleWrap
+          }
         >
           <Text
-            style={styles.resultTitle}
+            style={
+              styles.resultTitle
+            }
           >
             {eventName}
           </Text>
 
           <Text
-            style={styles.resultMeta}
+            style={
+              styles.resultMeta
+            }
           >
-            {v.venue} •{" "}
-            {city || "Unknown city"}
+            {venue.venue} •{" "}
+            {city ||
+              "Unknown city"}
           </Text>
         </View>
       </View>
 
       {date ? (
-        <View style={styles.datePill}>
+        <View
+          style={
+            styles.datePill
+          }
+        >
           <Ionicons
             name="calendar-outline"
             size={13}
-            color={Colours.text.muted}
+            color={
+              Colours.text
+                .muted
+            }
           />
 
           <Text
-            style={styles.resultDate}
+            style={
+              styles.resultDate
+            }
           >
             {displayDate}
           </Text>
@@ -731,15 +944,23 @@ function EventCard(props: {
       ) : null}
 
       <Pressable
-        onPress={handleAddGig}
-        style={({ pressed }) => [
+        onPress={
+          handleAddGig
+        }
+        style={({
+          pressed,
+        }) => [
           styles.addBtn,
           pressed
             ? styles.addBtnPressed
             : null,
         ]}
       >
-        <Text style={styles.addBtnText}>
+        <Text
+          style={
+            styles.addBtnText
+          }
+        >
           Add gig
         </Text>
       </Pressable>
@@ -747,20 +968,26 @@ function EventCard(props: {
   );
 }
 
-export function DiscoverScreen(props: {
-  onAddToGigs: (
-    draft: Partial<CreateGigInput>,
-  ) => void;
-  onPressLogo?: () => void;
-  scrollToTopSignal?: number;
-}) {
+export function DiscoverScreen(
+  props: {
+    onAddToGigs: (
+      draft: Partial<CreateGigInput>,
+    ) => void;
+    onPressLogo?: () => void;
+    scrollToTopSignal?: number;
+  },
+) {
   const scrollY =
     React.useRef(
-      new Animated.Value(0),
+      new Animated.Value(
+        0,
+      ),
     ).current;
 
   const scrollRef =
-    React.useRef<ScrollView>(null);
+    React.useRef<ScrollView>(
+      null,
+    );
 
   const suppressNextArtistSearchRef =
     React.useRef(false);
@@ -769,60 +996,86 @@ export function DiscoverScreen(props: {
     React.useRef(0);
 
   const selectedArtistNameRef =
-    React.useRef<string | undefined>(
-      undefined,
-    );
+    React.useRef<
+      string | undefined
+    >(undefined);
 
-  const [cityInput, setCityInput] =
+  const [
+    cityInput,
+    setCityInput,
+  ] =
     React.useState("");
 
-  const [query, setQuery] =
+  const [
+    query,
+    setQuery,
+  ] =
     React.useState("");
 
-  const includeTributeActs = false;
+  const includeTributeActs =
+    false;
 
   const [
     artistMbid,
     setArtistMbid,
-  ] = React.useState<
-    string | undefined
-  >();
+  ] =
+    React.useState<
+      string | undefined
+    >();
 
   const [
     selectedArtistName,
     setSelectedArtistName,
-  ] = React.useState<
-    string | undefined
-  >();
+  ] =
+    React.useState<
+      string | undefined
+    >();
 
-  const [mbLoading, setMbLoading] =
+  const [
+    mbLoading,
+    setMbLoading,
+  ] =
     React.useState(false);
 
-  const [mbResults, setMbResults] =
-    React.useState<MbArtist[]>([]);
+  const [
+    mbResults,
+    setMbResults,
+  ] =
+    React.useState<
+      MbArtist[]
+    >([]);
 
-  const [mbError, setMbError] =
+  const [
+    mbError,
+    setMbError,
+  ] =
     React.useState("");
 
-  const [mbOpen, setMbOpen] =
+  const [
+    mbOpen,
+    setMbOpen,
+  ] =
     React.useState(false);
 
   const [
     searchLoading,
     setSearchLoading,
-  ] = React.useState(false);
+  ] =
+    React.useState(false);
 
   const [
     searchError,
     setSearchError,
-  ] = React.useState("");
+  ] =
+    React.useState("");
 
   const [
     searchEvents,
     setSearchEvents,
-  ] = React.useState<
-    DiscoverEvent[]
-  >([]);
+  ] =
+    React.useState<
+      DiscoverEvent[]
+    >([]);
 
   const activeCity =
     cityInput.trim();
@@ -831,7 +1084,8 @@ export function DiscoverScreen(props: {
     query.trim();
 
   const showingSearchResults =
-    trimmedQuery.length >= 2 ||
+    trimmedQuery.length >=
+      2 ||
     activeCity.length >= 2;
 
   React.useEffect(() => {
@@ -842,11 +1096,15 @@ export function DiscoverScreen(props: {
       return;
     }
 
-    scrollRef.current?.scrollTo({
-      y: 0,
-      animated: true,
-    });
-  }, [props.scrollToTopSignal]);
+    scrollRef.current?.scrollTo(
+      {
+        y: 0,
+        animated: true,
+      },
+    );
+  }, [
+    props.scrollToTopSignal,
+  ]);
 
   const runMbSearch =
     React.useCallback(
@@ -857,10 +1115,15 @@ export function DiscoverScreen(props: {
         const searchSeq =
           ++artistSearchSeqRef.current;
 
-        if (queryValue.length < 2) {
+        if (
+          queryValue.length <
+          2
+        ) {
           setMbResults([]);
           setMbError("");
-          setMbLoading(false);
+          setMbLoading(
+            false,
+          );
           setMbOpen(false);
           return;
         }
@@ -877,7 +1140,9 @@ export function DiscoverScreen(props: {
         ) {
           setMbResults([]);
           setMbError("");
-          setMbLoading(false);
+          setMbLoading(
+            false,
+          );
           setMbOpen(false);
           return;
         }
@@ -886,79 +1151,17 @@ export function DiscoverScreen(props: {
         setMbError("");
 
         try {
-          const baseQuery = queryValue
-  .replace(/[’']/g, " ")
-  .replace(/\s+/g, " ")
-  .trim();
-
-const queryVariants = Array.from(
-  new Set([
-    queryValue,
-    baseQuery,
-    baseQuery.replace(
-      /\bn\b/gi,
-      "'n'",
-    ),
-    baseQuery.replace(
-      /\bn\b/gi,
-      "’n’",
-    ),
-  ]),
-);
-
-          let artists: MbArtist[] = [];
-
-          for (
-            const variant of
-            queryVariants
-          ) {
-            try {
-              const res =
-                await apiGet<MbArtistSearchResponse>(
-                  `/mb/artists/search?q=${encodeURIComponent(
-                    variant,
-                  )}`,
-                );
-
-              if (
-                searchSeq !==
-                artistSearchSeqRef.current
-              ) {
-                return;
-              }
-
-              const foundArtists:
-                MbArtist[] =
-                (res?.artists as MbArtist[]) ??
-                (res?._embedded
-                  ?.artists as MbArtist[]) ??
-                [];
-
-              if (
-                Array.isArray(
-                  foundArtists,
-                ) &&
-                foundArtists.length > 0
-              ) {
-                artists =
-                  foundArtists;
-                break;
-              }
-            } catch (error) {
-              console.warn(
-                "[discover] MusicBrainz variant lookup failed",
-                {
-                  query: variant,
-                  message:
-                    error instanceof Error
-                      ? error.message
-                      : String(
-                          error,
-                        ),
-                },
-              );
-            }
-          }
+          /**
+           * One request only.
+           * Backend handles known aliases
+           * and MusicBrainz matching.
+           */
+          const res =
+            await apiGet<MbArtistSearchResponse>(
+              `/mb/artists/search?q=${encodeURIComponent(
+                queryValue,
+              )}`,
+            );
 
           if (
             searchSeq !==
@@ -980,19 +1183,34 @@ const queryVariants = Array.from(
               currentSelected,
             )
           ) {
-            setMbResults([]);
-            setMbOpen(false);
+            setMbResults(
+              [],
+            );
+            setMbOpen(
+              false,
+            );
             return;
           }
 
+          const artists =
+            Array.isArray(
+              res?.artists,
+            )
+              ? res.artists
+              : [];
+
           setMbResults(
-            artists.slice(0, 8),
+            artists.slice(
+              0,
+              8,
+            ),
           );
 
           setMbOpen(
-            artists.length > 0,
+            artists.length >
+              0,
           );
-        } catch (e: any) {
+        } catch (error) {
           if (
             searchSeq !==
             artistSearchSeqRef.current
@@ -1003,13 +1221,20 @@ const queryVariants = Array.from(
           console.warn(
             "[discover] MusicBrainz artist lookup failed",
             {
-              query: queryValue,
+              query:
+                queryValue,
               message:
-                e?.message ??
-                "Artist search failed",
+                error instanceof
+                Error
+                  ? error.message
+                  : String(
+                      error,
+                    ),
             },
           );
 
+          // MusicBrainz is optional for Discover.
+          // Event search should continue.
           setMbError("");
           setMbResults([]);
           setMbOpen(false);
@@ -1018,39 +1243,47 @@ const queryVariants = Array.from(
             searchSeq ===
             artistSearchSeqRef.current
           ) {
-            setMbLoading(false);
+            setMbLoading(
+              false,
+            );
           }
         }
       },
       [],
     );
 
-  const chooseArtist = (
-    artist: MbArtist,
-  ) => {
-    suppressNextArtistSearchRef.current =
-      true;
+  const chooseArtist =
+    (
+      artist: MbArtist,
+    ) => {
+      suppressNextArtistSearchRef.current =
+        true;
 
-    selectedArtistNameRef.current =
-      artist.name;
+      selectedArtistNameRef.current =
+        artist.name;
 
-    artistSearchSeqRef.current += 1;
+      artistSearchSeqRef.current +=
+        1;
 
-    setQuery(artist.name);
+      setQuery(
+        artist.name,
+      );
 
-    setSelectedArtistName(
-      artist.name,
-    );
+      setSelectedArtistName(
+        artist.name,
+      );
 
-    setArtistMbid(artist.id);
+      setArtistMbid(
+        artist.id,
+      );
 
-    setMbOpen(false);
-    setMbResults([]);
-    setMbError("");
-    setMbLoading(false);
+      setMbOpen(false);
+      setMbResults([]);
+      setMbError("");
+      setMbLoading(false);
 
-    Keyboard.dismiss();
-  };
+      Keyboard.dismiss();
+    };
 
   React.useEffect(() => {
     if (
@@ -1062,10 +1295,12 @@ const queryVariants = Array.from(
       setMbOpen(false);
       setMbResults([]);
       setMbLoading(false);
+
       return;
     }
 
-    const q = query.trim();
+    const q =
+      query.trim();
 
     if (
       selectedArtistNameRef.current &&
@@ -1083,126 +1318,174 @@ const queryVariants = Array.from(
     selectedArtistNameRef.current =
       undefined;
 
-    setArtistMbid(undefined);
-    setSelectedArtistName(undefined);
+    setArtistMbid(
+      undefined,
+    );
 
-    if (q.length < 2) {
+    setSelectedArtistName(
+      undefined,
+    );
+
+    if (
+      q.length < 2
+    ) {
       setMbResults([]);
       setMbOpen(false);
       setMbError("");
       return;
     }
 
-    const t = setTimeout(() => {
-      void runMbSearch(q);
-    }, 320);
+    const timeout =
+      setTimeout(() => {
+        void runMbSearch(
+          q,
+        );
+      }, 320);
 
     return () =>
-      clearTimeout(t);
-  }, [query, runMbSearch]);
+      clearTimeout(
+        timeout,
+      );
+  }, [
+    query,
+    runMbSearch,
+  ]);
 
   const searchEventsForQuery =
-    React.useCallback(async () => {
-      if (
-        trimmedQuery.length < 2 &&
-        activeCity.length < 2
-      ) {
-        setSearchEvents([]);
-        setSearchError("");
-        return;
-      }
-
-      setSearchLoading(true);
-      setSearchError("");
-
-      try {
-        const rawEvents =
-          (await searchFutureEvents({
-            q:
-              trimmedQuery.length >= 2
-                ? trimmedQuery
-                : activeCity,
-            city:
-              activeCity.length >= 2
-                ? activeCity
-                : undefined,
-            size: 20,
-          })) as DiscoverEvent[];
-
-        const cityFilteredEvents =
-          activeCity.length >= 2
-            ? rawEvents.filter(
-                (event) => {
-                  const eventCity =
-                    String(
-                      event.city ?? "",
-                    ).toLowerCase();
-
-                  const venueCity =
-                    String(
-                      event._embedded
-                        ?.venues?.[0]
-                        ?.city?.name ?? "",
-                    ).toLowerCase();
-
-                  const cityNeedle =
-                    activeCity.toLowerCase();
-
-                  return (
-                    eventCity.includes(
-                      cityNeedle,
-                    ) ||
-                    venueCity.includes(
-                      cityNeedle,
-                    )
-                  );
-                },
-              )
-            : rawEvents;
-
-        const tributeFilteredEvents =
-          filterTributeEvents(
-            cityFilteredEvents,
-            includeTributeActs,
+    React.useCallback(
+      async () => {
+        if (
+          trimmedQuery.length <
+            2 &&
+          activeCity.length <
+            2
+        ) {
+          setSearchEvents(
+            [],
           );
 
-        const artistNameToMatch =
-          selectedArtistNameRef.current ??
-          trimmedQuery;
+          setSearchError(
+            "",
+          );
 
-        const artistFilteredEvents =
-          trimmedQuery.length >= 2
-            ? tributeFilteredEvents.filter(
-                (event) =>
-                  eventMatchesArtistSearch(
-                    event,
-                    artistNameToMatch,
-                  ),
-              )
-            : tributeFilteredEvents;
+          return;
+        }
 
-        setSearchEvents(
-          artistFilteredEvents,
-        );
-      } catch (e: any) {
-        setSearchError(
-          e?.message ??
-            "Search failed",
+        setSearchLoading(
+          true,
         );
 
-        setSearchEvents([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    }, [
-      activeCity,
-      includeTributeActs,
-      trimmedQuery,
-    ]);
+        setSearchError("");
+
+        try {
+          const rawEvents =
+            (await searchFutureEvents(
+              {
+                q:
+                  trimmedQuery.length >=
+                  2
+                    ? trimmedQuery
+                    : activeCity,
+
+                city:
+                  activeCity.length >=
+                  2
+                    ? activeCity
+                    : undefined,
+
+                size: 20,
+              },
+            )) as DiscoverEvent[];
+
+          const cityFilteredEvents =
+            activeCity.length >=
+            2
+              ? rawEvents.filter(
+                  (event) => {
+                    const eventCity =
+                      String(
+                        event.city ??
+                          "",
+                      ).toLowerCase();
+
+                    const venueCity =
+                      String(
+                        event
+                          ._embedded
+                          ?.venues?.[0]
+                          ?.city
+                          ?.name ??
+                          "",
+                      ).toLowerCase();
+
+                    const cityNeedle =
+                      activeCity.toLowerCase();
+
+                    return (
+                      eventCity.includes(
+                        cityNeedle,
+                      ) ||
+                      venueCity.includes(
+                        cityNeedle,
+                      )
+                    );
+                  },
+                )
+              : rawEvents;
+
+          const tributeFilteredEvents =
+            filterTributeEvents(
+              cityFilteredEvents,
+              includeTributeActs,
+            );
+
+          const artistNameToMatch =
+            selectedArtistNameRef.current ??
+            trimmedQuery;
+
+          const artistFilteredEvents =
+            trimmedQuery.length >=
+            2
+              ? tributeFilteredEvents.filter(
+                  (event) =>
+                    eventMatchesArtistSearch(
+                      event,
+                      artistNameToMatch,
+                    ),
+                )
+              : tributeFilteredEvents;
+
+          setSearchEvents(
+            artistFilteredEvents,
+          );
+        } catch (error) {
+          setSearchError(
+            error instanceof
+            Error
+              ? error.message
+              : "Search failed",
+          );
+
+          setSearchEvents(
+            [],
+          );
+        } finally {
+          setSearchLoading(
+            false,
+          );
+        }
+      },
+      [
+        activeCity,
+        includeTributeActs,
+        trimmedQuery,
+      ],
+    );
 
   React.useEffect(() => {
     if (
-      trimmedQuery.length < 2 &&
+      trimmedQuery.length <
+        2 &&
       activeCity.length < 2
     ) {
       setSearchEvents([]);
@@ -1210,12 +1493,15 @@ const queryVariants = Array.from(
       return;
     }
 
-    const t = setTimeout(() => {
-      void searchEventsForQuery();
-    }, 350);
+    const timeout =
+      setTimeout(() => {
+        void searchEventsForQuery();
+      }, 350);
 
     return () =>
-      clearTimeout(t);
+      clearTimeout(
+        timeout,
+      );
   }, [
     trimmedQuery,
     activeCity,
@@ -1227,24 +1513,33 @@ const queryVariants = Array.from(
       style={styles.safe}
     >
       <KeyboardAvoidingView
-        style={styles.keyboardWrap}
+        style={
+          styles.keyboardWrap
+        }
         behavior={
-          Platform.OS === "ios"
+          Platform.OS ===
+          "ios"
             ? "padding"
             : undefined
         }
-        keyboardVerticalOffset={8}
+        keyboardVerticalOffset={
+          8
+        }
       >
         <AppHeader
           onPressLogo={
             props.onPressLogo
           }
-          scrollY={scrollY}
+          scrollY={
+            scrollY
+          }
         />
 
         <AnimatedScrollView
           ref={scrollRef}
-          style={styles.list}
+          style={
+            styles.list
+          }
           contentContainerStyle={
             styles.content
           }
@@ -1268,11 +1563,19 @@ const queryVariants = Array.from(
                 false,
             },
           )}
-          scrollEventThrottle={16}
+          scrollEventThrottle={
+            16
+          }
         >
-          <View style={styles.heroWrap}>
+          <View
+            style={
+              styles.heroWrap
+            }
+          >
             <View
-              style={styles.searchStack}
+              style={
+                styles.searchStack
+              }
             >
               <SearchInput
                 icon="search-outline"
@@ -1287,14 +1590,25 @@ const queryVariants = Array.from(
                       selectedArtistNameRef.current,
                     );
 
-                  setQuery(text);
+                  setQuery(
+                    text,
+                  );
 
                   if (
                     isStillSelected
                   ) {
-                    setMbOpen(false);
-                    setMbResults([]);
-                    setMbLoading(false);
+                    setMbOpen(
+                      false,
+                    );
+
+                    setMbResults(
+                      [],
+                    );
+
+                    setMbLoading(
+                      false,
+                    );
+
                     return;
                   }
 
@@ -1314,7 +1628,8 @@ const queryVariants = Array.from(
 
                   setMbOpen(
                     text.trim()
-                      .length >= 2,
+                      .length >=
+                      2,
                   );
                 }}
                 placeholder="Search artist"
@@ -1353,20 +1668,28 @@ const queryVariants = Array.from(
 
               {mbOpen &&
               !mbLoading &&
-              mbResults.length > 0 ? (
+              mbResults.length >
+                0 ? (
                 <View
                   style={
                     styles.suggestCard
                   }
                 >
                   {mbResults.map(
-                    (artist) => {
-                      const meta = [
-                        artist.country,
-                        artist.disambiguation,
-                      ]
-                        .filter(Boolean)
-                        .join(" • ");
+                    (
+                      artist,
+                    ) => {
+                      const meta =
+                        [
+                          artist.country,
+                          artist.disambiguation,
+                        ]
+                          .filter(
+                            Boolean,
+                          )
+                          .join(
+                            " • ",
+                          );
 
                       return (
                         <Pressable
@@ -1394,7 +1717,9 @@ const queryVariants = Array.from(
                           >
                             <Ionicons
                               name="musical-note"
-                              size={14}
+                              size={
+                                14
+                              }
                               color="#7EB6FF"
                             />
                           </View>
@@ -1456,7 +1781,9 @@ const queryVariants = Array.from(
               ) : null}
 
               <CitySearchInput
-                value={cityInput}
+                value={
+                  cityInput
+                }
                 onChangeText={
                   setCityInput
                 }
@@ -1488,7 +1815,9 @@ const queryVariants = Array.from(
                       styles.errorText
                     }
                   >
-                    {searchError}
+                    {
+                      searchError
+                    }
                   </Text>
                 ) : null
               ) : null}
@@ -1544,7 +1873,9 @@ const queryVariants = Array.from(
                         }
                       >
                         <EventCard
-                          item={item}
+                          item={
+                            item
+                          }
                           cityFallback={
                             activeCity
                           }
@@ -1601,7 +1932,8 @@ const queryVariants = Array.from(
                 name="ticket-outline"
                 size={24}
                 color={
-                  Colours.text.muted
+                  Colours.text
+                    .muted
                 }
               />
 
@@ -1618,14 +1950,15 @@ const queryVariants = Array.from(
                   styles.emptyHint
                 }
               >
-                Search by artist or city
-                to find upcoming gigs
+                Search by artist or city to find upcoming gigs
               </Text>
             </View>
           )}
 
           <View
-            style={{ height: 24 }}
+            style={{
+              height: 24,
+            }}
           />
         </AnimatedScrollView>
       </KeyboardAvoidingView>
@@ -1633,347 +1966,410 @@ const queryVariants = Array.from(
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor:
-      Colours.background.app,
-  },
-
-  flex: {
-    flex: 1,
-  },
-
-  keyboardWrap: {
-    flex: 1,
-  },
-
-  list: {
-    flex: 1,
-  },
-
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 0,
-    paddingBottom: 130,
-  },
-
-  heroWrap: {
-    marginBottom: 12,
-  },
-
-  searchStack: {
-    gap: 10,
-  },
-
-  searchInputWrap: {
-    minHeight: 46,
-    borderRadius: 16,
-    backgroundColor:
-      "rgba(255,255,255,0.055)",
-    borderWidth: 1,
-    borderColor:
-      "rgba(255,255,255,0.12)",
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  searchInputWrapFocused: {
-    borderColor: "#2F8CFF",
-    backgroundColor:
-      "rgba(47,140,255,0.10)",
-  },
-
-  searchInput: {
-    flex: 1,
-    color: Colours.text.primary,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "700",
-    paddingVertical:
-      Platform.OS === "ios"
-        ? 13
-        : 9,
-  },
-
-  clearPressed: {
-    opacity: 0.7,
-  },
-
-  loadingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 2,
-  },
-
-  loadingText: {
-    color: Colours.text.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "800",
-  },
-
-  errorText: {
-    color: Colours.text.danger,
-    fontSize: 13,
-    lineHeight: 17,
-    fontWeight: "800",
-  },
-
-  matchedPill: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor:
-      "rgba(46,229,157,0.1)",
-  },
-
-  matchedText: {
-    color: "#2EE59D",
-    fontWeight: "800",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  suggestCard: {
-    backgroundColor:
-      "rgba(255,255,255,0.04)",
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor:
-      "rgba(255,255,255,0.055)",
-  },
-
-  suggestRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor:
-      "rgba(255,255,255,0.06)",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  rowPressed: {
-    opacity: 0.9,
-  },
-
-  artistAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 11,
-    backgroundColor:
-      "rgba(126,182,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  suggestTitle: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 14,
-    lineHeight: 18,
-  },
-
-  suggestMeta: {
-    marginTop: 2,
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-
-  sectionBlock: {
-    marginTop: 14,
-  },
-
-  sectionTitleWrap: {
-    marginBottom: 10,
-  },
-
-  sectionTitle: {
-    color: Colours.text.primary,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "900",
-    letterSpacing: -0.2,
-  },
-
-  sectionSubtitle: {
-    marginTop: 4,
-    color: Colours.text.muted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "700",
-  },
-
-  cardList: {
-    gap: 10,
-  },
-
-  cardWrap: {
-    width: "100%",
-  },
-
-  resultCard: {
-    backgroundColor:
-      "rgba(255,255,255,0.045)",
-    borderRadius: 20,
-    padding: 12,
-    borderWidth: 1,
-    borderColor:
-      "rgba(255,255,255,0.075)",
-    shadowColor: "#000",
-    shadowOpacity: 0.14,
-    shadowRadius: 14,
-    shadowOffset: {
-      width: 0,
-      height: 8,
+const styles =
+  StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor:
+        Colours.background
+          .app,
     },
-  },
 
-  resultTopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 11,
-  },
-
-  resultIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor:
-      "rgba(126,182,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-
-  resultArtistImage: {
-    width: 34,
-    height: 34,
-    borderRadius: 12,
-    backgroundColor:
-      "rgba(126,182,255,0.1)",
-  },
-
-  resultTitleWrap: {
-    flex: 1,
-  },
-
-  resultTitle: {
-    color: Colours.text.primary,
-    fontSize: 17,
-    lineHeight: 22,
-    fontWeight: "900",
-    letterSpacing: -0.15,
-  },
-
-  resultMeta: {
-    color: Colours.text.muted,
-    marginTop: 5,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "800",
-  },
-
-  datePill: {
-    marginTop: 12,
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor:
-      "rgba(255,255,255,0.055)",
-  },
-
-  resultDate: {
-    color: Colours.text.muted,
-    fontSize: 12,
-    lineHeight: 16,
-    fontWeight: "800",
-  },
-
-  addBtn: {
-    marginTop: 14,
-    height: 42,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    backgroundColor: "#2F8CFF",
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    shadowColor: "#2F8CFF",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: {
-      width: 0,
-      height: 6,
+    flex: {
+      flex: 1,
     },
-  },
 
-  addBtnPressed: {
-    opacity: 0.9,
-    transform: [
+    keyboardWrap: {
+      flex: 1,
+    },
+
+    list: {
+      flex: 1,
+    },
+
+    content: {
+      paddingHorizontal: 20,
+      paddingTop: 0,
+      paddingBottom: 130,
+    },
+
+    heroWrap: {
+      marginBottom: 12,
+    },
+
+    searchStack: {
+      gap: 10,
+    },
+
+    searchInputWrap: {
+      minHeight: 46,
+      borderRadius: 16,
+      backgroundColor:
+        "rgba(255,255,255,0.055)",
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.12)",
+      paddingHorizontal: 14,
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 10,
+    },
+
+    searchInputWrapFocused:
       {
-        scale: 0.98,
+        borderColor:
+          "#2F8CFF",
+        backgroundColor:
+          "rgba(47,140,255,0.10)",
       },
-    ],
-  },
 
-  addBtnText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "800",
-  },
+    searchInput: {
+      flex: 1,
+      color:
+        Colours.text
+          .primary,
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: "700",
+      paddingVertical:
+        Platform.OS ===
+        "ios"
+          ? 13
+          : 9,
+    },
 
-  emptyCard: {
-    marginTop: 20,
-    borderRadius: 20,
-    padding: 18,
-    backgroundColor:
-      "rgba(255,255,255,0.04)",
-    borderWidth: 1,
-    borderColor:
-      "rgba(255,255,255,0.07)",
-    alignItems: "center",
-    gap: 8,
-  },
+    clearPressed: {
+      opacity: 0.7,
+    },
 
-  emptyPlain: {
-    marginTop: 34,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    alignItems: "center",
-    gap: 8,
-  },
+    loadingRow: {
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 10,
+      marginTop: 2,
+    },
 
-  emptyTitle: {
-    color: Colours.text.primary,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: "900",
-  },
+    loadingText: {
+      color:
+        Colours.text
+          .muted,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "800",
+    },
 
-  emptyHint: {
-    color: Colours.text.muted,
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-});
+    errorText: {
+      color:
+        Colours.text
+          .danger,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "800",
+    },
+
+    matchedPill: {
+      alignSelf:
+        "flex-start",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 6,
+      paddingHorizontal: 9,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor:
+        "rgba(46,229,157,0.1)",
+    },
+
+    matchedText: {
+      color:
+        "#2EE59D",
+      fontWeight: "800",
+      fontSize: 12,
+      lineHeight: 16,
+    },
+
+    suggestCard: {
+      backgroundColor:
+        "rgba(255,255,255,0.04)",
+      borderRadius: 16,
+      overflow:
+        "hidden",
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.055)",
+    },
+
+    suggestRow: {
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        "rgba(255,255,255,0.06)",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 10,
+    },
+
+    rowPressed: {
+      opacity: 0.9,
+    },
+
+    artistAvatar: {
+      width: 30,
+      height: 30,
+      borderRadius: 11,
+      backgroundColor:
+        "rgba(126,182,255,0.1)",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+    },
+
+    suggestTitle: {
+      color:
+        Colours.text
+          .primary,
+      fontWeight: "900",
+      fontSize: 14,
+      lineHeight: 18,
+    },
+
+    suggestMeta: {
+      marginTop: 2,
+      color:
+        Colours.text
+          .muted,
+      fontWeight: "700",
+      fontSize: 12,
+      lineHeight: 16,
+    },
+
+    sectionBlock: {
+      marginTop: 14,
+    },
+
+    sectionTitleWrap: {
+      marginBottom: 10,
+    },
+
+    sectionTitle: {
+      color:
+        Colours.text
+          .primary,
+      fontSize: 17,
+      lineHeight: 22,
+      fontWeight: "900",
+      letterSpacing:
+        -0.2,
+    },
+
+    sectionSubtitle: {
+      marginTop: 4,
+      color:
+        Colours.text
+          .muted,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "700",
+    },
+
+    cardList: {
+      gap: 10,
+    },
+
+    cardWrap: {
+      width: "100%",
+    },
+
+    resultCard: {
+      backgroundColor:
+        "rgba(255,255,255,0.045)",
+      borderRadius: 20,
+      padding: 12,
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.075)",
+      shadowColor: "#000",
+      shadowOpacity:
+        0.14,
+      shadowRadius: 14,
+      shadowOffset: {
+        width: 0,
+        height: 8,
+      },
+    },
+
+    resultTopRow: {
+      flexDirection:
+        "row",
+      alignItems:
+        "flex-start",
+      gap: 11,
+    },
+
+    resultIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor:
+        "rgba(126,182,255,0.1)",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      overflow:
+        "hidden",
+    },
+
+    resultArtistImage: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor:
+        "rgba(126,182,255,0.1)",
+    },
+
+    resultTitleWrap: {
+      flex: 1,
+    },
+
+    resultTitle: {
+      color:
+        Colours.text
+          .primary,
+      fontSize: 17,
+      lineHeight: 22,
+      fontWeight: "900",
+      letterSpacing:
+        -0.15,
+    },
+
+    resultMeta: {
+      color:
+        Colours.text
+          .muted,
+      marginTop: 5,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "800",
+    },
+
+    datePill: {
+      marginTop: 12,
+      alignSelf:
+        "flex-start",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor:
+        "rgba(255,255,255,0.055)",
+    },
+
+    resultDate: {
+      color:
+        Colours.text
+          .muted,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "800",
+    },
+
+    addBtn: {
+      marginTop: 14,
+      height: 42,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      backgroundColor:
+        "#2F8CFF",
+      alignSelf:
+        "flex-start",
+      flexDirection:
+        "row",
+      alignItems:
+        "center",
+      justifyContent:
+        "center",
+      gap: 7,
+      shadowColor:
+        "#2F8CFF",
+      shadowOpacity:
+        0.25,
+      shadowRadius: 12,
+      shadowOffset: {
+        width: 0,
+        height: 6,
+      },
+    },
+
+    addBtnPressed: {
+      opacity: 0.9,
+      transform: [
+        {
+          scale: 0.98,
+        },
+      ],
+    },
+
+    addBtnText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "800",
+    },
+
+    emptyCard: {
+      marginTop: 20,
+      borderRadius: 20,
+      padding: 18,
+      backgroundColor:
+        "rgba(255,255,255,0.04)",
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.07)",
+      alignItems:
+        "center",
+      gap: 8,
+    },
+
+    emptyPlain: {
+      marginTop: 34,
+      paddingHorizontal: 18,
+      paddingVertical: 18,
+      alignItems:
+        "center",
+      gap: 8,
+    },
+
+    emptyTitle: {
+      color:
+        Colours.text
+          .primary,
+      fontSize: 15,
+      lineHeight: 20,
+      fontWeight: "900",
+    },
+
+    emptyHint: {
+      color:
+        Colours.text
+          .muted,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "700",
+      textAlign:
+        "center",
+    },
+  });

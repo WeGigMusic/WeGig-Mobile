@@ -728,7 +728,7 @@ const releases = spotifyData?.releases ?? [];
             pressed ? styles.pressed : null,
           ]}
         >
-          <Text style={styles.setlistTextButtonText}>Open on Setlist.fm ↗</Text>
+          <Text style={styles.setlistTextButtonText}>See full setlist on Setlist.fm ↗</Text>
         </Pressable>
       ) : null}
 

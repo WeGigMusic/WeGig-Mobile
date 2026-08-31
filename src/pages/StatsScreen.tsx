@@ -80,7 +80,7 @@ const BADGE_INFO: Record<string, BadgeInfo> = {
   },
   Headliner: {
     title: "Headliner",
-    description: "Logged 50 gigs.",
+    description: "Logged 100 gigs.",
   },
 };
 
@@ -159,14 +159,19 @@ function buildStats(gigs: Gig[]) {
 
   const years = gigs.reduce<Record<string, number>>((acc, g) => {
     const year = parseGigYear(g.date);
+
     if (!year) return acc;
+
     acc[year] = (acc[year] ?? 0) + 1;
     return acc;
   }, {});
 
   const timeline = Object.entries(years)
     .sort((a, b) => Number(b[0]) - Number(a[0]))
-    .map(([year, count]) => ({ year, count }));
+    .map(([year, count]) => ({
+      year,
+      count,
+    }));
 
   const badges: BadgeDef[] = [
     {
@@ -226,8 +231,8 @@ function buildStats(gigs: Gig[]) {
     {
       title: "Headliner",
       icon: "🎤",
-      unlocked: total >= 50,
-      progressLabel: `${Math.min(total, 50)}/50 gigs`,
+      unlocked: total >= 100,
+      progressLabel: `${Math.min(total, 100)}/100 gigs`,
     },
   ];
 
@@ -246,7 +251,7 @@ function buildStats(gigs: Gig[]) {
     onTourProgress: clampProgress(cityCount, 5),
     dieHardProgress: clampProgress(topArtistCount, 5),
     touringProgress: clampProgress(venueCount, 7),
-    headlinerProgress: clampProgress(total, 50),
+    headlinerProgress: clampProgress(total, 100),
   };
 }
 
@@ -264,13 +269,17 @@ function KeyStatCard(props: {
   value: string;
   subtitle?: string;
   imageUrl?: string | null;
-imageSource?: any;
-tone?: "default" | "gold" | "blue" | "purple";
+  imageSource?: any;
+  tone?: "default" | "gold" | "blue" | "purple";
 }) {
   const content = (
     <View style={styles.keyStatInner}>
       <View style={styles.keyStatHeader}>
-        <Ionicons name={props.icon} size={14} color={Colours.text.primary} />
+        <Ionicons
+          name={props.icon}
+          size={14}
+          color={Colours.text.primary}
+        />
         <Text style={styles.keyStatLabel}>{props.label}</Text>
       </View>
 
@@ -288,10 +297,10 @@ tone?: "default" | "gold" | "blue" | "purple";
     </View>
   );
 
-if (props.imageUrl || props.imageSource) {
-  return (
-    <ImageBackground
-      source={props.imageSource ?? { uri: props.imageUrl }}
+  if (props.imageUrl || props.imageSource) {
+    return (
+      <ImageBackground
+        source={props.imageSource ?? { uri: props.imageUrl }}
         style={styles.keyStatCard}
         imageStyle={styles.keyStatImage}
       >
@@ -302,7 +311,12 @@ if (props.imageUrl || props.imageSource) {
   }
 
   return (
-    <View style={[styles.keyStatCard, styles[`tone_${props.tone ?? "default"}`]]}>
+    <View
+      style={[
+        styles.keyStatCard,
+        styles[`tone_${props.tone ?? "default"}`],
+      ]}
+    >
       {content}
     </View>
   );
@@ -316,7 +330,11 @@ function LiveStatCard(props: {
   return (
     <View style={styles.liveStatCard}>
       <View style={styles.liveStatHeader}>
-        <Ionicons name={props.icon} size={14} color={Colours.text.primary} />
+        <Ionicons
+          name={props.icon}
+          size={14}
+          color={Colours.text.primary}
+        />
         <Text style={styles.keyStatLabel}>{props.label}</Text>
       </View>
 
@@ -338,15 +356,25 @@ function BadgeCard(
       delayLongPress={320}
       style={({ pressed }) => [
         styles.badgeShape,
-        props.unlocked ? styles.badgeCardOn : styles.badgeCardOff,
+        props.unlocked
+          ? styles.badgeCardOn
+          : styles.badgeCardOff,
         pressed ? { opacity: 0.88 } : null,
       ]}
     >
       <View style={styles.badgeTopCut} />
-      <Text style={styles.badgeIcon}>{props.icon}</Text>
-      <Text style={styles.badgeTitle} numberOfLines={2}>
+
+      <Text style={styles.badgeIcon}>
+        {props.icon}
+      </Text>
+
+      <Text
+        style={styles.badgeTitle}
+        numberOfLines={2}
+      >
         {props.title}
       </Text>
+
       <View style={styles.badgeRibbonRow}>
         <View style={styles.badgeRibbonLeft} />
         <View style={styles.badgeRibbonRight} />
@@ -364,9 +392,13 @@ function TimelineTicketCard(props: {
       <View style={styles.timelineTicketNotchLeft} />
       <View style={styles.timelineTicketNotchRight} />
 
-      <Text style={styles.timelineTicketYear}>{props.year}</Text>
+      <Text style={styles.timelineTicketYear}>
+        {props.year}
+      </Text>
+
       <Text style={styles.timelineTicketLabel}>
-        {props.count} {props.count === 1 ? "gig" : "gigs"}
+        {props.count}{" "}
+        {props.count === 1 ? "gig" : "gigs"}
       </Text>
     </View>
   );
@@ -386,22 +418,33 @@ function BadgeInfoModal(props: {
       onRequestClose={props.onClose}
       statusBarTranslucent
     >
-      <Pressable onPress={props.onClose} style={styles.badgeModalOverlay}>
+      <Pressable
+        onPress={props.onClose}
+        style={styles.badgeModalOverlay}
+      >
         <Pressable
-  onPress={(e) => e.stopPropagation()}
-  style={styles.badgeModalCard}
->
-  <View style={styles.badgeModalTopCut} />
+          onPress={(e) => e.stopPropagation()}
+          style={styles.badgeModalCard}
+        >
+          <View style={styles.badgeModalTopCut} />
 
-  <Text style={styles.badgeModalTitle}>{props.title}</Text>
-  <Text style={styles.badgeModalDescription}>{props.description}</Text>
-  <Text style={styles.badgeModalHint}>Tap outside to close</Text>
+          <Text style={styles.badgeModalTitle}>
+            {props.title}
+          </Text>
 
-  <View style={styles.badgeModalRibbonRow}>
-    <View style={styles.badgeModalRibbonLeft} />
-    <View style={styles.badgeModalRibbonRight} />
-  </View>
-</Pressable>
+          <Text style={styles.badgeModalDescription}>
+            {props.description}
+          </Text>
+
+          <Text style={styles.badgeModalHint}>
+            Tap outside to close
+          </Text>
+
+          <View style={styles.badgeModalRibbonRow}>
+            <View style={styles.badgeModalRibbonLeft} />
+            <View style={styles.badgeModalRibbonRight} />
+          </View>
+        </Pressable>
       </Pressable>
     </Modal>
   );
@@ -411,27 +454,48 @@ export function StatsScreen(props: {
   onPressLogo?: () => void;
   scrollToTopSignal?: number;
 }) {
-  const scrollY = React.useRef(new Animated.Value(0)).current;
-  const scrollRef = React.useRef<ScrollView>(null);
+  const scrollY =
+    React.useRef(new Animated.Value(0)).current;
 
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
-  const [gigs, setGigs] = React.useState<Gig[]>([]);
-  const [selectedBadgeInfo, setSelectedBadgeInfo] =
+  const scrollRef =
+    React.useRef<ScrollView>(null);
+
+  const [loading, setLoading] =
+    React.useState(true);
+
+  const [error, setError] =
+    React.useState("");
+
+  const [gigs, setGigs] =
+    React.useState<Gig[]>([]);
+
+  const [
+    selectedBadgeInfo,
+    setSelectedBadgeInfo,
+  ] =
     React.useState<BadgeInfo | null>(null);
-  const [artistImageByName, setArtistImageByName] = React.useState<
-    Record<string, string | null>
-  >({});
+
+  const [
+    artistImageByName,
+    setArtistImageByName,
+  ] =
+    React.useState<Record<string, string | null>>({});
 
   const load = React.useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const res = await apiGet<GigsResponse>("/gigs");
+      const res =
+        await apiGet<GigsResponse>("/gigs");
+
       setGigs(res.gigs ?? []);
     } catch (e: any) {
-      setError(e?.message ?? "Failed to load stats");
+      setError(
+        e?.message ??
+          "Failed to load stats",
+      );
+
       setGigs([]);
     } finally {
       setLoading(false);
@@ -443,7 +507,11 @@ export function StatsScreen(props: {
   }, [load]);
 
   React.useEffect(() => {
-    if (props.scrollToTopSignal == null) return;
+    if (
+      props.scrollToTopSignal == null
+    ) {
+      return;
+    }
 
     scrollRef.current?.scrollTo({
       y: 0,
@@ -452,632 +520,971 @@ export function StatsScreen(props: {
   }, [props.scrollToTopSignal]);
 
   React.useEffect(() => {
-    const uniqueArtists = Array.from(
-      new Set(gigs.map((g) => g.artist?.trim()).filter(Boolean)),
-    ) as string[];
+    const uniqueArtists =
+      Array.from(
+        new Set(
+          gigs
+            .map((g) =>
+              g.artist?.trim(),
+            )
+            .filter(Boolean),
+        ),
+      ) as string[];
 
-    const missingArtists = uniqueArtists.filter((artist) => {
-      const key = artist.toLowerCase();
-      return !(key in artistImageByName);
-    });
+    const missingArtists =
+      uniqueArtists.filter(
+        (artist) => {
+          const key =
+            artist.toLowerCase();
 
-    if (missingArtists.length === 0) return;
+          return !(
+            key in artistImageByName
+          );
+        },
+      );
+
+    if (
+      missingArtists.length ===
+      0
+    ) {
+      return;
+    }
 
     let cancelled = false;
 
-    const loadImages = async () => {
-      const entries = await Promise.all(
-        missingArtists.map(async (artist) => {
-          try {
-            const res = await apiGet<SpotifyArtistPageResponse>(
-              `/spotify/artist-page?name=${encodeURIComponent(artist)}`,
-            );
+    const loadImages =
+      async () => {
+        const entries =
+          await Promise.all(
+            missingArtists.map(
+              async (artist) => {
+                try {
+                  const res =
+                    await apiGet<SpotifyArtistPageResponse>(
+                      `/spotify/artist-page?name=${encodeURIComponent(
+                        artist,
+                      )}`,
+                    );
 
-            return [artist.toLowerCase(), res.artist?.imageUrl ?? null] as const;
-          } catch {
-            return [artist.toLowerCase(), null] as const;
-          }
-        }),
-      );
+                  return [
+                    artist.toLowerCase(),
+                    res.artist?.imageUrl ??
+                      null,
+                  ] as const;
+                } catch {
+                  return [
+                    artist.toLowerCase(),
+                    null,
+                  ] as const;
+                }
+              },
+            ),
+          );
 
-      if (!cancelled) {
-        setArtistImageByName((prev) => ({
-          ...prev,
-          ...Object.fromEntries(entries),
-        }));
-      }
-    };
+        if (!cancelled) {
+          setArtistImageByName(
+            (prev) => ({
+              ...prev,
+              ...Object.fromEntries(
+                entries,
+              ),
+            }),
+          );
+        }
+      };
 
     void loadImages();
 
     return () => {
       cancelled = true;
     };
-  }, [gigs, artistImageByName]);
+  }, [
+    gigs,
+    artistImageByName,
+  ]);
 
-  const enrichedGigs = React.useMemo(
-    () =>
-      gigs.map((gig) => {
-        const artistKey = String(gig.artist ?? "").trim().toLowerCase();
+  const enrichedGigs =
+    React.useMemo(
+      () =>
+        gigs.map((gig) => {
+          const artistKey =
+            String(
+              gig.artist ?? "",
+            )
+              .trim()
+              .toLowerCase();
 
-        return {
-          ...gig,
-          artistImageUrl:
-            (gig as any).artistImageUrl ?? artistImageByName[artistKey] ?? null,
-        };
-      }),
-    [artistImageByName, gigs],
-  );
-
-  const stats = React.useMemo(() => buildStats(enrichedGigs), [enrichedGigs]);
-
-  const topArtistImageUrl = React.useMemo(() => {
-    const topArtistName = stats.topArtist?.[0]?.trim().toLowerCase();
-    if (!topArtistName) return null;
-
-    const gig = enrichedGigs.find(
-      (g) => String(g.artist ?? "").trim().toLowerCase() === topArtistName,
+          return {
+            ...gig,
+            artistImageUrl:
+              (gig as any)
+                .artistImageUrl ??
+              artistImageByName[
+                artistKey
+              ] ??
+              null,
+          };
+        }),
+      [
+        artistImageByName,
+        gigs,
+      ],
     );
 
-    return getGigImageUrl(gig);
-  }, [enrichedGigs, stats.topArtist]);
+  const stats =
+    React.useMemo(
+      () =>
+        buildStats(
+          enrichedGigs,
+        ),
+      [enrichedGigs],
+    );
 
-  const unlockedBadges = stats.badges.filter((badge) => badge.unlocked);
-  const lockedBadges = stats.badges.filter((badge) => !badge.unlocked);
-  const sortedBadges = [...unlockedBadges, ...lockedBadges];
+  const topArtistImageUrl =
+    React.useMemo(() => {
+      const topArtistName =
+        stats.topArtist?.[0]
+          ?.trim()
+          .toLowerCase();
+
+      if (!topArtistName) {
+        return null;
+      }
+
+      const gig =
+        enrichedGigs.find(
+          (g) =>
+            String(
+              g.artist ?? "",
+            )
+              .trim()
+              .toLowerCase() ===
+            topArtistName,
+        );
+
+      return getGigImageUrl(gig);
+    }, [
+      enrichedGigs,
+      stats.topArtist,
+    ]);
+
+  const unlockedBadges =
+    stats.badges.filter(
+      (badge) =>
+        badge.unlocked,
+    );
+
+  const lockedBadges =
+    stats.badges.filter(
+      (badge) =>
+        !badge.unlocked,
+    );
+
+  const sortedBadges = [
+    ...unlockedBadges,
+    ...lockedBadges,
+  ];
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
+    <SafeAreaView
+      style={styles.safe}
+    >
+      <AppHeader
+        onPressLogo={
+          props.onPressLogo
+        }
+        scrollY={scrollY}
+      />
 
       <AnimatedScrollView
         ref={scrollRef}
-        contentContainerStyle={styles.body}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={
+          styles.body
+        }
+        showsVerticalScrollIndicator={
+          false
+        }
         onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false },
+          [
+            {
+              nativeEvent: {
+                contentOffset: {
+                  y: scrollY,
+                },
+              },
+            },
+          ],
+          {
+            useNativeDriver:
+              false,
+          },
         )}
         scrollEventThrottle={16}
       >
         {loading ? (
-          <View style={styles.inlineRow}>
+          <View
+            style={
+              styles.inlineRow
+            }
+          >
             <ActivityIndicator />
-            <Text style={styles.muted}>Loading your journey…</Text>
+
+            <Text
+              style={
+                styles.muted
+              }
+            >
+              Loading your journey…
+            </Text>
           </View>
         ) : error ? (
-          <Text style={styles.error}>{error}</Text>
-        ) : enrichedGigs.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>No stats yet</Text>
-            <Text style={styles.emptyText}>
+          <Text
+            style={
+              styles.error
+            }
+          >
+            {error}
+          </Text>
+        ) : enrichedGigs.length ===
+          0 ? (
+          <View
+            style={
+              styles.emptyWrap
+            }
+          >
+            <Text
+              style={
+                styles.emptyTitle
+              }
+            >
+              No stats yet
+            </Text>
+
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
               Log your first gig to start building your live music story.
             </Text>
           </View>
         ) : (
           <>
-
             <SectionHeader title="Your highlights" />
+
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRail}
+              showsHorizontalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.horizontalRail
+              }
             >
               <KeyStatCard
                 icon="musical-notes-outline"
                 label="Top artist"
-                value={stats.topArtist ? stats.topArtist[0] : "—"}
+                value={
+                  stats.topArtist
+                    ? stats.topArtist[0]
+                    : "—"
+                }
                 subtitle={
                   stats.topArtist
-                    ? `${stats.topArtist[1]} ${
-                        stats.topArtist[1] === 1 ? "gig" : "gigs"
+                    ? `${
+                        stats
+                          .topArtist[1]
+                      } ${
+                        stats
+                          .topArtist[1] ===
+                        1
+                          ? "gig"
+                          : "gigs"
                       }`
                     : "Log more gigs"
                 }
-                imageUrl={topArtistImageUrl}
+                imageUrl={
+                  topArtistImageUrl
+                }
               />
 
               <KeyStatCard
-  icon="business-outline"
-  label="Favourite venue"
-  value={stats.topVenue ? stats.topVenue[0] : "—"}
-  subtitle={
-    stats.topVenue
-      ? `${stats.topVenue[1]} visits`
-      : "No favourite yet"
-  }
-  imageSource={require("../../assets/venue-background.png")}
-/>
+                icon="business-outline"
+                label="Favourite venue"
+                value={
+                  stats.topVenue
+                    ? stats.topVenue[0]
+                    : "—"
+                }
+                subtitle={
+                  stats.topVenue
+                    ? `${stats.topVenue[1]} visits`
+                    : "No favourite yet"
+                }
+                imageSource={require("../../assets/venue-background.png")}
+              />
 
               <KeyStatCard
-  icon="location-outline"
-  label="Main scene"
-  value={stats.topCity ? stats.topCity[0] : "—"}
-  subtitle={
-    stats.topCity
-      ? `${stats.topCity[1]} gigs there`
-      : "Your city story starts here"
-  }
-  imageSource={require("../../assets/main-scene-background.png")}
-/>
+                icon="location-outline"
+                label="Main scene"
+                value={
+                  stats.topCity
+                    ? stats.topCity[0]
+                    : "—"
+                }
+                subtitle={
+                  stats.topCity
+                    ? `${stats.topCity[1]} gigs there`
+                    : "Your city story starts here"
+                }
+                imageSource={require("../../assets/main-scene-background.png")}
+              />
             </ScrollView>
 
             <SectionHeader title="Badges" />
+
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRail}
+              showsHorizontalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.horizontalRail
+              }
             >
-              {sortedBadges.map((badge) => (
-                <BadgeCard
-                  key={badge.title}
-                  title={badge.title}
-                  icon={badge.icon}
-                  unlocked={badge.unlocked}
-                  progressLabel={badge.progressLabel}
-                  onLongPress={() =>
-                    setSelectedBadgeInfo(
-                      BADGE_INFO[badge.title] ?? {
-                        title: badge.title,
-                        description: "Badge progress from your gig history.",
-                      },
-                    )
-                  }
-                />
-              ))}
+              {sortedBadges.map(
+                (badge) => (
+                  <BadgeCard
+                    key={
+                      badge.title
+                    }
+                    title={
+                      badge.title
+                    }
+                    icon={
+                      badge.icon
+                    }
+                    unlocked={
+                      badge.unlocked
+                    }
+                    progressLabel={
+                      badge.progressLabel
+                    }
+                    onLongPress={() =>
+                      setSelectedBadgeInfo(
+                        BADGE_INFO[
+                          badge
+                            .title
+                        ] ?? {
+                          title:
+                            badge.title,
+                          description:
+                            "Badge progress from your gig history.",
+                        },
+                      )
+                    }
+                  />
+                ),
+              )}
             </ScrollView>
 
             <SectionHeader title="Gig stats" />
+
             <ScrollView
               horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRail}
+              showsHorizontalScrollIndicator={
+                false
+              }
+              contentContainerStyle={
+                styles.horizontalRail
+              }
             >
               <LiveStatCard
                 icon="ticket-outline"
                 label="Total gigs"
-                value={String(stats.total)}
+                value={String(
+                  stats.total,
+                )}
               />
+
               <LiveStatCard
                 icon="create-outline"
                 label="Rated gigs"
-                value={String(stats.ratedCount)}
+                value={String(
+                  stats.ratedCount,
+                )}
               />
+
               <LiveStatCard
                 icon="star-half-outline"
                 label="Avg rating"
-                value={stats.avgRating == null ? "—" : String(stats.avgRating)}
+                value={
+                  stats.avgRating ==
+                  null
+                    ? "—"
+                    : String(
+                        stats.avgRating,
+                      )
+                }
               />
+
               <LiveStatCard
                 icon="map-outline"
                 label="Cities"
-                value={String(stats.cityCount)}
+                value={String(
+                  stats.cityCount,
+                )}
               />
             </ScrollView>
 
-            {stats.timeline.length > 0 ? (
+            {stats.timeline
+              .length > 0 ? (
               <>
                 <SectionHeader title="Timeline" />
+
                 <ScrollView
                   horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.horizontalRail}
+                  showsHorizontalScrollIndicator={
+                    false
+                  }
+                  contentContainerStyle={
+                    styles.horizontalRail
+                  }
                 >
-                  {stats.timeline.map((item) => (
-                    <TimelineTicketCard
-                      key={item.year}
-                      year={item.year}
-                      count={item.count}
-                    />
-                  ))}
+                  {stats.timeline.map(
+                    (item) => (
+                      <TimelineTicketCard
+                        key={
+                          item.year
+                        }
+                        year={
+                          item.year
+                        }
+                        count={
+                          item.count
+                        }
+                      />
+                    ),
+                  )}
                 </ScrollView>
               </>
             ) : null}
           </>
         )}
 
-        <View style={{ height: 110 }} />
+        <View
+          style={{
+            height: 110,
+          }}
+        />
       </AnimatedScrollView>
 
       <BadgeInfoModal
-        visible={!!selectedBadgeInfo}
-        title={selectedBadgeInfo?.title ?? ""}
-        description={selectedBadgeInfo?.description ?? ""}
-        onClose={() => setSelectedBadgeInfo(null)}
+        visible={
+          !!selectedBadgeInfo
+        }
+        title={
+          selectedBadgeInfo
+            ?.title ?? ""
+        }
+        description={
+          selectedBadgeInfo
+            ?.description ??
+          ""
+        }
+        onClose={() =>
+          setSelectedBadgeInfo(
+            null,
+          )
+        }
       />
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: Colours.background.app,
-  },
+const styles =
+  StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor:
+        Colours.background
+          .app,
+    },
 
-  body: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 120,
-    gap: 10,
-  },
+    body: {
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 120,
+      gap: 10,
+    },
 
-  inlineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 12,
-  },
+    inlineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      marginTop: 12,
+    },
 
-  muted: {
-    color: Colours.text.muted,
-    fontWeight: "500",
-    fontSize: 13,
-    lineHeight: 18,
-  },
+    muted: {
+      color:
+        Colours.text
+          .muted,
+      fontWeight: "500",
+      fontSize: 13,
+      lineHeight: 18,
+    },
 
-  error: {
-    color: Colours.text.danger,
-    fontWeight: "700",
-    fontSize: 14,
-    lineHeight: 18,
-    marginTop: 12,
-  },
+    error: {
+      color:
+        Colours.text
+          .danger,
+      fontWeight: "700",
+      fontSize: 14,
+      lineHeight: 18,
+      marginTop: 12,
+    },
 
-  emptyWrap: {
-    marginTop: 48,
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
+    emptyWrap: {
+      marginTop: 48,
+      alignItems: "center",
+      paddingHorizontal: 20,
+    },
 
-  emptyTitle: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 20,
-    lineHeight: 24,
-  },
+    emptyTitle: {
+      color:
+        Colours.text
+          .primary,
+      fontWeight: "800",
+      fontSize: 20,
+      lineHeight: 24,
+    },
 
-  emptyText: {
-    marginTop: 10,
-    color: Colours.text.muted,
-    fontWeight: "500",
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: "center",
-  },
+    emptyText: {
+      marginTop: 10,
+      color:
+        Colours.text
+          .muted,
+      fontWeight: "500",
+      fontSize: 14,
+      lineHeight: 20,
+      textAlign: "center",
+    },
 
-  sectionHeaderRow: {
-    marginTop: 8,
-    marginBottom: 2,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    sectionHeaderRow: {
+      marginTop: 8,
+      marginBottom: 2,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+    },
 
-  bigSectionTitle: {
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 17,
-    lineHeight: 22,
-    letterSpacing: -0.1,
-  },
+    bigSectionTitle: {
+      color:
+        Colours.text
+          .primary,
+      fontWeight: "800",
+      fontSize: 17,
+      lineHeight: 22,
+      letterSpacing: -0.1,
+    },
 
-  horizontalRail: {
-    gap: 6,
-    paddingRight: 16,
-  },
+    horizontalRail: {
+      gap: 6,
+      paddingRight: 16,
+    },
 
-  keyStatCard: {
-    width: CARD_WIDTH,
-    minHeight: 124,
-    backgroundColor: Colours.background.card,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
+    keyStatCard: {
+      width: CARD_WIDTH,
+      minHeight: 124,
+      backgroundColor:
+        Colours.background
+          .card,
+      borderRadius: 16,
+      overflow: "hidden",
+    },
 
-  keyStatImage: {
-    borderRadius: 16,
-  },
+    keyStatImage: {
+      borderRadius: 16,
+    },
 
-  imageOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.48)",
-  },
+    imageOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor:
+        "rgba(0,0,0,0.48)",
+    },
 
-  keyStatInner: {
-    flex: 1,
-    padding: 12,
-  },
+    keyStatInner: {
+      flex: 1,
+      padding: 12,
+    },
 
-  keyStatHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
+    keyStatHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+    },
 
-  keyStatLabel: {
-    color: Colours.text.secondary,
-    fontWeight: "800",
-    fontSize: 10,
-    lineHeight: 13,
-    textTransform: "uppercase",
-    letterSpacing: 0.2,
-  },
+    keyStatLabel: {
+      color:
+        Colours.text
+          .secondary,
+      fontWeight: "800",
+      fontSize: 10,
+      lineHeight: 13,
+      textTransform:
+        "uppercase",
+      letterSpacing: 0.2,
+    },
 
-  keyStatValue: {
-    marginTop: 6,
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 17,
-    lineHeight: 21,
-    letterSpacing: -0.15,
-  },
+    keyStatValue: {
+      marginTop: 6,
+      color:
+        Colours.text
+          .primary,
+      fontWeight: "900",
+      fontSize: 17,
+      lineHeight: 21,
+      letterSpacing: -0.15,
+    },
 
-  keyStatSubtitle: {
-    marginTop: 4,
-    color: Colours.text.secondary,
-    fontWeight: "600",
-    fontSize: 12,
-    lineHeight: 16,
-  },
+    keyStatSubtitle: {
+      marginTop: 4,
+      color:
+        Colours.text
+          .secondary,
+      fontWeight: "600",
+      fontSize: 12,
+      lineHeight: 16,
+    },
 
-  tone_default: {
-    backgroundColor: Colours.background.card,
-  },
+    tone_default: {
+      backgroundColor:
+        Colours.background
+          .card,
+    },
 
-  tone_gold: {
-    backgroundColor: "rgba(255,209,102,0.10)",
-  },
+    tone_gold: {
+      backgroundColor:
+        "rgba(255,209,102,0.10)",
+    },
 
-  tone_blue: {
-    backgroundColor: "rgba(47,140,255,0.12)",
-  },
+    tone_blue: {
+      backgroundColor:
+        "rgba(47,140,255,0.12)",
+    },
 
-  tone_purple: {
-    backgroundColor: "rgba(138,91,255,0.12)",
-  },
+    tone_purple: {
+      backgroundColor:
+        "rgba(138,91,255,0.12)",
+    },
 
-  liveStatCard: {
-    width: 104,
-    minHeight: 76,
-    backgroundColor: Colours.background.card,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-  },
+    liveStatCard: {
+      width: 104,
+      minHeight: 76,
+      backgroundColor:
+        Colours.background
+          .card,
+      borderRadius: 14,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+    },
 
-  liveStatHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
+    liveStatHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "center",
+      gap: 6,
+    },
 
-  liveStatValueWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    liveStatValueWrap: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
 
-  liveStatValue: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 20,
-    lineHeight: 24,
-    letterSpacing: -0.15,
-    textAlign: "center",
-  },
+    liveStatValue: {
+      color:
+        Colours.text
+          .primary,
+      fontWeight: "900",
+      fontSize: 20,
+      lineHeight: 24,
+      letterSpacing: -0.15,
+      textAlign: "center",
+    },
 
-  badgeShape: {
-    width: 118,
-    height: 92,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-    paddingHorizontal: 10,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: Colours.background.card,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: "rgba(255,183,3,0.78)",
-    overflow: "hidden",
-  },
+    badgeShape: {
+      width: 118,
+      height: 92,
+      borderTopLeftRadius: 18,
+      borderTopRightRadius: 18,
+      borderBottomLeftRadius: 10,
+      borderBottomRightRadius: 10,
+      paddingHorizontal: 10,
+      paddingTop: 12,
+      paddingBottom: 8,
+      backgroundColor:
+        Colours.background
+          .card,
+      alignItems: "center",
+      justifyContent:
+        "center",
+      borderWidth: 1.5,
+      borderColor:
+        "rgba(255,183,3,0.78)",
+      overflow: "hidden",
+    },
 
-  badgeTopCut: {
-    position: "absolute",
-    top: -9,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: Colours.background.app,
-    borderWidth: 1,
-    borderColor: "rgba(255,183,3,0.28)",
-  },
+    badgeTopCut: {
+      position: "absolute",
+      top: -9,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor:
+        Colours.background
+          .app,
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,183,3,0.28)",
+    },
 
-  badgeRibbonRow: {
-    position: "absolute",
-    bottom: -1,
-    flexDirection: "row",
-  },
+    badgeRibbonRow: {
+      position: "absolute",
+      bottom: -1,
+      flexDirection:
+        "row",
+    },
 
-  badgeRibbonLeft: {
-    width: 24,
-    height: 18,
-    backgroundColor: "rgba(255,183,3,0.18)",
-    transform: [{ skewX: "-16deg" }],
-  },
+    badgeRibbonLeft: {
+      width: 24,
+      height: 18,
+      backgroundColor:
+        "rgba(255,183,3,0.18)",
+      transform: [
+        {
+          skewX: "-16deg",
+        },
+      ],
+    },
 
-  badgeRibbonRight: {
-    width: 24,
-    height: 18,
-    backgroundColor: "rgba(255,183,3,0.14)",
-    transform: [{ skewX: "16deg" }],
-  },
+    badgeRibbonRight: {
+      width: 24,
+      height: 18,
+      backgroundColor:
+        "rgba(255,183,3,0.14)",
+      transform: [
+        {
+          skewX: "16deg",
+        },
+      ],
+    },
 
-  badgeCardOn: {
-    opacity: 1,
-  },
+    badgeCardOn: {
+      opacity: 1,
+    },
 
-  badgeCardOff: {
-    opacity: 0.42,
-  },
+    badgeCardOff: {
+      opacity: 0.42,
+    },
 
-  badgeIcon: {
-    fontSize: 20,
-    lineHeight: 24,
-    textAlign: "center",
-  },
+    badgeIcon: {
+      fontSize: 20,
+      lineHeight: 24,
+      textAlign: "center",
+    },
 
-  badgeTitle: {
-    marginTop: 6,
-    color: Colours.text.primary,
-    fontWeight: "800",
-    fontSize: 12,
-    lineHeight: 15,
-    textAlign: "center",
-  },
+    badgeTitle: {
+      marginTop: 6,
+      color:
+        Colours.text
+          .primary,
+      fontWeight: "800",
+      fontSize: 12,
+      lineHeight: 15,
+      textAlign: "center",
+    },
 
-  timelineTicketCard: {
-    width: 118,
-    height: 74,
-    backgroundColor: Colours.background.card,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 11,
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.10)",
-    position: "relative",
-    overflow: "hidden",
-  },
+    timelineTicketCard: {
+      width: 118,
+      height: 74,
+      backgroundColor:
+        Colours.background
+          .card,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      justifyContent:
+        "center",
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.10)",
+      position: "relative",
+      overflow: "hidden",
+    },
 
-  timelineTicketNotchLeft: {
-    position: "absolute",
-    left: -8,
-    top: "50%",
-    marginTop: -8,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: Colours.background.app,
-  },
+    timelineTicketNotchLeft:
+      {
+        position: "absolute",
+        left: -8,
+        top: "50%",
+        marginTop: -8,
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor:
+          Colours.background
+            .app,
+      },
 
-  timelineTicketNotchRight: {
-    position: "absolute",
-    right: -8,
-    top: "50%",
-    marginTop: -8,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: Colours.background.app,
-  },
+    timelineTicketNotchRight:
+      {
+        position: "absolute",
+        right: -8,
+        top: "50%",
+        marginTop: -8,
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor:
+          Colours.background
+            .app,
+      },
 
-  timelineTicketYear: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 16,
-    lineHeight: 20,
-  },
+    timelineTicketYear: {
+      color:
+        Colours.text
+          .primary,
+      fontWeight: "900",
+      fontSize: 16,
+      lineHeight: 20,
+    },
 
-  timelineTicketLabel: {
-    marginTop: 4,
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 11,
-    lineHeight: 14,
-  },
+    timelineTicketLabel: {
+      marginTop: 4,
+      color:
+        Colours.text
+          .muted,
+      fontWeight: "700",
+      fontSize: 11,
+      lineHeight: 14,
+    },
 
-  badgeModalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.78)",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    paddingHorizontal: 16,
-    paddingTop: 120,
-  },
+    badgeModalOverlay: {
+      flex: 1,
+      backgroundColor:
+        "rgba(0,0,0,0.78)",
+      alignItems: "center",
+      justifyContent:
+        "flex-start",
+      paddingHorizontal: 16,
+      paddingTop: 120,
+    },
 
-  badgeModalCard: {
-  width: "100%",
-  maxWidth: 320,
-  minHeight: 150,
+    badgeModalCard: {
+      width: "100%",
+      maxWidth: 320,
+      minHeight: 150,
 
-  borderTopLeftRadius: 26,
-  borderTopRightRadius: 26,
-  borderBottomLeftRadius: 14,
-  borderBottomRightRadius: 14,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      borderBottomLeftRadius: 14,
+      borderBottomRightRadius: 14,
 
-  paddingHorizontal: 22,
-  paddingTop: 36,
-  paddingBottom: 24,
+      paddingHorizontal: 22,
+      paddingTop: 36,
+      paddingBottom: 24,
 
-  backgroundColor: "#17191C",
+      backgroundColor:
+        "#17191C",
 
-  borderWidth: 1.5,
-  borderColor: "rgba(255,183,3,0.9)",
+      borderWidth: 1.5,
+      borderColor:
+        "rgba(255,183,3,0.9)",
 
-  alignItems: "center",
-  justifyContent: "center",
-  overflow: "hidden",
-},
+      alignItems: "center",
+      justifyContent:
+        "center",
+      overflow: "hidden",
+    },
 
-badgeModalTopCut: {
-  position: "absolute",
-  top: -13,
-  width: 26,
-  height: 26,
-  borderRadius: 13,
-  backgroundColor: Colours.background.app,
-  borderWidth: 1,
-  borderColor: "rgba(255,183,3,0.42)",
-},
+    badgeModalTopCut: {
+      position: "absolute",
+      top: -13,
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      backgroundColor:
+        Colours.background
+          .app,
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,183,3,0.42)",
+    },
 
-badgeModalRibbonRow: {
-  position: "absolute",
-  bottom: -1,
-  flexDirection: "row",
-},
+    badgeModalRibbonRow: {
+      position: "absolute",
+      bottom: -1,
+      flexDirection:
+        "row",
+    },
 
-badgeModalRibbonLeft: {
-  width: 34,
-  height: 24,
-  backgroundColor: "rgba(255,183,3,0.18)",
-  transform: [{ skewX: "-16deg" }],
-},
+    badgeModalRibbonLeft: {
+      width: 34,
+      height: 24,
+      backgroundColor:
+        "rgba(255,183,3,0.18)",
+      transform: [
+        {
+          skewX: "-16deg",
+        },
+      ],
+    },
 
-badgeModalRibbonRight: {
-  width: 34,
-  height: 24,
-  backgroundColor: "rgba(255,183,3,0.14)",
-  transform: [{ skewX: "16deg" }],
-},
+    badgeModalRibbonRight: {
+      width: 34,
+      height: 24,
+      backgroundColor:
+        "rgba(255,183,3,0.14)",
+      transform: [
+        {
+          skewX: "16deg",
+        },
+      ],
+    },
 
-  badgeModalTitle: {
-  color: Colours.text.primary,
-  fontSize: 20,
-  lineHeight: 25,
-  fontWeight: "900",
-  textAlign: "center",
-  marginBottom: 10,
-},
+    badgeModalTitle: {
+      color:
+        Colours.text
+          .primary,
+      fontSize: 20,
+      lineHeight: 25,
+      fontWeight: "900",
+      textAlign: "center",
+      marginBottom: 10,
+    },
 
-  badgeModalDescription: {
-  color: Colours.text.primary,
-  fontSize: 15,
-  lineHeight: 21,
-  fontWeight: "500",
-  textAlign: "center",
-},
+    badgeModalDescription: {
+      color:
+        Colours.text
+          .primary,
+      fontSize: 15,
+      lineHeight: 21,
+      fontWeight: "500",
+      textAlign: "center",
+    },
 
-  badgeModalHint: {
-  marginTop: 18,
-  color: Colours.text.secondary,
-  fontSize: 13,
-  lineHeight: 17,
-  fontWeight: "800",
-  textAlign: "center",
-},
-});
+    badgeModalHint: {
+      marginTop: 18,
+      color:
+        Colours.text
+          .secondary,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "800",
+      textAlign: "center",
+    },
+  });

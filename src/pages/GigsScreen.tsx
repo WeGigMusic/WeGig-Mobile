@@ -239,7 +239,7 @@ function buildUnlockableBadges(gigs: Gig[]): UnlockableBadge[] {
     {
       title: "Headliner",
       icon: "🎤",
-      unlocked: total >= 50,
+      unlocked: total >= 100,
     },
   ];
 }

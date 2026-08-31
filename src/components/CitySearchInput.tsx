@@ -31,13 +31,17 @@ export function CitySearchInput(props: {
   const [focused, setFocused] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [results, setResults] = React.useState<CitySuggestion[]>([]);
-  const selectedCityRef = React.useRef(props.value.trim());
+
+  const selectedCityRef = React.useRef("");
 
   React.useEffect(() => {
-    if (props.value.trim()) {
-      selectedCityRef.current = props.value.trim();
+    if (!props.value.trim()) {
+      selectedCityRef.current = "";
+      setResults([]);
+      setOpen(false);
+      setLoading(false);
     }
-  }, []);
+  }, [props.value]);
 
   React.useEffect(() => {
     if (props.suppressSuggestions) {
@@ -52,7 +56,8 @@ export function CitySearchInput(props: {
 
     if (
       q.length < 2 ||
-      (selected && q.toLowerCase() === selected.toLowerCase())
+      (selected &&
+        q.toLowerCase() === selected.toLowerCase())
     ) {
       setResults([]);
       setOpen(false);
@@ -60,61 +65,131 @@ export function CitySearchInput(props: {
       return;
     }
 
-    setLoading(true);
+    let active = true;
 
     const timer = setTimeout(async () => {
+      setLoading(true);
+
       try {
-        const res = await apiGet<{ cities: CitySuggestion[] }>(
+        const res = await apiGet<{
+          cities: CitySuggestion[];
+        }>(
           `/places/cities/search?q=${encodeURIComponent(q)}`,
         );
 
-        const cities = res.cities ?? [];
+        if (!active) {
+          return;
+        }
+
+        const cities = Array.isArray(res?.cities)
+          ? res.cities
+          : [];
+
         setResults(cities);
         setOpen(cities.length > 0);
       } catch {
+        if (!active) {
+          return;
+        }
+
         setResults([]);
         setOpen(false);
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     }, 250);
 
-    return () => clearTimeout(timer);
-  }, [props.value, props.suppressSuggestions]);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [
+    props.value,
+    props.suppressSuggestions,
+  ]);
+
+  const handleChangeText = (text: string) => {
+    const next = text.trim();
+    const selected = selectedCityRef.current.trim();
+
+    if (
+      selected &&
+      next.toLowerCase() !== selected.toLowerCase()
+    ) {
+      selectedCityRef.current = "";
+    }
+
+    props.onChangeText(text);
+
+    if (props.suppressSuggestions) {
+      setOpen(false);
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    setOpen(
+      next.length >= 2 &&
+        !selectedCityRef.current,
+    );
+  };
+
+  const handleSelectCity = (
+    city: CitySuggestion,
+  ) => {
+    const cityName = city.name.trim();
+
+    selectedCityRef.current = cityName;
+
+    setResults([]);
+    setOpen(false);
+    setLoading(false);
+
+    props.onChangeText(cityName);
+
+    Keyboard.dismiss();
+  };
+
+  const handleClear = () => {
+    selectedCityRef.current = "";
+
+    setResults([]);
+    setOpen(false);
+    setLoading(false);
+
+    props.onChangeText("");
+  };
 
   return (
     <View style={styles.wrap}>
-      <View style={[styles.inputWrap, focused ? styles.inputWrapFocused : null]}>
+      <View
+        style={[
+          styles.inputWrap,
+          focused
+            ? styles.inputWrapFocused
+            : null,
+        ]}
+      >
         <Ionicons
           name="location-outline"
           size={17}
-          color={focused ? "#7EB6FF" : Colours.text.muted}
+          color={
+            focused
+              ? "#7EB6FF"
+              : Colours.text.muted
+          }
         />
 
         <TextInput
           value={props.value}
-          onChangeText={(text) => {
-            const next = text.trim();
-            const selected = selectedCityRef.current.trim();
-
-            if (selected && next.toLowerCase() !== selected.toLowerCase()) {
-              selectedCityRef.current = "";
-            }
-
-            props.onChangeText(text);
-
-            if (props.suppressSuggestions) {
-              setOpen(false);
-              setResults([]);
-              setLoading(false);
-              return;
-            }
-
-            setOpen(next.length >= 2 && !selectedCityRef.current);
-          }}
+          onChangeText={handleChangeText}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          placeholder={props.placeholder ?? "Search city"}
+          placeholder={
+            props.placeholder ?? "Search city"
+          }
           placeholderTextColor="rgba(255,255,255,0.42)"
           autoCapitalize="words"
           autoCorrect={false}
@@ -126,13 +201,7 @@ export function CitySearchInput(props: {
           <ActivityIndicator size="small" />
         ) : props.value.trim() ? (
           <Pressable
-            onPress={() => {
-              selectedCityRef.current = "";
-              props.onChangeText("");
-              setResults([]);
-              setOpen(false);
-              setLoading(false);
-            }}
+            onPress={handleClear}
             hitSlop={10}
           >
             <Ionicons
@@ -144,31 +213,41 @@ export function CitySearchInput(props: {
         ) : null}
       </View>
 
-      {!props.suppressSuggestions && open && results.length > 0 ? (
+      {!props.suppressSuggestions &&
+      open &&
+      results.length > 0 ? (
         <View style={styles.suggestCard}>
           {results.map((city) => (
             <Pressable
               key={city.id}
-              onPress={() => {
-                selectedCityRef.current = city.name.trim();
-                setResults([]);
-                setOpen(false);
-                setLoading(false);
-                props.onChangeText(city.name);
-                Keyboard.dismiss();
-              }}
+              onPress={() =>
+                handleSelectCity(city)
+              }
               style={({ pressed }) => [
                 styles.suggestRow,
-                pressed ? styles.rowPressed : null,
+                pressed
+                  ? styles.rowPressed
+                  : null,
               ]}
             >
               <View style={styles.iconBox}>
-                <Ionicons name="location" size={14} color="#7EB6FF" />
+                <Ionicons
+                  name="location"
+                  size={14}
+                  color="#7EB6FF"
+                />
               </View>
 
               <View style={styles.flex}>
-                <Text style={styles.suggestTitle}>{city.name}</Text>
-                <Text style={styles.suggestMeta}>{city.placeName}</Text>
+                <Text style={styles.suggestTitle}>
+                  {city.name}
+                </Text>
+
+                {city.placeName ? (
+                  <Text style={styles.suggestMeta}>
+                    {city.placeName}
+                  </Text>
+                ) : null}
               </View>
             </Pressable>
           ))}
@@ -182,9 +261,11 @@ const styles = StyleSheet.create({
   wrap: {
     gap: 10,
   },
+
   flex: {
     flex: 1,
   },
+
   inputWrap: {
     minHeight: 48,
     borderRadius: 17,
@@ -196,18 +277,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
+
   inputWrapFocused: {
     borderColor: "#2F8CFF",
     backgroundColor: "rgba(47,140,255,0.10)",
   },
+
   input: {
     flex: 1,
     color: Colours.text.primary,
     fontSize: 14,
     lineHeight: 18,
     fontWeight: "700",
-    paddingVertical: Platform.OS === "ios" ? 13 : 9,
+    paddingVertical:
+      Platform.OS === "ios" ? 13 : 9,
   },
+
   suggestCard: {
     backgroundColor: "rgba(255,255,255,0.04)",
     borderRadius: 16,
@@ -215,6 +300,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.055)",
   },
+
   suggestRow: {
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -224,9 +310,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
+
   rowPressed: {
     opacity: 0.9,
   },
+
   iconBox: {
     width: 30,
     height: 30,
@@ -235,12 +323,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   suggestTitle: {
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 14,
     lineHeight: 18,
   },
+
   suggestMeta: {
     marginTop: 2,
     color: Colours.text.muted,

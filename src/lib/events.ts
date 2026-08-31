@@ -27,6 +27,7 @@ export type AppEvent = {
   artists: {
     id?: string;
     name: string;
+    imageUrl?: string | null;
   }[];
 };
 

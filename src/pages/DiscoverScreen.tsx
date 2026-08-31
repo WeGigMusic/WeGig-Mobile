@@ -12,6 +12,7 @@ import {
   Pressable,
   Keyboard,
   TextInput,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -29,7 +30,8 @@ import type { CreateGigInput } from "../shared/types/Gig";
 
 // City search should reset when leaving/reopening Discover.
 
-const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
+const AnimatedScrollView =
+  Animated.createAnimatedComponent(ScrollView);
 
 type DiscoverEvent = AppEvent & {
   id?: string;
@@ -69,7 +71,8 @@ type MbArtistSearchResponse =
 const UI_COPY = {
   searching: "Searching gigs…",
   artistLoading: "Looking up artists…",
-  emptySearch: "No gigs found. Try another artist, band or city.",
+  emptySearch:
+    "No gigs found. Try another artist, band or city.",
 };
 
 function getEventName(item: DiscoverEvent) {
@@ -80,8 +83,14 @@ function pickVenue(e: DiscoverEvent) {
   const v = e._embedded?.venues?.[0];
 
   return {
-    venue: e.venueName ?? v?.name ?? "Unknown venue",
-    city: e.city ?? v?.city?.name ?? "Unknown city",
+    venue:
+      e.venueName ??
+      v?.name ??
+      "Unknown venue",
+    city:
+      e.city ??
+      v?.city?.name ??
+      "Unknown city",
   };
 }
 
@@ -96,7 +105,10 @@ function normalizeSearchText(value: string) {
 }
 
 function sameText(a?: string, b?: string) {
-  return a?.trim().toLowerCase() === b?.trim().toLowerCase();
+  return (
+    a?.trim().toLowerCase() ===
+    b?.trim().toLowerCase()
+  );
 }
 
 function isTributeEvent(event: DiscoverEvent) {
@@ -108,13 +120,22 @@ function isTributeEvent(event: DiscoverEvent) {
         const classifications =
           a.classifications
             ?.map((c) =>
-              [c.segment?.name, c.genre?.name, c.subGenre?.name]
+              [
+                c.segment?.name,
+                c.genre?.name,
+                c.subGenre?.name,
+              ]
                 .filter(Boolean)
                 .join(" "),
             )
             .join(" ") ?? "";
 
-        return [a.name, a.type, a.subType, classifications]
+        return [
+          a.name,
+          a.type,
+          a.subType,
+          classifications,
+        ]
           .filter(Boolean)
           .join(" ");
       })
@@ -198,9 +219,10 @@ function isTributeEvent(event: DiscoverEvent) {
     "the elvis years",
   ].map(normalizeSearchText);
 
-  return [...tributeTerms, ...knownTributeActs].some((term) =>
-    text.includes(term),
-  );
+  return [
+    ...tributeTerms,
+    ...knownTributeActs,
+  ].some((term) => text.includes(term));
 }
 
 function filterTributeEvents(
@@ -208,22 +230,39 @@ function filterTributeEvents(
   includeTributeActs: boolean,
 ) {
   if (includeTributeActs) return events;
-  return events.filter((event) => !isTributeEvent(event));
+
+  return events.filter(
+    (event) => !isTributeEvent(event),
+  );
 }
 
-function getEventKey(item: DiscoverEvent, index: number) {
+function getEventKey(
+  item: DiscoverEvent,
+  index: number,
+) {
   return `${item.source ?? "event"}-${
-    item.sourceEventId ?? item.id ?? item.title ?? item.name ?? index
+    item.sourceEventId ??
+    item.id ??
+    item.title ??
+    item.name ??
+    index
   }`;
 }
 
-function SectionTitle(props: { title: string; subtitle?: string }) {
+function SectionTitle(props: {
+  title: string;
+  subtitle?: string;
+}) {
   return (
     <View style={styles.sectionTitleWrap}>
-      <Text style={styles.sectionTitle}>{props.title}</Text>
+      <Text style={styles.sectionTitle}>
+        {props.title}
+      </Text>
 
       {props.subtitle ? (
-        <Text style={styles.sectionSubtitle}>{props.subtitle}</Text>
+        <Text style={styles.sectionSubtitle}>
+          {props.subtitle}
+        </Text>
       ) : null}
     </View>
   );
@@ -234,21 +273,32 @@ function SearchInput(props: {
   value: string;
   onChangeText: (value: string) => void;
   placeholder: string;
-  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCapitalize?:
+    | "none"
+    | "sentences"
+    | "words"
+    | "characters";
 }) {
-  const [focused, setFocused] = React.useState(false);
+  const [focused, setFocused] =
+    React.useState(false);
 
   return (
     <View
       style={[
         styles.searchInputWrap,
-        focused ? styles.searchInputWrapFocused : null,
+        focused
+          ? styles.searchInputWrapFocused
+          : null,
       ]}
     >
       <Ionicons
         name={props.icon}
         size={17}
-        color={focused ? "#7EB6FF" : Colours.text.muted}
+        color={
+          focused
+            ? "#7EB6FF"
+            : Colours.text.muted
+        }
       />
 
       <TextInput
@@ -266,9 +316,15 @@ function SearchInput(props: {
 
       {props.value.trim() ? (
         <Pressable
-          onPress={() => props.onChangeText("")}
+          onPress={() =>
+            props.onChangeText("")
+          }
           hitSlop={10}
-          style={({ pressed }) => (pressed ? styles.clearPressed : null)}
+          style={({ pressed }) =>
+            pressed
+              ? styles.clearPressed
+              : null
+          }
         >
           <Ionicons
             name="close-circle"
@@ -286,14 +342,25 @@ function EventCard(props: {
   cityFallback: string;
   selectedArtistName?: string;
   artistMbid?: string;
-  onAddToGigs: (draft: Partial<CreateGigInput>) => void;
+  onAddToGigs: (
+    draft: Partial<CreateGigInput>,
+  ) => void;
 }) {
-  const eventName = getEventName(props.item);
-  const date = getEventDate(props.item);
+  const eventName =
+    getEventName(props.item);
+
+  const date =
+    getEventDate(props.item);
+
   const displayDate =
-  date && /^\d{4}-\d{2}-\d{2}$/.test(date)
-    ? `${date.slice(8, 10)}-${date.slice(5, 7)}-${date.slice(0, 4)}`
-    : date;
+    date &&
+    /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? `${date.slice(8, 10)}-${date.slice(
+          5,
+          7,
+        )}-${date.slice(0, 4)}`
+      : date;
+
   const v = pickVenue(props.item);
 
   const artistName =
@@ -301,19 +368,53 @@ function EventCard(props: {
     getEventArtistName(props.item) ||
     eventName;
 
-  const city = v.city && v.city !== "Unknown city" ? v.city : props.cityFallback;
+  const artistImageUrl =
+    props.item.artists?.[0]?.imageUrl ??
+    null;
+
+  const city =
+    v.city &&
+    v.city !== "Unknown city"
+      ? v.city
+      : props.cityFallback;
 
   return (
     <View style={styles.resultCard}>
       <View style={styles.resultTopRow}>
-        <View style={styles.resultIcon}>
-          <Ionicons name="musical-notes" size={17} color="#7EB6FF" />
-        </View>
+        {artistImageUrl ? (
+          <Image
+            source={{
+              uri: artistImageUrl,
+            }}
+            style={
+              styles.resultArtistImage
+            }
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.resultIcon}>
+            <Ionicons
+              name="musical-notes"
+              size={17}
+              color="#7EB6FF"
+            />
+          </View>
+        )}
 
-        <View style={styles.resultTitleWrap}>
-          <Text style={styles.resultTitle}>{eventName}</Text>
-          <Text style={styles.resultMeta}>
-            {v.venue} • {city || "Unknown city"}
+        <View
+          style={styles.resultTitleWrap}
+        >
+          <Text
+            style={styles.resultTitle}
+          >
+            {eventName}
+          </Text>
+
+          <Text
+            style={styles.resultMeta}
+          >
+            {v.venue} •{" "}
+            {city || "Unknown city"}
           </Text>
         </View>
       </View>
@@ -325,7 +426,12 @@ function EventCard(props: {
             size={13}
             color={Colours.text.muted}
           />
-          <Text style={styles.resultDate}>{displayDate}</Text>
+
+          <Text
+            style={styles.resultDate}
+          >
+            {displayDate}
+          </Text>
         </View>
       ) : null}
 
@@ -335,63 +441,134 @@ function EventCard(props: {
 
           props.onAddToGigs({
             artist: artistName,
-            artistMbid: props.artistMbid,
+            artistMbid:
+              props.artistMbid,
             venue: v.venue,
-            city: city || "Unknown city",
-            date: date || new Date().toISOString().slice(0, 10),
-            externalSource: props.item.source,
-            externalId: props.item.sourceEventId,
-            ticketUrl: props.item.ticketUrl ?? props.item.url,
+            city:
+              city || "Unknown city",
+            date:
+              date ||
+              new Date()
+                .toISOString()
+                .slice(0, 10),
+            externalSource:
+              props.item.source,
+            externalId:
+              props.item.sourceEventId,
+            ticketUrl:
+              props.item.ticketUrl ??
+              props.item.url,
           });
         }}
         style={({ pressed }) => [
           styles.addBtn,
-          pressed ? styles.addBtnPressed : null,
+          pressed
+            ? styles.addBtnPressed
+            : null,
         ]}
       >
-        <Text style={styles.addBtnText}>Add gig</Text>
+        <Text style={styles.addBtnText}>
+          Add gig
+        </Text>
       </Pressable>
     </View>
   );
 }
 
 export function DiscoverScreen(props: {
-  onAddToGigs: (draft: Partial<CreateGigInput>) => void;
+  onAddToGigs: (
+    draft: Partial<CreateGigInput>,
+  ) => void;
   onPressLogo?: () => void;
   scrollToTopSignal?: number;
 }) {
-  const scrollY = React.useRef(new Animated.Value(0)).current;
-  const scrollRef = React.useRef<ScrollView>(null);
-const suppressNextArtistSearchRef = React.useRef(false);
-const artistSearchSeqRef = React.useRef(0);
-  const selectedArtistNameRef = React.useRef<string | undefined>(undefined);
-  const artistSearchRunRef = React.useRef(0);
+  const scrollY =
+    React.useRef(
+      new Animated.Value(0),
+    ).current;
 
-  const [cityInput, setCityInput] = React.useState("");
-  const [query, setQuery] = React.useState("");
+  const scrollRef =
+    React.useRef<ScrollView>(null);
+
+  const suppressNextArtistSearchRef =
+    React.useRef(false);
+
+  const artistSearchSeqRef =
+    React.useRef(0);
+
+  const selectedArtistNameRef =
+    React.useRef<string | undefined>(
+      undefined,
+    );
+
+  const [cityInput, setCityInput] =
+    React.useState("");
+
+  const [query, setQuery] =
+    React.useState("");
+
   const includeTributeActs = false;
 
-  const [artistMbid, setArtistMbid] = React.useState<string | undefined>();
-  const [selectedArtistName, setSelectedArtistName] = React.useState<
+  const [
+    artistMbid,
+    setArtistMbid,
+  ] = React.useState<
     string | undefined
   >();
 
-  const [mbLoading, setMbLoading] = React.useState(false);
-  const [mbResults, setMbResults] = React.useState<MbArtist[]>([]);
-  const [mbError, setMbError] = React.useState("");
-  const [mbOpen, setMbOpen] = React.useState(false);
+  const [
+    selectedArtistName,
+    setSelectedArtistName,
+  ] = React.useState<
+    string | undefined
+  >();
 
-  const [searchLoading, setSearchLoading] = React.useState(false);
-  const [searchError, setSearchError] = React.useState("");
-  const [searchEvents, setSearchEvents] = React.useState<DiscoverEvent[]>([]);
+  const [mbLoading, setMbLoading] =
+    React.useState(false);
 
-  const activeCity = cityInput.trim();
-  const trimmedQuery = query.trim();
+  const [mbResults, setMbResults] =
+    React.useState<MbArtist[]>([]);
+
+  const [mbError, setMbError] =
+    React.useState("");
+
+  const [mbOpen, setMbOpen] =
+    React.useState(false);
+
+  const [
+    searchLoading,
+    setSearchLoading,
+  ] = React.useState(false);
+
+  const [
+    searchError,
+    setSearchError,
+  ] = React.useState("");
+
+  const [
+    searchEvents,
+    setSearchEvents,
+  ] = React.useState<
+    DiscoverEvent[]
+  >([]);
+
+  const activeCity =
+    cityInput.trim();
+
+  const trimmedQuery =
+    query.trim();
+
   const showingSearchResults =
-    trimmedQuery.length >= 2 || activeCity.length >= 2;
+    trimmedQuery.length >= 2 ||
+    activeCity.length >= 2;
 
   React.useEffect(() => {
-    if (props.scrollToTopSignal == null) return;
+    if (
+      props.scrollToTopSignal ==
+      null
+    ) {
+      return;
+    }
 
     scrollRef.current?.scrollTo({
       y: 0,
@@ -399,90 +576,155 @@ const artistSearchSeqRef = React.useRef(0);
     });
   }, [props.scrollToTopSignal]);
 
-  const runMbSearch = React.useCallback(async (q: string) => {
-  const queryValue = q.trim();
-  const searchSeq = ++artistSearchSeqRef.current;
+  const runMbSearch =
+    React.useCallback(
+      async (q: string) => {
+        const queryValue =
+          q.trim();
 
-  if (queryValue.length < 2) {
-    setMbResults([]);
-    setMbError("");
-    setMbLoading(false);
-    setMbOpen(false);
-    return;
-  }
+        const searchSeq =
+          ++artistSearchSeqRef.current;
 
-  const selected = selectedArtistNameRef.current;
+        if (
+          queryValue.length < 2
+        ) {
+          setMbResults([]);
+          setMbError("");
+          setMbLoading(false);
+          setMbOpen(false);
+          return;
+        }
 
-  if (selected && queryValue.toLowerCase() === selected.trim().toLowerCase()) {
-    setMbResults([]);
-    setMbError("");
-    setMbLoading(false);
-    setMbOpen(false);
-    return;
-  }
+        const selected =
+          selectedArtistNameRef.current;
 
-  setMbLoading(true);
-  setMbError("");
+        if (
+          selected &&
+          queryValue.toLowerCase() ===
+            selected
+              .trim()
+              .toLowerCase()
+        ) {
+          setMbResults([]);
+          setMbError("");
+          setMbLoading(false);
+          setMbOpen(false);
+          return;
+        }
 
-  try {
-    const res = await apiGet<MbArtistSearchResponse>(
-      `/mb/artists/search?q=${encodeURIComponent(queryValue)}`,
+        setMbLoading(true);
+        setMbError("");
+
+        try {
+          const res =
+            await apiGet<MbArtistSearchResponse>(
+              `/mb/artists/search?q=${encodeURIComponent(
+                queryValue,
+              )}`,
+            );
+
+          if (
+            searchSeq !==
+            artistSearchSeqRef.current
+          ) {
+            return;
+          }
+
+          const currentSelected =
+            selectedArtistNameRef.current;
+
+          const currentQuery =
+            query.trim();
+
+          if (
+            currentSelected &&
+            currentQuery.toLowerCase() ===
+              currentSelected
+                .trim()
+                .toLowerCase()
+          ) {
+            setMbResults([]);
+            setMbOpen(false);
+            return;
+          }
+
+          const artists: MbArtist[] =
+            (res?.artists as MbArtist[]) ??
+            (res?._embedded
+              ?.artists as MbArtist[]) ??
+            [];
+
+          setMbResults(
+            Array.isArray(artists)
+              ? artists.slice(0, 8)
+              : [],
+          );
+
+          setMbOpen(
+            Array.isArray(artists) &&
+              artists.length > 0,
+          );
+        } catch (e: any) {
+          if (
+            searchSeq !==
+            artistSearchSeqRef.current
+          ) {
+            return;
+          }
+
+          setMbError(
+            e?.message ??
+              "Artist search failed",
+          );
+
+          setMbResults([]);
+          setMbOpen(false);
+        } finally {
+          if (
+            searchSeq ===
+            artistSearchSeqRef.current
+          ) {
+            setMbLoading(false);
+          }
+        }
+      },
+      [],
     );
 
-    if (searchSeq !== artistSearchSeqRef.current) return;
+  const chooseArtist = (
+    artist: MbArtist,
+  ) => {
+    suppressNextArtistSearchRef.current =
+      true;
 
-    const currentSelected = selectedArtistNameRef.current;
-    const currentQuery = query.trim();
+    selectedArtistNameRef.current =
+      artist.name;
 
-    if (
-      currentSelected &&
-      currentQuery.toLowerCase() === currentSelected.trim().toLowerCase()
-    ) {
-      setMbResults([]);
-      setMbOpen(false);
-      return;
-    }
+    artistSearchSeqRef.current += 1;
 
-    const artists: MbArtist[] =
-      (res?.artists as MbArtist[]) ??
-      (res?._embedded?.artists as MbArtist[]) ??
-      [];
+    setQuery(artist.name);
 
-    setMbResults(Array.isArray(artists) ? artists.slice(0, 8) : []);
-    setMbOpen(Array.isArray(artists) && artists.length > 0);
-  } catch (e: any) {
-    if (searchSeq !== artistSearchSeqRef.current) return;
+    setSelectedArtistName(
+      artist.name,
+    );
 
-    setMbError(e?.message ?? "Artist search failed");
-    setMbResults([]);
+    setArtistMbid(artist.id);
+
     setMbOpen(false);
-  } finally {
-    if (searchSeq === artistSearchSeqRef.current) {
-      setMbLoading(false);
-    }
-  }
-}, []);
+    setMbResults([]);
+    setMbError("");
+    setMbLoading(false);
 
-  const chooseArtist = (artist: MbArtist) => {
-  suppressNextArtistSearchRef.current = true;
-  selectedArtistNameRef.current = artist.name;
-  artistSearchSeqRef.current += 1;
-
-  setQuery(artist.name);
-  setSelectedArtistName(artist.name);
-  setArtistMbid(artist.id);
-
-  setMbOpen(false);
-  setMbResults([]);
-  setMbError("");
-  setMbLoading(false);
-
-  Keyboard.dismiss();
-};
+    Keyboard.dismiss();
+  };
 
   React.useEffect(() => {
-    if (suppressNextArtistSearchRef.current) {
-      suppressNextArtistSearchRef.current = false;
+    if (
+      suppressNextArtistSearchRef.current
+    ) {
+      suppressNextArtistSearchRef.current =
+        false;
+
       setMbOpen(false);
       setMbResults([]);
       setMbLoading(false);
@@ -491,14 +733,22 @@ const artistSearchSeqRef = React.useRef(0);
 
     const q = query.trim();
 
-    if (selectedArtistNameRef.current && sameText(q, selectedArtistNameRef.current)) {
+    if (
+      selectedArtistNameRef.current &&
+      sameText(
+        q,
+        selectedArtistNameRef.current,
+      )
+    ) {
       setMbOpen(false);
       setMbResults([]);
       setMbLoading(false);
       return;
     }
 
-    selectedArtistNameRef.current = undefined;
+    selectedArtistNameRef.current =
+      undefined;
+
     setArtistMbid(undefined);
     setSelectedArtistName(undefined);
 
@@ -513,52 +763,96 @@ const artistSearchSeqRef = React.useRef(0);
       void runMbSearch(q);
     }, 320);
 
-    return () => clearTimeout(t);
+    return () =>
+      clearTimeout(t);
   }, [query, runMbSearch]);
-    const searchEventsForQuery = React.useCallback(async () => {
-    if (trimmedQuery.length < 2 && activeCity.length < 2) {
-      setSearchEvents([]);
+
+  const searchEventsForQuery =
+    React.useCallback(async () => {
+      if (
+        trimmedQuery.length < 2 &&
+        activeCity.length < 2
+      ) {
+        setSearchEvents([]);
+        setSearchError("");
+        return;
+      }
+
+      setSearchLoading(true);
       setSearchError("");
-      return;
-    }
 
-    setSearchLoading(true);
-    setSearchError("");
+      try {
+        const rawEvents =
+          (await searchFutureEvents({
+            q:
+              trimmedQuery.length >= 2
+                ? trimmedQuery
+                : activeCity,
+            city:
+              activeCity.length >= 2
+                ? activeCity
+                : undefined,
+            size: 20,
+          })) as DiscoverEvent[];
 
-    try {
-      const rawEvents = (await searchFutureEvents({
-        q: trimmedQuery.length >= 2 ? trimmedQuery : activeCity,
-        city: activeCity.length >= 2 ? activeCity : undefined,
-        size: 20,
-      })) as DiscoverEvent[];
+        const cityFilteredEvents =
+          activeCity.length >= 2
+            ? rawEvents.filter(
+                (event) => {
+                  const eventCity =
+                    String(
+                      event.city ?? "",
+                    ).toLowerCase();
 
-      const cityFilteredEvents =
-        activeCity.length >= 2
-          ? rawEvents.filter((event) => {
-              const eventCity = String(event.city ?? "").toLowerCase();
-              const venueCity = String(
-                event._embedded?.venues?.[0]?.city?.name ?? "",
-              ).toLowerCase();
-              const cityNeedle = activeCity.toLowerCase();
+                  const venueCity =
+                    String(
+                      event._embedded
+                        ?.venues?.[0]
+                        ?.city?.name ?? "",
+                    ).toLowerCase();
 
-              return (
-                eventCity.includes(cityNeedle) ||
-                venueCity.includes(cityNeedle)
-              );
-            })
-          : rawEvents;
+                  const cityNeedle =
+                    activeCity.toLowerCase();
 
-      setSearchEvents(filterTributeEvents(cityFilteredEvents, includeTributeActs));
-    } catch (e: any) {
-      setSearchError(e?.message ?? "Search failed");
-      setSearchEvents([]);
-    } finally {
-      setSearchLoading(false);
-    }
-  }, [activeCity, includeTributeActs, trimmedQuery]);
+                  return (
+                    eventCity.includes(
+                      cityNeedle,
+                    ) ||
+                    venueCity.includes(
+                      cityNeedle,
+                    )
+                  );
+                },
+              )
+            : rawEvents;
+
+        setSearchEvents(
+          filterTributeEvents(
+            cityFilteredEvents,
+            includeTributeActs,
+          ),
+        );
+      } catch (e: any) {
+        setSearchError(
+          e?.message ??
+            "Search failed",
+        );
+
+        setSearchEvents([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, [
+      activeCity,
+      includeTributeActs,
+      trimmedQuery,
+    ]);
 
   React.useEffect(() => {
-    if (trimmedQuery.length < 2 && activeCity.length < 2) {
+    if (
+      trimmedQuery.length < 2 &&
+      activeCity.length < 2
+    ) {
       setSearchEvents([]);
       setSearchError("");
       return;
@@ -568,135 +862,295 @@ const artistSearchSeqRef = React.useRef(0);
       void searchEventsForQuery();
     }, 350);
 
-    return () => clearTimeout(t);
-  }, [trimmedQuery, activeCity, searchEventsForQuery]);
+    return () =>
+      clearTimeout(t);
+  }, [
+    trimmedQuery,
+    activeCity,
+    searchEventsForQuery,
+  ]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView
+      style={styles.safe}
+    >
       <KeyboardAvoidingView
         style={styles.keyboardWrap}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={
+          Platform.OS === "ios"
+            ? "padding"
+            : undefined
+        }
         keyboardVerticalOffset={8}
       >
-        <AppHeader onPressLogo={props.onPressLogo} scrollY={scrollY} />
+        <AppHeader
+          onPressLogo={
+            props.onPressLogo
+          }
+          scrollY={scrollY}
+        />
 
         <AnimatedScrollView
           ref={scrollRef}
           style={styles.list}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={
+            styles.content
+          }
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={
+            false
+          }
           onScroll={Animated.event(
-            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: false },
+            [
+              {
+                nativeEvent: {
+                  contentOffset: {
+                    y: scrollY,
+                  },
+                },
+              },
+            ],
+            {
+              useNativeDriver:
+                false,
+            },
           )}
           scrollEventThrottle={16}
         >
-          <View style={styles.heroWrap}>
-            <View style={styles.searchStack}>
+          <View
+            style={styles.heroWrap}
+          >
+            <View
+              style={styles.searchStack}
+            >
               <SearchInput
                 icon="search-outline"
                 value={query}
-                onChangeText={(text) => {
+                onChangeText={(
+                  text,
+                ) => {
                   const isStillSelected =
                     selectedArtistNameRef.current &&
-                    sameText(text, selectedArtistNameRef.current);
+                    sameText(
+                      text,
+                      selectedArtistNameRef.current,
+                    );
 
                   setQuery(text);
 
-                  if (isStillSelected) {
+                  if (
+                    isStillSelected
+                  ) {
                     setMbOpen(false);
                     setMbResults([]);
                     setMbLoading(false);
                     return;
                   }
 
-                  selectedArtistNameRef.current = undefined;
-                  selectedArtistNameRef.current = undefined;
-artistSearchSeqRef.current += 1;
+                  selectedArtistNameRef.current =
+                    undefined;
 
-setSelectedArtistName(undefined);
-setArtistMbid(undefined);
-setMbOpen(text.trim().length >= 2);
+                  artistSearchSeqRef.current +=
+                    1;
+
+                  setSelectedArtistName(
+                    undefined,
+                  );
+
+                  setArtistMbid(
+                    undefined,
+                  );
+
+                  setMbOpen(
+                    text.trim()
+                      .length >= 2,
+                  );
                 }}
                 placeholder="Search artist"
                 autoCapitalize="none"
               />
 
               {mbLoading ? (
-                <View style={styles.loadingRow}>
+                <View
+                  style={
+                    styles.loadingRow
+                  }
+                >
                   <ActivityIndicator />
-                  <Text style={styles.loadingText}>{UI_COPY.artistLoading}</Text>
+
+                  <Text
+                    style={
+                      styles.loadingText
+                    }
+                  >
+                    {
+                      UI_COPY.artistLoading
+                    }
+                  </Text>
                 </View>
               ) : null}
 
-              {mbError ? <Text style={styles.errorText}>{mbError}</Text> : null}
+              {mbError ? (
+                <Text
+                  style={
+                    styles.errorText
+                  }
+                >
+                  {mbError}
+                </Text>
+              ) : null}
 
-              {mbOpen && !mbLoading && mbResults.length > 0 ? (
-                <View style={styles.suggestCard}>
-                  {mbResults.map((artist) => {
-                    const meta = [artist.country, artist.disambiguation]
-                      .filter(Boolean)
-                      .join(" • ");
+              {mbOpen &&
+              !mbLoading &&
+              mbResults.length > 0 ? (
+                <View
+                  style={
+                    styles.suggestCard
+                  }
+                >
+                  {mbResults.map(
+                    (artist) => {
+                      const meta = [
+                        artist.country,
+                        artist.disambiguation,
+                      ]
+                        .filter(Boolean)
+                        .join(" • ");
 
-                    return (
-                      <Pressable
-                        key={artist.id}
-                        onPress={() => chooseArtist(artist)}
-                        style={({ pressed }) => [
-                          styles.suggestRow,
-                          pressed ? styles.rowPressed : null,
-                        ]}
-                      >
-                        <View style={styles.artistAvatar}>
-                          <Ionicons
-                            name="musical-note"
-                            size={14}
-                            color="#7EB6FF"
-                          />
-                        </View>
+                      return (
+                        <Pressable
+                          key={
+                            artist.id
+                          }
+                          onPress={() =>
+                            chooseArtist(
+                              artist,
+                            )
+                          }
+                          style={({
+                            pressed,
+                          }) => [
+                            styles.suggestRow,
+                            pressed
+                              ? styles.rowPressed
+                              : null,
+                          ]}
+                        >
+                          <View
+                            style={
+                              styles.artistAvatar
+                            }
+                          >
+                            <Ionicons
+                              name="musical-note"
+                              size={14}
+                              color="#7EB6FF"
+                            />
+                          </View>
 
-                        <View style={styles.flex}>
-                          <Text style={styles.suggestTitle}>{artist.name}</Text>
-                          {meta ? (
-                            <Text style={styles.suggestMeta}>{meta}</Text>
-                          ) : null}
-                        </View>
-                      </Pressable>
-                    );
-                  })}
+                          <View
+                            style={
+                              styles.flex
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.suggestTitle
+                              }
+                            >
+                              {
+                                artist.name
+                              }
+                            </Text>
+
+                            {meta ? (
+                              <Text
+                                style={
+                                  styles.suggestMeta
+                                }
+                              >
+                                {
+                                  meta
+                                }
+                              </Text>
+                            ) : null}
+                          </View>
+                        </Pressable>
+                      );
+                    },
+                  )}
                 </View>
               ) : null}
 
               {artistMbid ? (
-                <View style={styles.matchedPill}>
-                  <Ionicons name="checkmark-circle" size={14} color="#2EE59D" />
-                  <Text style={styles.matchedText}>Matched artist</Text>
+                <View
+                  style={
+                    styles.matchedPill
+                  }
+                >
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={14}
+                    color="#2EE59D"
+                  />
+
+                  <Text
+                    style={
+                      styles.matchedText
+                    }
+                  >
+                    Matched artist
+                  </Text>
                 </View>
               ) : null}
 
               <CitySearchInput
                 value={cityInput}
-                onChangeText={setCityInput}
+                onChangeText={
+                  setCityInput
+                }
                 placeholder="Search city"
               />
 
               {showingSearchResults ? (
                 searchLoading ? (
-                  <View style={styles.loadingRow}>
+                  <View
+                    style={
+                      styles.loadingRow
+                    }
+                  >
                     <ActivityIndicator />
-                    <Text style={styles.loadingText}>{UI_COPY.searching}</Text>
+
+                    <Text
+                      style={
+                        styles.loadingText
+                      }
+                    >
+                      {
+                        UI_COPY.searching
+                      }
+                    </Text>
                   </View>
                 ) : searchError ? (
-                  <Text style={styles.errorText}>{searchError}</Text>
+                  <Text
+                    style={
+                      styles.errorText
+                    }
+                  >
+                    {searchError}
+                  </Text>
                 ) : null
               ) : null}
             </View>
           </View>
 
           {showingSearchResults ? (
-            <View style={styles.sectionBlock}>
+            <View
+              style={
+                styles.sectionBlock
+              }
+            >
               <SectionTitle
                 title={
                   activeCity
@@ -704,55 +1158,134 @@ setMbOpen(text.trim().length >= 2);
                     : "Search results"
                 }
                 subtitle={
-                  searchEvents.length > 0
-                    ? `${searchEvents.length} upcoming ${
-                        searchEvents.length === 1 ? "gig" : "gigs"
+                  searchEvents.length >
+                  0
+                    ? `${
+                        searchEvents.length
+                      } upcoming ${
+                        searchEvents.length ===
+                        1
+                          ? "gig"
+                          : "gigs"
                       } found`
                     : undefined
                 }
               />
 
-              {searchEvents.length > 0 ? (
-                <View style={styles.cardList}>
-                  {searchEvents.map((item, index) => (
-                    <View key={getEventKey(item, index)} style={styles.cardWrap}>
-                      <EventCard
-                        item={item}
-                        cityFallback={activeCity}
-                        selectedArtistName={selectedArtistName ?? trimmedQuery}
-                        artistMbid={artistMbid}
-                        onAddToGigs={props.onAddToGigs}
-                      />
-                    </View>
-                  ))}
+              {searchEvents.length >
+              0 ? (
+                <View
+                  style={
+                    styles.cardList
+                  }
+                >
+                  {searchEvents.map(
+                    (
+                      item,
+                      index,
+                    ) => (
+                      <View
+                        key={getEventKey(
+                          item,
+                          index,
+                        )}
+                        style={
+                          styles.cardWrap
+                        }
+                      >
+                        <EventCard
+                          item={
+                            item
+                          }
+                          cityFallback={
+                            activeCity
+                          }
+                          selectedArtistName={
+                            selectedArtistName ??
+                            trimmedQuery
+                          }
+                          artistMbid={
+                            artistMbid
+                          }
+                          onAddToGigs={
+                            props.onAddToGigs
+                          }
+                        />
+                      </View>
+                    ),
+                  )}
                 </View>
               ) : !searchLoading ? (
-                <View style={styles.emptyCard}>
+                <View
+                  style={
+                    styles.emptyCard
+                  }
+                >
                   <Ionicons
                     name="radio-outline"
                     size={22}
-                    color={Colours.text.muted}
+                    color={
+                      Colours.text
+                        .muted
+                    }
                   />
-                  <Text style={styles.emptyTitle}>Nothing found yet</Text>
-                  <Text style={styles.emptyHint}>{UI_COPY.emptySearch}</Text>
+
+                  <Text
+                    style={
+                      styles.emptyTitle
+                    }
+                  >
+                    Nothing found yet
+                  </Text>
+
+                  <Text
+                    style={
+                      styles.emptyHint
+                    }
+                  >
+                    {
+                      UI_COPY.emptySearch
+                    }
+                  </Text>
                 </View>
               ) : null}
             </View>
           ) : (
-            <View style={styles.emptyPlain}>
+            <View
+              style={
+                styles.emptyPlain
+              }
+            >
               <Ionicons
                 name="ticket-outline"
                 size={24}
-                color={Colours.text.muted}
+                color={
+                  Colours.text.muted
+                }
               />
-              <Text style={styles.emptyTitle}>Start with a search</Text>
-              <Text style={styles.emptyHint}>
-                Search by artist or city to find upcoming gigs
+
+              <Text
+                style={
+                  styles.emptyTitle
+                }
+              >
+                Start with a search
+              </Text>
+
+              <Text
+                style={
+                  styles.emptyHint
+                }
+              >
+                Search by artist or city
+                to find upcoming gigs
               </Text>
             </View>
           )}
 
-          <View style={{ height: 24 }} />
+          <View
+            style={{ height: 24 }}
+          />
         </AnimatedScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -762,72 +1295,93 @@ setMbOpen(text.trim().length >= 2);
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: Colours.background.app,
+    backgroundColor:
+      Colours.background.app,
   },
+
   flex: {
     flex: 1,
   },
+
   keyboardWrap: {
     flex: 1,
   },
+
   list: {
     flex: 1,
   },
+
   content: {
     paddingHorizontal: 20,
     paddingTop: 0,
     paddingBottom: 130,
   },
+
   heroWrap: {
     marginBottom: 12,
   },
+
   searchStack: {
     gap: 10,
   },
+
   searchInputWrap: {
     minHeight: 46,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.055)",
+    backgroundColor:
+      "rgba(255,255,255,0.055)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
+    borderColor:
+      "rgba(255,255,255,0.12)",
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
+
   searchInputWrapFocused: {
     borderColor: "#2F8CFF",
-    backgroundColor: "rgba(47,140,255,0.10)",
+    backgroundColor:
+      "rgba(47,140,255,0.10)",
   },
+
   searchInput: {
     flex: 1,
     color: Colours.text.primary,
     fontSize: 14,
     lineHeight: 18,
     fontWeight: "700",
-    paddingVertical: Platform.OS === "ios" ? 13 : 9,
+    paddingVertical:
+      Platform.OS === "ios"
+        ? 13
+        : 9,
   },
+
   clearPressed: {
     opacity: 0.7,
   },
+
   loadingRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     marginTop: 2,
   },
+
   loadingText: {
     color: Colours.text.muted,
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "800",
   },
+
   errorText: {
     color: Colours.text.danger,
     fontSize: 13,
     lineHeight: 17,
     fontWeight: "800",
   },
+
   matchedPill: {
     alignSelf: "flex-start",
     flexDirection: "row",
@@ -836,47 +1390,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(46,229,157,0.1)",
+    backgroundColor:
+      "rgba(46,229,157,0.1)",
   },
+
   matchedText: {
     color: "#2EE59D",
     fontWeight: "800",
     fontSize: 12,
     lineHeight: 16,
   },
+
   suggestCard: {
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor:
+      "rgba(255,255,255,0.04)",
     borderRadius: 16,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.055)",
+    borderColor:
+      "rgba(255,255,255,0.055)",
   },
+
   suggestRow: {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomColor:
+      "rgba(255,255,255,0.06)",
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
+
   rowPressed: {
     opacity: 0.9,
   },
+
   artistAvatar: {
     width: 30,
     height: 30,
     borderRadius: 11,
-    backgroundColor: "rgba(126,182,255,0.1)",
+    backgroundColor:
+      "rgba(126,182,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
+
   suggestTitle: {
     color: Colours.text.primary,
     fontWeight: "900",
     fontSize: 14,
     lineHeight: 18,
   },
+
   suggestMeta: {
     marginTop: 2,
     color: Colours.text.muted,
@@ -884,12 +1450,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+
   sectionBlock: {
     marginTop: 14,
   },
+
   sectionTitleWrap: {
     marginBottom: 10,
   },
+
   sectionTitle: {
     color: Colours.text.primary,
     fontSize: 17,
@@ -897,6 +1466,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -0.2,
   },
+
   sectionSubtitle: {
     marginTop: 4,
     color: Colours.text.muted,
@@ -904,39 +1474,60 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     fontWeight: "700",
   },
+
   cardList: {
     gap: 10,
   },
+
   cardWrap: {
     width: "100%",
   },
+
   resultCard: {
-    backgroundColor: "rgba(255,255,255,0.045)",
+    backgroundColor:
+      "rgba(255,255,255,0.045)",
     borderRadius: 20,
     padding: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.075)",
+    borderColor:
+      "rgba(255,255,255,0.075)",
     shadowColor: "#000",
     shadowOpacity: 0.14,
     shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
   },
+
   resultTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 11,
   },
+
   resultIcon: {
     width: 34,
     height: 34,
     borderRadius: 12,
-    backgroundColor: "rgba(126,182,255,0.1)",
+    backgroundColor:
+      "rgba(126,182,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
+
+  resultArtistImage: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor:
+      "rgba(126,182,255,0.1)",
+  },
+
   resultTitleWrap: {
     flex: 1,
   },
+
   resultTitle: {
     color: Colours.text.primary,
     fontSize: 17,
@@ -944,6 +1535,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: -0.15,
   },
+
   resultMeta: {
     color: Colours.text.muted,
     marginTop: 5,
@@ -951,6 +1543,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "800",
   },
+
   datePill: {
     marginTop: 12,
     alignSelf: "flex-start",
@@ -960,14 +1553,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.055)",
+    backgroundColor:
+      "rgba(255,255,255,0.055)",
   },
+
   resultDate: {
     color: Colours.text.muted,
     fontSize: 12,
     lineHeight: 16,
     fontWeight: "800",
   },
+
   addBtn: {
     marginTop: 14,
     height: 42,
@@ -982,27 +1578,40 @@ const styles = StyleSheet.create({
     shadowColor: "#2F8CFF",
     shadowOpacity: 0.25,
     shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
   },
+
   addBtnPressed: {
     opacity: 0.9,
-    transform: [{ scale: 0.98 }],
+    transform: [
+      {
+        scale: 0.98,
+      },
+    ],
   },
+
   addBtnText: {
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "800",
   },
+
   emptyCard: {
     marginTop: 20,
     borderRadius: 20,
     padding: 18,
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor:
+      "rgba(255,255,255,0.04)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor:
+      "rgba(255,255,255,0.07)",
     alignItems: "center",
     gap: 8,
   },
+
   emptyPlain: {
     marginTop: 34,
     paddingHorizontal: 18,
@@ -1010,12 +1619,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+
   emptyTitle: {
     color: Colours.text.primary,
     fontSize: 15,
     lineHeight: 20,
     fontWeight: "900",
   },
+
   emptyHint: {
     color: Colours.text.muted,
     fontSize: 13,

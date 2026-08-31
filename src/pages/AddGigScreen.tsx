@@ -809,8 +809,8 @@ export function AddGigScreen(props: {
   showsVerticalScrollIndicator={false}
   enableOnAndroid
   enableAutomaticScroll
-  extraScrollHeight={140}
-  extraHeight={140}
+  extraScrollHeight={30}
+extraHeight={30}
 >
           <View style={styles.hero}>
             <View style={styles.titleRow}>

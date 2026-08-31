@@ -586,8 +586,8 @@ export function EditGigScreen(props: {
   showsVerticalScrollIndicator={false}
   enableOnAndroid
   enableAutomaticScroll
-  extraScrollHeight={180}
-  extraHeight={180}
+  extraScrollHeight={30}
+extraHeight={30}
 >
           <View style={styles.hero}>
             <Text style={styles.title}>Edit gig</Text>
@@ -775,11 +775,6 @@ export function EditGigScreen(props: {
   placeholder="Who you went with, favourite moment..."
   multiline
   autoCapitalize="sentences"
-  onFocus={() => {
-    setTimeout(() => {
-      scrollRef.current?.scrollToEnd?.({ animated: true });
-    }, 350);
-  }}
 />
 
             {requiredMissing ? (

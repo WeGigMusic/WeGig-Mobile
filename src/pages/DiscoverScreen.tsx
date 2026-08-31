@@ -68,12 +68,31 @@ type MbArtistSearchResponse =
     }
   | any;
 
+type ArtistPageResponse = {
+  artist?: {
+    id?: string;
+    name?: string;
+    imageUrl?: string | null;
+  } | null;
+};
+
+type GigDraftWithArtistImage =
+  Partial<CreateGigInput> & {
+    artistImageUrl?: string;
+  };
+
 const UI_COPY = {
   searching: "Searching gigs…",
   artistLoading: "Looking up artists…",
   emptySearch:
     "No gigs found. Try another artist, band or city.",
 };
+
+const artistImageCache =
+  new Map<string, string | null>();
+
+const artistImageRequests =
+  new Map<string, Promise<string | null>>();
 
 function getEventName(item: DiscoverEvent) {
   return item.title ?? item.name ?? "Untitled event";
@@ -229,7 +248,9 @@ function filterTributeEvents(
   events: DiscoverEvent[],
   includeTributeActs: boolean,
 ) {
-  if (includeTributeActs) return events;
+  if (includeTributeActs) {
+    return events;
+  }
 
   return events.filter(
     (event) => !isTributeEvent(event),
@@ -247,6 +268,183 @@ function getEventKey(
     item.name ??
     index
   }`;
+}
+
+function getResultArtistName(
+  item: DiscoverEvent,
+) {
+  const directArtist =
+    getEventArtistName(item)?.trim();
+
+  if (directArtist) {
+    return directArtist;
+  }
+
+  const attractionArtist =
+    item._embedded?.attractions?.[0]?.name?.trim();
+
+  if (attractionArtist) {
+    return attractionArtist;
+  }
+
+  return getEventName(item).trim();
+}
+
+async function fetchArtistImage(
+  artistName: string,
+): Promise<string | null> {
+  const trimmed = artistName.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  const cacheKey =
+    normalizeSearchText(trimmed);
+
+  if (artistImageCache.has(cacheKey)) {
+    return (
+      artistImageCache.get(cacheKey) ??
+      null
+    );
+  }
+
+  const existingRequest =
+    artistImageRequests.get(cacheKey);
+
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = (async () => {
+    try {
+      const response =
+        await apiGet<ArtistPageResponse>(
+          `/spotify/artist-page?name=${encodeURIComponent(
+            trimmed,
+          )}`,
+        );
+
+      const returnedArtistName =
+        response.artist?.name?.trim() ?? "";
+
+      const requestedNormalized =
+        normalizeSearchText(trimmed);
+
+      const returnedNormalized =
+        normalizeSearchText(
+          returnedArtistName,
+        );
+
+      const isMatchingArtist =
+        requestedNormalized &&
+        returnedNormalized &&
+        requestedNormalized ===
+          returnedNormalized;
+
+      if (!isMatchingArtist) {
+        artistImageCache.set(
+          cacheKey,
+          null,
+        );
+
+        return null;
+      }
+
+      const imageUrl =
+        response.artist?.imageUrl?.trim() ||
+        null;
+
+      artistImageCache.set(
+        cacheKey,
+        imageUrl,
+      );
+
+      return imageUrl;
+    } catch (error) {
+      console.warn(
+        "[discover] artist image lookup failed",
+        {
+          artistName: trimmed,
+          message:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        },
+      );
+
+      artistImageCache.set(
+        cacheKey,
+        null,
+      );
+
+      return null;
+    } finally {
+      artistImageRequests.delete(
+        cacheKey,
+      );
+    }
+  })();
+
+  artistImageRequests.set(
+    cacheKey,
+    request,
+  );
+
+  return request;
+}
+
+function useArtistImage(
+  artistName: string,
+) {
+  const [imageUrl, setImageUrl] =
+    React.useState<string | null>(
+      null,
+    );
+
+  const [loading, setLoading] =
+    React.useState(
+      artistName.trim().length > 0,
+    );
+
+  React.useEffect(() => {
+    let active = true;
+
+    const trimmed =
+      artistName.trim();
+
+    if (!trimmed) {
+      setImageUrl(null);
+      setLoading(false);
+
+      return () => {
+        active = false;
+      };
+    }
+
+    setImageUrl(null);
+    setLoading(true);
+
+    void fetchArtistImage(
+      trimmed,
+    ).then((resolved) => {
+      if (!active) {
+        return;
+      }
+
+      setImageUrl(resolved);
+      setLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [artistName]);
+
+  return {
+    imageUrl,
+    loading,
+  };
 }
 
 function SectionTitle(props: {
@@ -340,8 +538,6 @@ function SearchInput(props: {
 function EventCard(props: {
   item: DiscoverEvent;
   cityFallback: string;
-  selectedArtistName?: string;
-  artistMbid?: string;
   onAddToGigs: (
     draft: Partial<CreateGigInput>,
   ) => void;
@@ -355,7 +551,10 @@ function EventCard(props: {
   const displayDate =
     date &&
     /^\d{4}-\d{2}-\d{2}$/.test(date)
-      ? `${date.slice(8, 10)}-${date.slice(
+      ? `${date.slice(
+          8,
+          10,
+        )}-${date.slice(
           5,
           7,
         )}-${date.slice(0, 4)}`
@@ -364,19 +563,53 @@ function EventCard(props: {
   const v = pickVenue(props.item);
 
   const artistName =
-    props.selectedArtistName?.trim() ||
-    getEventArtistName(props.item) ||
-    eventName;
+    getResultArtistName(
+      props.item,
+    );
 
-  const artistImageUrl =
-    props.item.artists?.[0]?.imageUrl ??
-    null;
+  const {
+    imageUrl: artistImageUrl,
+    loading: artistImageLoading,
+  } = useArtistImage(
+    artistName,
+  );
 
   const city =
     v.city &&
     v.city !== "Unknown city"
       ? v.city
       : props.cityFallback;
+
+  const handleAddGig = () => {
+    Keyboard.dismiss();
+
+    const draft: GigDraftWithArtistImage =
+      {
+        artist: artistName,
+        venue: v.venue,
+        city:
+          city || "Unknown city",
+        date:
+          date ||
+          new Date()
+            .toISOString()
+            .slice(0, 10),
+        externalSource:
+          props.item.source,
+        externalId:
+          props.item.sourceEventId,
+        ticketUrl:
+          props.item.ticketUrl ??
+          props.item.url,
+      };
+
+    if (artistImageUrl) {
+      draft.artistImageUrl =
+        artistImageUrl;
+    }
+
+    props.onAddToGigs(draft);
+  };
 
   return (
     <View style={styles.resultCard}>
@@ -393,11 +626,18 @@ function EventCard(props: {
           />
         ) : (
           <View style={styles.resultIcon}>
-            <Ionicons
-              name="musical-notes"
-              size={17}
-              color="#7EB6FF"
-            />
+            {artistImageLoading ? (
+              <ActivityIndicator
+                size="small"
+                color="#7EB6FF"
+              />
+            ) : (
+              <Ionicons
+                name="musical-notes"
+                size={17}
+                color="#7EB6FF"
+              />
+            )}
           </View>
         )}
 
@@ -436,30 +676,7 @@ function EventCard(props: {
       ) : null}
 
       <Pressable
-        onPress={() => {
-          Keyboard.dismiss();
-
-          props.onAddToGigs({
-            artist: artistName,
-            artistMbid:
-              props.artistMbid,
-            venue: v.venue,
-            city:
-              city || "Unknown city",
-            date:
-              date ||
-              new Date()
-                .toISOString()
-                .slice(0, 10),
-            externalSource:
-              props.item.source,
-            externalId:
-              props.item.sourceEventId,
-            ticketUrl:
-              props.item.ticketUrl ??
-              props.item.url,
-          });
-        }}
+        onPress={handleAddGig}
         style={({ pressed }) => [
           styles.addBtn,
           pressed
@@ -918,9 +1135,7 @@ export function DiscoverScreen(props: {
           )}
           scrollEventThrottle={16}
         >
-          <View
-            style={styles.heroWrap}
-          >
+          <View style={styles.heroWrap}>
             <View
               style={styles.searchStack}
             >
@@ -1194,18 +1409,9 @@ export function DiscoverScreen(props: {
                         }
                       >
                         <EventCard
-                          item={
-                            item
-                          }
+                          item={item}
                           cityFallback={
                             activeCity
-                          }
-                          selectedArtistName={
-                            selectedArtistName ??
-                            trimmedQuery
-                          }
-                          artistMbid={
-                            artistMbid
                           }
                           onAddToGigs={
                             props.onAddToGigs
@@ -1514,6 +1720,7 @@ const styles = StyleSheet.create({
       "rgba(126,182,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
 
   resultArtistImage: {

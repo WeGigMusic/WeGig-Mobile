@@ -7,19 +7,27 @@ import {
   AppState,
   Platform,
 } from "react-native";
+import * as Linking from "expo-linking";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import * as Notifications from "expo-notifications";
-import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from "expo-av";
+import {
+  Audio,
+  InterruptionModeAndroid,
+  InterruptionModeIOS,
+} from "expo-av";
 import type { Session } from "@supabase/supabase-js";
 import { PostHogProvider } from "posthog-react-native";
 import { posthog } from "./src/lib/analytics";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
-import { flushGigQueue, getQueuedGigsCount } from "./src/lib/offlineQueue";
+import {
+  flushGigQueue,
+  getQueuedGigsCount,
+} from "./src/lib/offlineQueue";
 import { apiGet } from "./src/lib/api";
 import { configureNotificationBehaviour } from "./src/lib/notifications";
 import { supabase } from "./src/lib/supabase";
@@ -29,6 +37,7 @@ import { DiscoverScreen } from "./src/pages/DiscoverScreen";
 import { StatsScreen } from "./src/pages/StatsScreen";
 import { ProfileScreen } from "./src/pages/ProfileScreen";
 import AuthScreen from "./src/pages/AuthScreen";
+import ResetPasswordScreen from "./src/pages/ResetPasswordScreen";
 import AboutPrivacyScreen from "./src/pages/AboutPrivacyScreen";
 import HelpScreen from "./src/pages/HelpScreen";
 import FeedbackScreen from "./src/pages/FeedbackScreen";
@@ -69,6 +78,84 @@ async function selectionHaptic() {
   } catch {}
 }
 
+function isResetPasswordUrl(url: string) {
+  try {
+    const parsed = Linking.parse(url);
+
+    return (
+      parsed.path === "reset-password" ||
+      url.includes("reset-password")
+    );
+  } catch {
+    return url.includes("reset-password");
+  }
+}
+
+function getUrlParams(url: string) {
+  const params = new URLSearchParams();
+
+  try {
+    const parsedUrl = new URL(url);
+
+    parsedUrl.searchParams.forEach((value, key) => {
+      params.set(key, value);
+    });
+
+    const hash = parsedUrl.hash.startsWith("#")
+      ? parsedUrl.hash.slice(1)
+      : parsedUrl.hash;
+
+    if (hash) {
+      const hashParams = new URLSearchParams(hash);
+
+      hashParams.forEach((value, key) => {
+        params.set(key, value);
+      });
+    }
+  } catch {}
+
+  return params;
+}
+
+async function establishRecoverySession(url: string) {
+  const params = getUrlParams(url);
+
+  const code = params.get("code");
+
+  if (code) {
+    const { data, error } =
+      await supabase.auth.exchangeCodeForSession(code);
+
+    if (error) throw error;
+
+    return data.session;
+  }
+
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+
+  if (accessToken && refreshToken) {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (error) throw error;
+
+    return data.session;
+  }
+
+  const { data } = await supabase.auth.getSession();
+
+  if (data.session) {
+    return data.session;
+  }
+
+  throw new Error(
+    "The password reset link is invalid or has expired."
+  );
+}
+
 function TabItem(props: {
   active: boolean;
   label: string;
@@ -97,6 +184,7 @@ function TabItem(props: {
         size={props.active ? 23 : 22}
         color={iconColor}
       />
+
       <Text style={[styles.tabLabel, { color: labelColor }]}>
         {props.label}
       </Text>
@@ -106,25 +194,31 @@ function TabItem(props: {
 
 function AppShell() {
   const [tab, setTab] = React.useState<Tab>("gigs");
-  const [profileRoute, setProfileRoute] = React.useState<ProfileRoute>("home");
+  const [profileRoute, setProfileRoute] =
+    React.useState<ProfileRoute>("home");
   const [refreshKey, setRefreshKey] = React.useState(0);
   const [gigsResetSignal, setGigsResetSignal] = React.useState(0);
 
-  const [gigsScrollToTopSignal, setGigsScrollToTopSignal] = React.useState(0);
-  const [discoverScrollToTopSignal, setDiscoverScrollToTopSignal] =
+  const [gigsScrollToTopSignal, setGigsScrollToTopSignal] =
     React.useState(0);
+  const [
+    discoverScrollToTopSignal,
+    setDiscoverScrollToTopSignal,
+  ] = React.useState(0);
   const [statsScrollToTopSignal, setStatsScrollToTopSignal] =
     React.useState(0);
   const [profileScrollToTopSignal, setProfileScrollToTopSignal] =
     React.useState(0);
 
-  const [prefill, setPrefill] = React.useState<Partial<CreateGigInput> | null>(
-    null,
-  );
-  const [autoCreatePrefill, setAutoCreatePrefill] = React.useState(false);
+  const [prefill, setPrefill] =
+    React.useState<Partial<CreateGigInput> | null>(null);
+  const [autoCreatePrefill, setAutoCreatePrefill] =
+    React.useState(false);
 
-  const [openGigIdFromNotification, setOpenGigIdFromNotification] =
-    React.useState<string | null>(null);
+  const [
+    openGigIdFromNotification,
+    setOpenGigIdFromNotification,
+  ] = React.useState<string | null>(null);
 
   const [queuedCount, setQueuedCount] = React.useState(0);
   const [isOnline, setIsOnline] = React.useState(true);
@@ -132,9 +226,9 @@ function AppShell() {
   const [justSynced, setJustSynced] = React.useState(false);
 
   const syncInFlightRef = React.useRef(false);
-  const justSyncedTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+
+  const justSyncedTimeoutRef =
+    React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const goHome = React.useCallback(() => {
     setTab("gigs");
@@ -163,18 +257,25 @@ function AppShell() {
 
   const runSync = React.useCallback(async () => {
     if (syncInFlightRef.current) return;
+
     syncInFlightRef.current = true;
 
     try {
       const online = await checkOnline();
+
       await refreshQueuedCount();
+
       if (!online) return;
 
       setSyncing(true);
+
       try {
         const before = await getQueuedGigsCount();
+
         await flushGigQueue();
+
         const after = await getQueuedGigsCount();
+
         setQueuedCount(after);
 
         if (before > 0 && after === 0) {
@@ -202,7 +303,9 @@ function AppShell() {
     void runSync();
 
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") void runSync();
+      if (state === "active") {
+        void runSync();
+      }
     });
 
     return () => {
@@ -215,50 +318,54 @@ function AppShell() {
   }, [runSync]);
 
   React.useEffect(() => {
-  const openFromNotification = (data: {
-    type?: string;
-    gigId?: string;
-  }) => {
-    if (data.type !== "rate_reminder" || !data.gigId) {
-      return;
-    }
+    const openFromNotification = (data: {
+      type?: string;
+      gigId?: string;
+    }) => {
+      if (data.type !== "rate_reminder" || !data.gigId) {
+        return;
+      }
 
-    setPrefill(null);
-    setAutoCreatePrefill(false);
-    setProfileRoute("home");
-    setTab("gigs");
-    setOpenGigIdFromNotification(data.gigId);
-    setRefreshKey((k) => k + 1);
-  };
+      setPrefill(null);
+      setAutoCreatePrefill(false);
+      setProfileRoute("home");
+      setTab("gigs");
+      setOpenGigIdFromNotification(data.gigId);
+      setRefreshKey((k) => k + 1);
+    };
 
-  const sub = Notifications.addNotificationResponseReceivedListener(
-    (response) => {
-      const data = response.notification.request.content.data as {
-        type?: string;
-        gigId?: string;
-      };
+    const sub =
+      Notifications.addNotificationResponseReceivedListener(
+        (response) => {
+          const data =
+            response.notification.request.content.data as {
+              type?: string;
+              gigId?: string;
+            };
 
-      openFromNotification(data);
-    },
-  );
-
-  void Notifications.getLastNotificationResponseAsync().then((response) => {
-    const data = response?.notification.request.content.data as
-      | {
-          type?: string;
-          gigId?: string;
+          openFromNotification(data);
         }
-      | undefined;
+      );
 
-    if (data) {
-      openFromNotification(data);
-    }
-  });
+    void Notifications.getLastNotificationResponseAsync().then(
+      (response) => {
+        const data = response?.notification.request.content.data as
+          | {
+              type?: string;
+              gigId?: string;
+            }
+          | undefined;
 
-  return () => {
-    sub.remove();
-  };
-}, []);
+        if (data) {
+          openFromNotification(data);
+        }
+      }
+    );
+
+    return () => {
+      sub.remove();
+    };
+  }, []);
 
   const pressTab = React.useCallback(
     (next: Tab) => {
@@ -305,12 +412,17 @@ function AppShell() {
         void posthog.flush();
       }
 
-      if (next !== "profile") setProfileRoute("home");
-      if (next !== "gigs") setOpenGigIdFromNotification(null);
+      if (next !== "profile") {
+        setProfileRoute("home");
+      }
+
+      if (next !== "gigs") {
+        setOpenGigIdFromNotification(null);
+      }
 
       setTab(next);
     },
-    [tab],
+    [tab]
   );
 
   return (
@@ -331,7 +443,9 @@ function AppShell() {
             scrollToTopSignal={gigsScrollToTopSignal}
             prefill={prefill}
             autoCreatePrefill={autoCreatePrefill}
-            openGigIdFromNotification={openGigIdFromNotification}
+            openGigIdFromNotification={
+              openGigIdFromNotification
+            }
             onNotificationGigOpened={() => {
               setOpenGigIdFromNotification(null);
             }}
@@ -368,11 +482,17 @@ function AppShell() {
             scrollToTopSignal={statsScrollToTopSignal}
           />
         ) : profileRoute === "about" ? (
-          <AboutPrivacyScreen onBack={() => setProfileRoute("home")} />
+          <AboutPrivacyScreen
+            onBack={() => setProfileRoute("home")}
+          />
         ) : profileRoute === "help" ? (
-          <HelpScreen onBack={() => setProfileRoute("home")} />
+          <HelpScreen
+            onBack={() => setProfileRoute("home")}
+          />
         ) : profileRoute === "feedback" ? (
-          <FeedbackScreen onBack={() => setProfileRoute("home")} />
+          <FeedbackScreen
+            onBack={() => setProfileRoute("home")}
+          />
         ) : (
           <ProfileScreen
             onPressLogo={goHome}
@@ -405,8 +525,63 @@ function AppShell() {
 }
 
 export default function App() {
-  const [session, setSession] = React.useState<Session | null>(null);
+  const [session, setSession] = React.useState<Session | null>(
+    null
+  );
+
   const [authLoading, setAuthLoading] = React.useState(true);
+
+  const [passwordRecovery, setPasswordRecovery] =
+    React.useState(false);
+
+  const [recoveryLoading, setRecoveryLoading] =
+    React.useState(false);
+
+  const recoveryUrlRef = React.useRef<string | null>(null);
+
+  const handleIncomingUrl = React.useCallback(
+    async (url: string) => {
+      if (!isResetPasswordUrl(url)) {
+        return;
+      }
+
+      if (recoveryUrlRef.current === url) {
+        return;
+      }
+
+      recoveryUrlRef.current = url;
+
+      try {
+        setRecoveryLoading(true);
+
+        const recoverySession =
+          await establishRecoverySession(url);
+
+        setSession(recoverySession ?? null);
+
+        if (recoverySession?.user) {
+          posthog.identify(recoverySession.user.id, {
+            email: recoverySession.user.email ?? null,
+          });
+        }
+
+        posthog.capture("password_recovery_opened");
+        void posthog.flush();
+
+        setPasswordRecovery(true);
+      } catch (error) {
+        console.log(
+          "[auth] password recovery failed",
+          error
+        );
+
+        setPasswordRecovery(false);
+      } finally {
+        setRecoveryLoading(false);
+      }
+    },
+    []
+  );
 
   React.useEffect(() => {
     configureNotificationBehaviour();
@@ -415,59 +590,85 @@ export default function App() {
       playsInSilentModeIOS: true,
       staysActiveInBackground: false,
       interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-      interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+      interruptionModeAndroid:
+        InterruptionModeAndroid.DuckOthers,
       shouldDuckAndroid: false,
       playThroughEarpieceAndroid: false,
     });
 
     let mounted = true;
 
-    supabase.auth
-  .getSession()
-  .then(({ data }) => {
-    if (!mounted) return;
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
 
-    const nextSession = data.session ?? null;
-    setSession(nextSession);
+        const nextSession = data.session ?? null;
 
-    if (nextSession?.user) {
-      posthog.identify(nextSession.user.id, {
-        email: nextSession.user.email ?? null,
+        setSession(nextSession);
+
+        if (nextSession?.user) {
+          posthog.identify(nextSession.user.id, {
+            email: nextSession.user.email ?? null,
+          });
+        }
+      })
+      .catch((error) => {
+        console.log("[auth] getSession failed", error);
+
+        if (!mounted) return;
+
+        setSession(null);
+      })
+      .finally(() => {
+        if (!mounted) return;
+
+        setAuthLoading(false);
       });
-    }
-  })
-  .catch((error) => {
-    console.log("[auth] getSession failed", error);
-    if (!mounted) return;
-    setSession(null);
-  })
-  .finally(() => {
-    if (!mounted) return;
-    setAuthLoading(false);
-  });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession ?? null);
-      setAuthLoading(false);
+    } = supabase.auth.onAuthStateChange(
+      (event, nextSession) => {
+        setSession(nextSession ?? null);
+        setAuthLoading(false);
 
-      if (nextSession?.user) {
-        posthog.identify(nextSession.user.id, {
-          email: nextSession.user.email ?? null,
-        });
-      } else {
-        posthog.reset();
+        if (event === "PASSWORD_RECOVERY") {
+          setPasswordRecovery(true);
+        }
+
+        if (nextSession?.user) {
+          posthog.identify(nextSession.user.id, {
+            email: nextSession.user.email ?? null,
+          });
+        } else {
+          posthog.reset();
+        }
       }
+    );
+
+    void Linking.getInitialURL().then((url) => {
+      if (!mounted || !url) return;
+
+      void handleIncomingUrl(url);
     });
+
+    const linkingSubscription = Linking.addEventListener(
+      "url",
+      ({ url }) => {
+        void handleIncomingUrl(url);
+      }
+    );
 
     return () => {
       mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
 
-  if (authLoading) {
+      subscription.unsubscribe();
+      linkingSubscription.remove();
+    };
+  }, [handleIncomingUrl]);
+
+  if (authLoading || recoveryLoading) {
     return (
       <View style={styles.loadingWrap}>
         <Text style={styles.loadingText}>Loading…</Text>
@@ -475,24 +676,44 @@ export default function App() {
     );
   }
 
+  if (passwordRecovery) {
+    return (
+      <SafeAreaProvider>
+        <PostHogProvider
+          client={posthog}
+          autocapture={false}
+        >
+          <ResetPasswordScreen
+            onComplete={() => {
+              setPasswordRecovery(false);
+            }}
+          />
+        </PostHogProvider>
+      </SafeAreaProvider>
+    );
+  }
+
   if (!session) {
     return (
       <SafeAreaProvider>
-  <PostHogProvider client={posthog} autocapture={false}>
-    <AuthScreen />
-  </PostHogProvider>
-</SafeAreaProvider>
+        <PostHogProvider
+          client={posthog}
+          autocapture={false}
+        >
+          <AuthScreen />
+        </PostHogProvider>
+      </SafeAreaProvider>
     );
   }
 
   return (
     <SafeAreaProvider>
-  <PostHogProvider client={posthog} autocapture={false}>
-    <ToastProvider>
-      <AppShell />
-    </ToastProvider>
-  </PostHogProvider>
-</SafeAreaProvider>
+      <PostHogProvider client={posthog} autocapture={false}>
+        <ToastProvider>
+          <AppShell />
+        </ToastProvider>
+      </PostHogProvider>
+    </SafeAreaProvider>
   );
 }
 

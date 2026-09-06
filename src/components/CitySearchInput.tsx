@@ -13,6 +13,10 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { apiGet } from "../lib/api";
 import { Colours } from "../theme/colours";
+import {
+  getLocationBias,
+  type LocationBias,
+} from "../lib/locationBias";
 
 type CitySuggestion = {
   id: string;
@@ -23,20 +27,64 @@ type CitySuggestion = {
 
 export function CitySearchInput(props: {
   value: string;
-  onChangeText: (value: string) => void;
+  onChangeText: (
+    value: string,
+  ) => void;
   placeholder?: string;
   suppressSuggestions?: boolean;
 }) {
-  const [open, setOpen] = React.useState(false);
-  const [focused, setFocused] = React.useState(false);
-  const [loading, setLoading] = React.useState(false);
-  const [results, setResults] = React.useState<CitySuggestion[]>([]);
+  const [open, setOpen] =
+    React.useState(false);
 
-  const selectedCityRef = React.useRef("");
+  const [focused, setFocused] =
+    React.useState(false);
+
+  const [loading, setLoading] =
+    React.useState(false);
+
+  const [results, setResults] =
+    React.useState<
+      CitySuggestion[]
+    >([]);
+
+  const [
+    locationBias,
+    setLocationBias,
+  ] =
+    React.useState<
+      LocationBias | undefined
+    >();
+
+  const selectedCityRef =
+    React.useRef("");
+
+  React.useEffect(() => {
+    let active = true;
+
+    void getLocationBias().then(
+  (
+    location:
+      | LocationBias
+      | undefined,
+  ) => {
+    if (active) {
+      setLocationBias(
+        location,
+      );
+    }
+  },
+);
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!props.value.trim()) {
-      selectedCityRef.current = "";
+      selectedCityRef.current =
+        "";
+
       setResults([]);
       setOpen(false);
       setLoading(false);
@@ -44,20 +92,28 @@ export function CitySearchInput(props: {
   }, [props.value]);
 
   React.useEffect(() => {
-    if (props.suppressSuggestions) {
+    if (
+      props.suppressSuggestions
+    ) {
       setResults([]);
       setOpen(false);
       setLoading(false);
       return;
     }
 
-    const q = props.value.trim();
-    const selected = selectedCityRef.current.trim();
+    const q =
+      props.value.trim();
+
+    const selected =
+      selectedCityRef.current.trim();
 
     if (
       q.length < 2 ||
-      (selected &&
-        q.toLowerCase() === selected.toLowerCase())
+      (
+        selected &&
+        q.toLowerCase() ===
+          selected.toLowerCase()
+      )
     ) {
       setResults([]);
       setOpen(false);
@@ -67,39 +123,74 @@ export function CitySearchInput(props: {
 
     let active = true;
 
-    const timer = setTimeout(async () => {
-      setLoading(true);
+    const timer =
+      setTimeout(
+        async () => {
+          setLoading(true);
 
-      try {
-        const res = await apiGet<{
-          cities: CitySuggestion[];
-        }>(
-          `/places/cities/search?q=${encodeURIComponent(q)}`,
-        );
+          try {
+            const params =
+              new URLSearchParams({
+                q,
+              });
 
-        if (!active) {
-          return;
-        }
+            if (locationBias) {
+              params.set(
+                "latitude",
+                String(
+                  locationBias.latitude,
+                ),
+              );
 
-        const cities = Array.isArray(res?.cities)
-          ? res.cities
-          : [];
+              params.set(
+                "longitude",
+                String(
+                  locationBias.longitude,
+                ),
+              );
+            }
 
-        setResults(cities);
-        setOpen(cities.length > 0);
-      } catch {
-        if (!active) {
-          return;
-        }
+            const res =
+              await apiGet<{
+                cities:
+                  CitySuggestion[];
+              }>(
+                `/places/cities/search?${params.toString()}`,
+              );
 
-        setResults([]);
-        setOpen(false);
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
-      }
-    }, 250);
+            if (!active) {
+              return;
+            }
+
+            const cities =
+              Array.isArray(
+                res?.cities,
+              )
+                ? res.cities
+                : [];
+
+            setResults(
+              cities,
+            );
+
+            setOpen(
+              cities.length > 0,
+            );
+          } catch {
+            if (!active) {
+              return;
+            }
+
+            setResults([]);
+            setOpen(false);
+          } finally {
+            if (active) {
+              setLoading(false);
+            }
+          }
+        },
+        250,
+      );
 
     return () => {
       active = false;
@@ -108,22 +199,34 @@ export function CitySearchInput(props: {
   }, [
     props.value,
     props.suppressSuggestions,
+    locationBias,
   ]);
 
-  const handleChangeText = (text: string) => {
-    const next = text.trim();
-    const selected = selectedCityRef.current.trim();
+  const handleChangeText = (
+    text: string,
+  ) => {
+    const next =
+      text.trim();
+
+    const selected =
+      selectedCityRef.current.trim();
 
     if (
       selected &&
-      next.toLowerCase() !== selected.toLowerCase()
+      next.toLowerCase() !==
+        selected.toLowerCase()
     ) {
-      selectedCityRef.current = "";
+      selectedCityRef.current =
+        "";
     }
 
-    props.onChangeText(text);
+    props.onChangeText(
+      text,
+    );
 
-    if (props.suppressSuggestions) {
+    if (
+      props.suppressSuggestions
+    ) {
       setOpen(false);
       setResults([]);
       setLoading(false);
@@ -139,21 +242,26 @@ export function CitySearchInput(props: {
   const handleSelectCity = (
     city: CitySuggestion,
   ) => {
-    const cityName = city.name.trim();
+    const cityName =
+      city.name.trim();
 
-    selectedCityRef.current = cityName;
+    selectedCityRef.current =
+      cityName;
 
     setResults([]);
     setOpen(false);
     setLoading(false);
 
-    props.onChangeText(cityName);
+    props.onChangeText(
+      cityName,
+    );
 
     Keyboard.dismiss();
   };
 
   const handleClear = () => {
-    selectedCityRef.current = "";
+    selectedCityRef.current =
+      "";
 
     setResults([]);
     setOpen(false);
@@ -184,11 +292,18 @@ export function CitySearchInput(props: {
 
         <TextInput
           value={props.value}
-          onChangeText={handleChangeText}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onChangeText={
+            handleChangeText
+          }
+          onFocus={() =>
+            setFocused(true)
+          }
+          onBlur={() =>
+            setFocused(false)
+          }
           placeholder={
-            props.placeholder ?? "Search city"
+            props.placeholder ??
+            "Search city"
           }
           placeholderTextColor="rgba(255,255,255,0.42)"
           autoCapitalize="words"
@@ -198,10 +313,14 @@ export function CitySearchInput(props: {
         />
 
         {loading ? (
-          <ActivityIndicator size="small" />
+          <ActivityIndicator
+            size="small"
+          />
         ) : props.value.trim() ? (
           <Pressable
-            onPress={handleClear}
+            onPress={
+              handleClear
+            }
             hitSlop={10}
           >
             <Ionicons
@@ -216,126 +335,170 @@ export function CitySearchInput(props: {
       {!props.suppressSuggestions &&
       open &&
       results.length > 0 ? (
-        <View style={styles.suggestCard}>
-          {results.map((city) => (
-            <Pressable
-              key={city.id}
-              onPress={() =>
-                handleSelectCity(city)
-              }
-              style={({ pressed }) => [
-                styles.suggestRow,
-                pressed
-                  ? styles.rowPressed
-                  : null,
-              ]}
-            >
-              <View style={styles.iconBox}>
-                <Ionicons
-                  name="location"
-                  size={14}
-                  color="#7EB6FF"
-                />
-              </View>
+        <View
+          style={
+            styles.suggestCard
+          }
+        >
+          {results.map(
+            (city) => (
+              <Pressable
+                key={city.id}
+                onPress={() =>
+                  handleSelectCity(
+                    city,
+                  )
+                }
+                style={({
+                  pressed,
+                }) => [
+                  styles.suggestRow,
 
-              <View style={styles.flex}>
-                <Text style={styles.suggestTitle}>
-                  {city.name}
-                </Text>
+                  pressed
+                    ? styles.rowPressed
+                    : null,
+                ]}
+              >
+                <View
+                  style={
+                    styles.iconBox
+                  }
+                >
+                  <Ionicons
+                    name="location"
+                    size={14}
+                    color="#7EB6FF"
+                  />
+                </View>
 
-                {city.placeName ? (
-                  <Text style={styles.suggestMeta}>
-                    {city.placeName}
+                <View
+                  style={
+                    styles.flex
+                  }
+                >
+                  <Text
+                    style={
+                      styles.suggestTitle
+                    }
+                  >
+                    {city.name}
                   </Text>
-                ) : null}
-              </View>
-            </Pressable>
-          ))}
+
+                  {city.placeName ? (
+                    <Text
+                      style={
+                        styles.suggestMeta
+                      }
+                    >
+                      {
+                        city.placeName
+                      }
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            ),
+          )}
         </View>
       ) : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    gap: 10,
-  },
+const styles =
+  StyleSheet.create({
+    wrap: {
+      gap: 10,
+    },
 
-  flex: {
-    flex: 1,
-  },
+    flex: {
+      flex: 1,
+    },
 
-  inputWrap: {
-    minHeight: 48,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.065)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.12)",
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+    inputWrap: {
+      minHeight: 48,
+      borderRadius: 17,
+      backgroundColor:
+        "rgba(255,255,255,0.065)",
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.12)",
+      paddingHorizontal: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
 
-  inputWrapFocused: {
-    borderColor: "#2F8CFF",
-    backgroundColor: "rgba(47,140,255,0.10)",
-  },
+    inputWrapFocused: {
+      borderColor:
+        "#2F8CFF",
+      backgroundColor:
+        "rgba(47,140,255,0.10)",
+    },
 
-  input: {
-    flex: 1,
-    color: Colours.text.primary,
-    fontSize: 14,
-    lineHeight: 18,
-    fontWeight: "700",
-    paddingVertical:
-      Platform.OS === "ios" ? 13 : 9,
-  },
+    input: {
+      flex: 1,
+      color:
+        Colours.text.primary,
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: "700",
+      paddingVertical:
+        Platform.OS === "ios"
+          ? 13
+          : 9,
+    },
 
-  suggestCard: {
-    backgroundColor: "rgba(255,255,255,0.04)",
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.055)",
-  },
+    suggestCard: {
+      backgroundColor:
+        "rgba(255,255,255,0.04)",
+      borderRadius: 16,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor:
+        "rgba(255,255,255,0.055)",
+    },
 
-  suggestRow: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
+    suggestRow: {
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderBottomWidth: 1,
+      borderBottomColor:
+        "rgba(255,255,255,0.06)",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
 
-  rowPressed: {
-    opacity: 0.9,
-  },
+    rowPressed: {
+      opacity: 0.9,
+    },
 
-  iconBox: {
-    width: 30,
-    height: 30,
-    borderRadius: 11,
-    backgroundColor: "rgba(126,182,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    iconBox: {
+      width: 30,
+      height: 30,
+      borderRadius: 11,
+      backgroundColor:
+        "rgba(126,182,255,0.1)",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
 
-  suggestTitle: {
-    color: Colours.text.primary,
-    fontWeight: "900",
-    fontSize: 14,
-    lineHeight: 18,
-  },
+    suggestTitle: {
+      color:
+        Colours.text.primary,
+      fontWeight: "900",
+      fontSize: 14,
+      lineHeight: 18,
+    },
 
-  suggestMeta: {
-    marginTop: 2,
-    color: Colours.text.muted,
-    fontWeight: "700",
-    fontSize: 12,
-    lineHeight: 16,
-  },
-});
+    suggestMeta: {
+      marginTop: 2,
+      color:
+        Colours.text.muted,
+      fontWeight: "700",
+      fontSize: 12,
+      lineHeight: 16,
+    },
+  });

@@ -65,7 +65,7 @@ function getFriendlyAuthError(error: any) {
     message.includes("request failed") ||
     message.includes("failed to fetch")
   ) {
-    return "You’re offline. Connect to the internet to log in.";
+    return "You’re offline. Connect to the internet and try again.";
   }
 
   if (
@@ -81,6 +81,10 @@ function getFriendlyAuthError(error: any) {
 
   if (message.includes("auth code") || message.includes("code verifier")) {
     return "Google login could not complete. Please try again.";
+  }
+
+  if (message.includes("rate limit")) {
+    return "Too many attempts. Please wait a moment and try again.";
   }
 
   return error?.message ?? "Something went wrong.";
@@ -140,6 +144,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<
     "email" | "password" | null
   >(null);
@@ -160,6 +165,18 @@ export default function AuthScreen() {
       email: nextEmail,
       password: nextPassword,
     };
+  }
+
+  function getEmailForPasswordReset() {
+    const nextEmail = email.trim().toLowerCase();
+
+    if (!nextEmail || !nextEmail.includes("@")) {
+      throw new Error(
+        "Enter your email address first, then tap Forgot password?"
+      );
+    }
+
+    return nextEmail;
   }
 
   async function handleSuccessfulLogin(user: any, method: string) {
@@ -218,6 +235,33 @@ export default function AuthScreen() {
       Alert.alert("Login Failed", getFriendlyAuthError(e));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function resetPassword() {
+    try {
+      setResetLoading(true);
+
+      const resetEmail = getEmailForPasswordReset();
+      const redirectTo = Linking.createURL("reset-password");
+
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo,
+      });
+
+      if (error) throw error;
+
+      posthog.capture("password_reset_requested");
+      void posthog.flush();
+
+      Alert.alert(
+        "Check your email",
+        "If an account exists for that email address, you’ll receive a password reset link."
+      );
+    } catch (e: any) {
+      Alert.alert("Password Reset", getFriendlyAuthError(e));
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -281,12 +325,15 @@ export default function AuthScreen() {
         throw new Error("No OAuth URL returned.");
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        redirectTo
+      );
 
       if (result.type !== "success") return;
 
       const { data: sessionData, error: sessionError } =
-  await supabase.auth.exchangeCodeForSession(result.url);
+        await supabase.auth.exchangeCodeForSession(result.url);
 
       if (sessionError) throw sessionError;
 
@@ -297,6 +344,8 @@ export default function AuthScreen() {
       setLoading(false);
     }
   }
+
+  const authDisabled = loading || resetLoading;
 
   return (
     <KeyboardAvoidingView
@@ -344,10 +393,27 @@ export default function AuthScreen() {
             ]}
           />
 
+          <View style={styles.forgotPasswordWrap}>
+            <Pressable
+              onPress={resetPassword}
+              disabled={authDisabled}
+              hitSlop={10}
+            >
+              <Text
+                style={[
+                  styles.forgotPasswordText,
+                  authDisabled ? styles.forgotPasswordDisabled : null,
+                ]}
+              >
+                {resetLoading ? "Sending…" : "Forgot password?"}
+              </Text>
+            </Pressable>
+          </View>
+
           <PremiumButton
             style={styles.primaryBtn}
             onPress={signIn}
-            disabled={loading}
+            disabled={authDisabled}
           >
             <Text style={styles.primaryBtnText}>
               {loading ? "Loading…" : "Continue"}
@@ -357,7 +423,7 @@ export default function AuthScreen() {
           <PremiumButton
             style={styles.secondaryBtn}
             onPress={signUp}
-            disabled={loading}
+            disabled={authDisabled}
           >
             <Text style={styles.secondaryBtnText}>Create account</Text>
           </PremiumButton>
@@ -371,7 +437,7 @@ export default function AuthScreen() {
           <PremiumButton
             style={styles.providerBtnLight}
             onPress={() => signInWithProvider("google")}
-            disabled={loading}
+            disabled={authDisabled}
           >
             <AntDesign name="google" size={18} color="#111111" />
             <Text style={styles.providerTextDark}>Continue with Google</Text>
@@ -380,7 +446,7 @@ export default function AuthScreen() {
           <PremiumButton
             style={styles.providerBtnDark}
             onPress={signInWithApple}
-            disabled={loading || !APPLE_LOGIN_ENABLED}
+            disabled={authDisabled || !APPLE_LOGIN_ENABLED}
           >
             <Ionicons name="logo-apple" size={21} color="#FFFFFF" />
             <Text style={styles.providerTextLight}>Continue with Apple</Text>
@@ -429,6 +495,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 7,
     shadowOffset: { width: 0, height: 0 },
+  },
+  forgotPasswordWrap: {
+    alignItems: "flex-end",
+    marginTop: -2,
+    marginBottom: 2,
+    paddingRight: 2,
+  },
+  forgotPasswordText: {
+    color: "#2F8CFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  forgotPasswordDisabled: {
+    opacity: 0.5,
   },
   primaryBtn: {
     height: 52,

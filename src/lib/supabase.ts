@@ -1,9 +1,7 @@
 import { AppState } from "react-native";
 import "react-native-url-polyfill/auto";
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
-
 import { requireSupabaseConfig } from "../config/env";
 
 const { url, anonKey } = requireSupabaseConfig();
@@ -14,6 +12,7 @@ export const supabase = createClient(url, anonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    flowType: "pkce",
   },
 });
 

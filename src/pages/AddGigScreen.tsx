@@ -23,6 +23,7 @@ import { useToast } from "../components/ToastProvider";
 import { apiPost, apiGet } from "../lib/api";
 import {
   searchPastEvents,
+  searchFutureEvents,
   type AppEvent,
   getEventArtistName,
   getEventDate,
@@ -1195,25 +1196,40 @@ export function AddGigScreen(
             )
           ) === "1";
 
-        const rawResults =
-          await searchPastEvents(
-            {
-              artist: q,
-
-              artistMbid:
-                includeTributeActs
-                  ? undefined
-                  : artistMbid,
-
-              city:
-                city.trim() ||
-                undefined,
-
-              venue:
-                venue.trim() ||
-                undefined,
-            },
-          );
+        const selectedDate = parseYmdToUtcDate(date.trim());
+        const today = new Date();
+        const todayUtc = Date.UTC(
+          today.getUTCFullYear(),
+          today.getUTCMonth(),
+          today.getUTCDate(),
+        );
+        const searchPast = !selectedDate || selectedDate.getTime() <= todayUtc;
+        const searchFuture = !selectedDate || selectedDate.getTime() >= todayUtc;
+        const searches = await Promise.allSettled([
+          ...(searchPast
+            ? [searchPastEvents({
+                artist: q,
+                artistMbid: includeTributeActs ? undefined : artistMbid,
+                city: city.trim() || undefined,
+                venue: venue.trim() || undefined,
+              })]
+            : []),
+          ...(searchFuture
+            ? [searchFutureEvents({
+                q,
+                city: city.trim() || undefined,
+                size: 100,
+              })]
+            : []),
+        ]);
+        const successful = searches.filter(
+          (result): result is PromiseFulfilledResult<AppEvent[]> =>
+            result.status === "fulfilled",
+        );
+        if (successful.length === 0) {
+          throw (searches[0] as PromiseRejectedResult).reason;
+        }
+        const rawResults = successful.flatMap((result) => result.value);
 
         const venueQuery =
           venue
@@ -1287,6 +1303,20 @@ export function AddGigScreen(
           filtered.length > 0
             ? filtered
             : safeResults;
+
+        // Put the next upcoming gigs first when searching without a date.
+        if (!dateQuery) {
+          nextResults.sort((a, b) => {
+            const aDate = getEventDate(a);
+            const bDate = getEventDate(b);
+            const aFuture = aDate >= today.toISOString().slice(0, 10);
+            const bFuture = bDate >= today.toISOString().slice(0, 10);
+            if (aFuture !== bFuture) return aFuture ? -1 : 1;
+            return aFuture
+              ? aDate.localeCompare(bDate)
+              : bDate.localeCompare(aDate);
+          });
+        }
 
         setGigSearchResults(
           nextResults,

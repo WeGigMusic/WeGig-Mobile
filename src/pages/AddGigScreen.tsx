@@ -1315,10 +1315,7 @@ export function AddGigScreen(
             },
           );
 
-        const nextResults =
-          filtered.length > 0
-            ? filtered
-            : safeResults;
+        const nextResults = filtered;
 
         // Put the next upcoming gigs first when searching without a date.
         if (!dateQuery) {

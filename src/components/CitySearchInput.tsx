@@ -57,6 +57,21 @@ export function CitySearchInput(props: {
 
   const selectedCityRef =
     React.useRef("");
+  const localValueRef = React.useRef<string | null>(null);
+  const searchIdRef = React.useRef(0);
+
+  React.useEffect(() => {
+    if (localValueRef.current === props.value) {
+      localValueRef.current = null;
+    } else if (props.value.trim()) {
+      // A venue match or gig prefill supplied this city; wait for a user edit.
+      selectedCityRef.current = props.value.trim();
+      searchIdRef.current += 1;
+      setResults([]);
+      setOpen(false);
+      setLoading(false);
+    }
+  }, [props.value]);
 
   React.useEffect(() => {
     let active = true;
@@ -122,6 +137,7 @@ export function CitySearchInput(props: {
     }
 
     let active = true;
+    const searchId = ++searchIdRef.current;
 
     const timer =
       setTimeout(
@@ -158,7 +174,7 @@ export function CitySearchInput(props: {
                 `/places/cities/search?${params.toString()}`,
               );
 
-            if (!active) {
+            if (!active || searchId !== searchIdRef.current) {
               return;
             }
 
@@ -177,14 +193,14 @@ export function CitySearchInput(props: {
               cities.length > 0,
             );
           } catch {
-            if (!active) {
+            if (!active || searchId !== searchIdRef.current) {
               return;
             }
 
             setResults([]);
             setOpen(false);
           } finally {
-            if (active) {
+            if (active && searchId === searchIdRef.current) {
               setLoading(false);
             }
           }
@@ -194,6 +210,7 @@ export function CitySearchInput(props: {
 
     return () => {
       active = false;
+      searchIdRef.current += 1;
       clearTimeout(timer);
     };
   }, [
@@ -205,6 +222,8 @@ export function CitySearchInput(props: {
   const handleChangeText = (
     text: string,
   ) => {
+    localValueRef.current = text;
+    searchIdRef.current += 1;
     const next =
       text.trim();
 
@@ -247,6 +266,8 @@ export function CitySearchInput(props: {
 
     selectedCityRef.current =
       cityName;
+    localValueRef.current = cityName;
+    searchIdRef.current += 1;
 
     setResults([]);
     setOpen(false);
@@ -260,6 +281,8 @@ export function CitySearchInput(props: {
   };
 
   const handleClear = () => {
+    localValueRef.current = "";
+    searchIdRef.current += 1;
     selectedCityRef.current =
       "";
 

@@ -152,7 +152,9 @@ export function EditGigScreen(props: {
   const { showToast } = useToast();
   const scrollRef = React.useRef<any>(null);
   const suppressNextArtistSearchRef = React.useRef(false);
+  const artistSearchIdRef = React.useRef(0);
   const suppressNextVenueSearchRef = React.useRef(false);
+  const venueSearchIdRef = React.useRef(0);
 
   const [artist, setArtist] = React.useState(props.gig.artist);
   const [artistMbid, setArtistMbid] = React.useState<string | undefined>(
@@ -250,6 +252,7 @@ export function EditGigScreen(props: {
   );
 
   const runMbSearch = React.useCallback(async (q: string) => {
+    const searchId = ++artistSearchIdRef.current;
     const query = q.trim();
 
     if (query.length < 2) {
@@ -272,14 +275,17 @@ export function EditGigScreen(props: {
         (res?._embedded?.artists as MbArtist[]) ??
         [];
 
+      if (searchId !== artistSearchIdRef.current) return;
+
       setMbResults(Array.isArray(artists) ? artists.slice(0, 8) : []);
       setMbOpen(true);
     } catch (e: any) {
+      if (searchId !== artistSearchIdRef.current) return;
       setMbError(e?.message ?? "Artist search failed");
       setMbResults([]);
       setMbOpen(false);
     } finally {
-      setMbLoading(false);
+      if (searchId === artistSearchIdRef.current) setMbLoading(false);
     }
   }, []);
 
@@ -307,10 +313,14 @@ export function EditGigScreen(props: {
       void runMbSearch(q);
     }, 320);
 
-    return () => clearTimeout(t);
-  }, [artist, mbOpen, runMbSearch]);
+    return () => {
+      clearTimeout(t);
+      artistSearchIdRef.current += 1;
+    };
+  }, [artist, runMbSearch]);
 
   const chooseArtist = (a: MbArtist) => {
+    artistSearchIdRef.current += 1;
     suppressNextArtistSearchRef.current = true;
     setArtist(a.name);
     setArtistMbid(a.id);
@@ -322,6 +332,7 @@ export function EditGigScreen(props: {
 
   const runVenueSearch = React.useCallback(
     async (q: string) => {
+      const searchId = ++venueSearchIdRef.current;
       const query = q.trim();
 
       if (query.length < 2) {
@@ -345,15 +356,17 @@ export function EditGigScreen(props: {
               }
             : undefined,
         });
+        if (searchId !== venueSearchIdRef.current) return;
 
         setVenueResults(results.slice(0, 8));
         setVenueOpen(true);
       } catch (e: any) {
+        if (searchId !== venueSearchIdRef.current) return;
         setVenueError(e?.message ?? "Venue search failed");
         setVenueResults([]);
         setVenueOpen(false);
       } finally {
-        setVenueLoading(false);
+        if (searchId === venueSearchIdRef.current) setVenueLoading(false);
       }
     },
     [venueSessionToken, city, locationBias],
@@ -391,10 +404,16 @@ export function EditGigScreen(props: {
       void runVenueSearch(q);
     }, 320);
 
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      venueSearchIdRef.current += 1;
+    };
   }, [venue, runVenueSearch, venueTouched, selectedVenuePlaceId]);
 
   const chooseGoogleVenue = async (suggestion: PlaceSuggestion) => {
+    venueSearchIdRef.current += 1;
+    setVenueOpen(false);
+    setVenueResults([]);
     try {
       setVenueLoading(true);
       setVenueError("");
@@ -598,6 +617,7 @@ extraHeight={30}
               icon="person-outline"
               value={artist}
               onChangeText={(value) => {
+                artistSearchIdRef.current += 1;
                 setArtist(value);
                 setArtistMbid(undefined);
                 setMbOpen(true);
@@ -659,6 +679,7 @@ extraHeight={30}
               icon="business-outline"
               value={venue}
               onChangeText={(t) => {
+                venueSearchIdRef.current += 1;
                 setVenueTouched(true);
                 setVenue(t);
                 setVenueOpen(true);

@@ -90,6 +90,27 @@ function norm(s: any) {
     .toLowerCase();
 }
 
+function matchesSearchedArtist(event: AppEvent, artistName: string): boolean {
+  if (event.source === "setlistfm") return true;
+
+  const normalise = (value: string) =>
+    value.toLowerCase().normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/^(the|a|an) /, "");
+
+  const searched = normalise(artistName);
+  if (!searched) return false;
+
+  const namedArtist = event.artists?.some(
+    (candidate) => normalise(candidate.name) === searched,
+  );
+  const title = normalise(event.title || "");
+
+  return Boolean(namedArtist || ` ${title} `.includes(` ${searched} `));
+}
+
 function findDuplicate(
   existing: Gig[],
   payload: any,
@@ -1307,7 +1328,10 @@ export function AddGigScreen(
                 itemDate ===
                   dateQuery;
 
+              const artistOk = matchesSearchedArtist(item, q);
+
               return (
+                artistOk &&
                 venueOk &&
                 cityOk &&
                 dateOk

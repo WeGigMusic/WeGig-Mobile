@@ -287,9 +287,11 @@ export function AddGigScreen(
 
   const suppressNextArtistSearchRef =
     React.useRef(false);
+  const artistSearchIdRef = React.useRef(0);
 
   const suppressNextVenueSearchRef =
     React.useRef(false);
+  const venueSearchIdRef = React.useRef(0);
 
   const [
     locationBias,
@@ -720,6 +722,7 @@ export function AddGigScreen(
       async (
         q: string,
       ) => {
+        const searchId = ++artistSearchIdRef.current;
         const query =
           q.trim();
 
@@ -756,6 +759,8 @@ export function AddGigScreen(
             ) ??
             [];
 
+          if (searchId !== artistSearchIdRef.current) return;
+
           setMbResults(
             Array.isArray(
               artists,
@@ -771,6 +776,7 @@ export function AddGigScreen(
         } catch (
           e: any
         ) {
+          if (searchId !== artistSearchIdRef.current) return;
           setMbError(
             e?.message ??
               "Artist search failed",
@@ -779,7 +785,7 @@ export function AddGigScreen(
           setMbResults([]);
           setMbOpen(false);
         } finally {
-          setMbLoading(false);
+          if (searchId === artistSearchIdRef.current) setMbLoading(false);
         }
       },
       [],
@@ -832,8 +838,10 @@ export function AddGigScreen(
         );
       }, 320);
 
-    return () =>
+    return () => {
       clearTimeout(t);
+      artistSearchIdRef.current += 1;
+    };
   }, [
     artist,
     runMbSearch,
@@ -885,6 +893,7 @@ export function AddGigScreen(
   const chooseArtist = (
     a: MbArtist,
   ) => {
+    artistSearchIdRef.current += 1;
     suppressNextArtistSearchRef.current =
       true;
 
@@ -894,6 +903,7 @@ export function AddGigScreen(
     setMbOpen(false);
     setMbResults([]);
     setMbError("");
+    setMbLoading(false);
   };
 
   const runVenueSearch =
@@ -901,6 +911,7 @@ export function AddGigScreen(
       async (
         q: string,
       ) => {
+        const searchId = ++venueSearchIdRef.current;
         const query =
           q.trim();
 
@@ -946,6 +957,7 @@ export function AddGigScreen(
           : undefined,
     },
   );
+          if (searchId !== venueSearchIdRef.current) return;
 
           setVenueResults(
             results.slice(
@@ -960,6 +972,7 @@ export function AddGigScreen(
         } catch (
           e: any
         ) {
+          if (searchId !== venueSearchIdRef.current) return;
           setVenueError(
             e?.message ??
               "Venue search failed",
@@ -973,9 +986,7 @@ export function AddGigScreen(
             false,
           );
         } finally {
-          setVenueLoading(
-            false,
-          );
+          if (searchId === venueSearchIdRef.current) setVenueLoading(false);
         }
       },
       [
@@ -1047,8 +1058,10 @@ export function AddGigScreen(
         );
       }, 320);
 
-    return () =>
+    return () => {
       clearTimeout(t);
+      venueSearchIdRef.current += 1;
+    };
   }, [
     venue,
     runVenueSearch,
@@ -1061,6 +1074,9 @@ export function AddGigScreen(
       suggestion:
         PlaceSuggestion,
     ) => {
+      venueSearchIdRef.current += 1;
+      setVenueOpen(false);
+      setVenueResults([]);
       try {
         setVenueLoading(
           true,
@@ -1829,6 +1845,7 @@ export function AddGigScreen(
               onChangeText={(
                 t,
               ) => {
+                artistSearchIdRef.current += 1;
                 setArtist(
                   t,
                 );
@@ -2006,6 +2023,7 @@ export function AddGigScreen(
                 onChangeText={(
                   t,
                 ) => {
+                  venueSearchIdRef.current += 1;
                   setVenue(
                     t,
                   );

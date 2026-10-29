@@ -31,10 +31,12 @@ import { posthog } from "../lib/analytics";
 import { syncGigReminderNotifications } from "../lib/notifications";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 import { avatarPresets } from "../config/avatarPresets";
+import {
+  LocalProfile, loadLocalProfile, saveLocalProfile, copyProfilePhoto,
+  existingProfilePhoto, deleteProfilePhoto, hasLegacyProfile, importLegacyProfile,
+} from "../lib/localProfile";
 
-const DISPLAY_NAME_KEY = "wegig.displayName";
-const AVATAR_PRESET_KEY = "wegig.avatarPreset";
-const AVATAR_URI_KEY = "wegig.avatarUri";
+
 const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
 const NOTIFY_GIG_REMINDER_KEY = "wegig.notifyGigReminder";
@@ -209,36 +211,64 @@ const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
 const [newPassword, setNewPassword] = React.useState("");
 const [confirmPassword, setConfirmPassword] = React.useState("");
 const [changingPassword, setChangingPassword] = React.useState(false);
+  const [profileUserId, setProfileUserId] = React.useState("");
+  const [profileReady, setProfileReady] = React.useState(false);
+  const [profileSaving, setProfileSaving] = React.useState(false);
+  const profileRef = React.useRef<LocalProfile>({ displayName: "Music Fan", avatarPreset: "", avatarFile: "" });
+  const profileSaveRef = React.useRef(false);
+  const profileMountedRef = React.useRef(true);
+
+  const applyProfile = React.useCallback(async (userId: string, profile: LocalProfile) => {
+    const uri = profile.avatarFile ? await existingProfilePhoto(userId, profile.avatarFile) : "";
+    if (!profileMountedRef.current) return;
+    profileRef.current = profile;
+    setDisplayName(profile.displayName);
+    setAvatarPreset(profile.avatarPreset);
+    setAvatarUri(uri);
+    if (profile.avatarFile && !uri) {
+      Alert.alert("Photo unavailable", "Your saved photo could not be found on this phone. Please select it again. Your name has been kept.");
+    }
+  }, []);
+
   const loadPrefs = React.useCallback(async () => {
     try {
-      const [dn, preset, uri, notifyGig, notifyRate] = await Promise.all([
-        AsyncStorage.getItem(DISPLAY_NAME_KEY),
-        AsyncStorage.getItem(AVATAR_PRESET_KEY),
-        AsyncStorage.getItem(AVATAR_URI_KEY),
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      const userId = data.session?.user.id;
+      if (!userId) throw new Error("Please sign in again.");
+      let profile = await loadLocalProfile(userId);
+      if (await hasLegacyProfile(userId)) {
+        const restore = await new Promise<boolean>((resolve) => {
+          Alert.alert("Restore your profile?",
+            "An earlier version saved profile details on this phone. Restore them only if they belong to the account you are signed into now.", [
+              { text: "Start fresh", onPress: () => resolve(false) },
+              { text: "Restore my profile", onPress: () => resolve(true) },
+            ], { cancelable: false });
+        });
+        if (!profileMountedRef.current) return;
+        if (restore) {
+          const restored = await importLegacyProfile(userId);
+          profile = restored.profile;
+          if (restored.photoMissing) Alert.alert("Select your photo again", "Your name has been restored, but the old photo is no longer on this phone.");
+        } else {
+          await saveLocalProfile(userId, profile);
+        }
+      }
+      await applyProfile(userId, profile);
+      if (!profileMountedRef.current) return;
+      setProfileUserId(userId);
+      setProfileReady(true);
+      const [notifyGig, notifyRate] = await Promise.all([
         AsyncStorage.getItem(NOTIFY_GIG_REMINDER_KEY),
         AsyncStorage.getItem(NOTIFY_RATE_REMINDER_KEY),
       ]);
 
-      if (dn && dn.trim()) setDisplayName(dn.trim());
-
-      if (preset && preset.trim()) {
-        setAvatarPreset(preset.trim());
-      } else if (!uri?.trim() && avatarPresets.length > 0) {
-        const randomPreset =
-          avatarPresets[Math.floor(Math.random() * avatarPresets.length)];
-
-        setAvatarPreset(randomPreset.id);
-        await AsyncStorage.setItem(AVATAR_PRESET_KEY, randomPreset.id).catch(
-          () => {},
-        );
-      }
-
-      if (uri && uri.trim()) setAvatarUri(uri.trim());
-
       setGigReminderEnabled(notifyGig == null ? true : notifyGig === "1");
       setRateReminderEnabled(notifyRate == null ? true : notifyRate === "1");
-    } catch {}
-  }, []);
+    } catch (error: any) {
+      if (profileMountedRef.current) Alert.alert("Profile could not load", error?.message ?? "Please reopen Profile to try again.");
+    }
+  }, [applyProfile]);
 
   const loadPinnedGigIds = React.useCallback(async () => {
     try {
@@ -289,9 +319,11 @@ const [changingPassword, setChangingPassword] = React.useState(false);
   }, []);
 
   React.useEffect(() => {
+    profileMountedRef.current = true;
     void loadPrefs();
     void load();
     void loadPinnedGigIds();
+    return () => { profileMountedRef.current = false; };
   }, [load, loadPinnedGigIds, loadPrefs]);
 
   React.useEffect(() => {
@@ -313,73 +345,71 @@ const [changingPassword, setChangingPassword] = React.useState(false);
     setEditingDisplayName(true);
   }, [displayName]);
 
-  const saveDisplayName = React.useCallback(async () => {
-    const next = draftDisplayName.trim() || "Music Fan";
-
-    setDisplayName(next);
-    setEditingDisplayName(false);
-
-    try {
-      await AsyncStorage.setItem(DISPLAY_NAME_KEY, next);
-    } catch {}
-  }, [draftDisplayName]);
-
-  const handlePickPreset = React.useCallback(async (presetId: string) => {
-    setAvatarPreset(presetId);
-    setAvatarUri("");
-    setAvatarPickerVisible(false);
-
-    try {
-      await AsyncStorage.setItem(AVATAR_PRESET_KEY, presetId);
-      await AsyncStorage.removeItem(AVATAR_URI_KEY);
-    } catch {}
-  }, []);
-
-  const handleUploadAvatar = React.useCallback(async () => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert(
-          "Permission needed",
-          "Allow photo library access to upload a profile picture.",
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (result.canceled) return;
-
-      const selected = result.assets?.[0];
-      if (!selected?.uri) return;
-
-      setAvatarUri(selected.uri);
-      setAvatarPreset("");
-      setAvatarPickerVisible(false);
-
-      await AsyncStorage.setItem(AVATAR_URI_KEY, selected.uri);
-      await AsyncStorage.removeItem(AVATAR_PRESET_KEY);
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Failed to upload photo");
+  const persistProfile = React.useCallback(async (next: LocalProfile) => {
+    await saveLocalProfile(profileUserId, next);
+    const previousFile = profileRef.current.avatarFile;
+    profileRef.current = next;
+    await applyProfile(profileUserId, next);
+    if (previousFile && previousFile !== next.avatarFile) {
+      await deleteProfilePhoto(profileUserId, previousFile).catch(() => {});
     }
-  }, []);
+  }, [profileUserId, applyProfile]);
 
-  const handleRemoveAvatar = React.useCallback(async () => {
-    setAvatarUri("");
-    setAvatarPreset("");
-    setAvatarPickerVisible(false);
-
+  const saveDisplayName = React.useCallback(async () => {
+    if (!profileReady || profileSaveRef.current) return;
+    profileSaveRef.current = true;
+    setProfileSaving(true);
     try {
-      await AsyncStorage.removeItem(AVATAR_URI_KEY);
-      await AsyncStorage.removeItem(AVATAR_PRESET_KEY);
-    } catch {}
-  }, []);
+      await persistProfile({ ...profileRef.current, displayName: draftDisplayName.trim() || "Music Fan" });
+      setEditingDisplayName(false);
+    } catch (error: any) {
+      Alert.alert("Name not saved", error?.message ?? "Please try again.");
+    } finally {
+      profileSaveRef.current = false;
+      setProfileSaving(false);
+    }
+  }, [draftDisplayName, profileReady, persistProfile]);
+
+  const changeAvatar = React.useCallback(async (kind: "preset" | "photo" | "blank", presetId = "") => {
+    if (!profileReady || profileSaveRef.current) return;
+    profileSaveRef.current = true;
+    setProfileSaving(true);
+    let newFile = "";
+    let committed = false;
+    try {
+      if (kind === "photo") {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert("Permission needed", "Allow photo library access to choose a profile picture.");
+          return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.8,
+        });
+        if (result.canceled || !result.assets?.[0]?.uri) return;
+        newFile = await copyProfilePhoto(profileUserId, result.assets[0].uri);
+      }
+      await persistProfile({
+        ...profileRef.current,
+        avatarPreset: kind === "preset" ? presetId : "",
+        avatarFile: newFile,
+      });
+      committed = true;
+      setAvatarPickerVisible(false);
+    } catch (error: any) {
+      if (newFile && !committed && profileRef.current.avatarFile !== newFile) {
+        await deleteProfilePhoto(profileUserId, newFile).catch(() => {});
+      }
+      Alert.alert("Photo not saved", error?.message ?? "Please try again.");
+    } finally {
+      profileSaveRef.current = false;
+      setProfileSaving(false);
+    }
+  }, [profileReady, profileUserId, persistProfile]);
+
+  const handlePickPreset = (presetId: string) => changeAvatar("preset", presetId);
+  const handleUploadAvatar = () => changeAvatar("photo");
+  const handleRemoveAvatar = () => changeAvatar("blank");
 
   const openExternalLink = React.useCallback(async (url: string) => {
     try {
@@ -590,6 +620,7 @@ const submitPasswordChange = React.useCallback(async () => {
       <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
         <View style={styles.profileHero}>
           <Pressable
+            disabled={!profileReady || profileSaving}
             onPress={() => setAvatarPickerVisible(true)}
             style={({ pressed }) => [
               styles.avatar,
@@ -597,7 +628,11 @@ const submitPasswordChange = React.useCallback(async () => {
             ]}
           >
             {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              <Image source={{ uri: avatarUri }} style={styles.avatarImage}
+                onError={() => {
+                  setAvatarUri("");
+                  Alert.alert("Photo unavailable", "Please select your profile photo again. Your saved name has been kept.");
+                }} />
             ) : selectedPreset ? (
               <Image source={selectedPreset.image} style={styles.avatarImage} />
             ) : (
@@ -624,6 +659,7 @@ const submitPasswordChange = React.useCallback(async () => {
                 />
               ) : (
                 <Pressable
+                  disabled={!profileReady || profileSaving}
                   onPress={startEditingDisplayName}
                   style={({ pressed }) => [
                     styles.editNameButton,
@@ -910,7 +946,7 @@ const submitPasswordChange = React.useCallback(async () => {
 
       <AvatarPickerModal
         visible={avatarPickerVisible}
-        onClose={() => setAvatarPickerVisible(false)}
+        onClose={() => { if (!profileSaveRef.current) setAvatarPickerVisible(false); }}
         onPickPreset={handlePickPreset}
         onUpload={handleUploadAvatar}
         onRemove={handleRemoveAvatar}

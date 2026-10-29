@@ -710,7 +710,7 @@ export default function App() {
     <SafeAreaProvider>
       <PostHogProvider client={posthog} autocapture={false}>
         <ToastProvider>
-          <AppShell />
+          <AppShell key={session.user.id} />
         </ToastProvider>
       </PostHogProvider>
     </SafeAreaProvider>

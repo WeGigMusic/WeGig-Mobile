@@ -24,7 +24,6 @@ import { posthog } from "../lib/analytics";
 WebBrowser.maybeCompleteAuthSession();
 
 const HAPTICS_KEY = "wegig.hapticsEnabled";
-const DISPLAY_NAME_KEY = "wegig.displayName";
 
 const APPLE_LOGIN_ENABLED = Platform.OS === "ios";
 
@@ -379,17 +378,6 @@ export default function AuthScreen() {
             );
           }
 
-          const existingDisplayName =
-            await AsyncStorage.getItem(
-              DISPLAY_NAME_KEY
-            );
-
-          if (!existingDisplayName?.trim()) {
-            await AsyncStorage.setItem(
-              DISPLAY_NAME_KEY,
-              appleDisplayName
-            );
-          }
         } catch (profileError) {
           console.log(
             "[auth] Apple name save failed",

@@ -1249,6 +1249,7 @@ export function AddGigScreen(
                 artistMbid: includeTributeActs ? undefined : artistMbid,
                 city: city.trim() || undefined,
                 venue: venue.trim() || undefined,
+                date: selectedDate ? date.trim() : undefined,
               })]
             : []),
           ...(searchFuture

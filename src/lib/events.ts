@@ -47,6 +47,7 @@ export async function searchPastEvents(input: {
   artistMbid?: string;
   city?: string;
   venue?: string;
+  date?: string;
 }): Promise<AppEvent[]> {
   const params = new URLSearchParams({
     mode: "past",
@@ -56,6 +57,7 @@ export async function searchPastEvents(input: {
   if (input.artistMbid) params.set("artistMbid", input.artistMbid);
   if (input.city) params.set("city", input.city);
   if (input.venue) params.set("venue", input.venue);
+  if (input.date) params.set("date", input.date);
 
   const res = await apiGet<EventsSearchResponse>(
     `/events/search?${params.toString()}`,

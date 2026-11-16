@@ -23,6 +23,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import { Ionicons } from "@expo/vector-icons";
 import ViewShot, { captureRef } from "react-native-view-shot";
 
+import { FoundingSupporterBadge } from "../components/FoundingSupporterBadge";
 import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
@@ -59,6 +60,8 @@ type ProfileScreenProps = {
   onPressLogo?: () => void;
   onGoToGigs?: () => void;
   scrollToTopSignal?: number;
+  onSupport?: () => void;
+  isFoundingSupporter?: boolean;
 };
 
 function computeProfileStats(gigs: Gig[]) {
@@ -181,7 +184,7 @@ function buildGigCsv(params: {
     .join("\n");
 }
 
-export function ProfileScreen({ scrollToTopSignal }: ProfileScreenProps) {
+export function ProfileScreen({ scrollToTopSignal, onSupport, isFoundingSupporter = false }: ProfileScreenProps) {
   const shareCardRef = React.useRef<ViewShot | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
 
@@ -689,6 +692,8 @@ const submitPasswordChange = React.useCallback(async () => {
           </View>
         </View>
 
+        {isFoundingSupporter && <FoundingSupporterBadge />}
+
         {loading ? (
           <View style={styles.inlineRow}>
             <ActivityIndicator />
@@ -751,6 +756,15 @@ const submitPasswordChange = React.useCallback(async () => {
         </View>
 
         <SectionTitle title="Support" />
+        <Pressable accessibilityRole="button" onPress={onSupport} disabled={!onSupport}
+          style={({ pressed }) => [styles.supportRow, pressed && { opacity: 0.8 }]}>
+          <Ionicons name="heart-outline" size={26} color="#A88742" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.actionTitle}>Support WeGig</Text>
+            <Text style={styles.actionSubtitle}>Help keep the app independent</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colours.text.muted} />
+        </Pressable>
         <View style={styles.card}>
           <ActionRow
             title="Our story"
@@ -1129,6 +1143,7 @@ passwordBtnDisabled: {
     fontSize: 15,
     lineHeight: 19,
   },
+  supportRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#A88742", borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16 },
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 18,

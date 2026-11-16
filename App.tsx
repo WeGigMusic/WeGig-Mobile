@@ -35,6 +35,7 @@ import { supabase } from "./src/lib/supabase";
 import { GigsScreen } from "./src/pages/GigsScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
 import { StatsScreen } from "./src/pages/StatsScreen";
+import { SupportWeGigScreen } from "./src/pages/SupportWeGigScreen";
 import { ProfileScreen } from "./src/pages/ProfileScreen";
 import AuthScreen from "./src/pages/AuthScreen";
 import ResetPasswordScreen from "./src/pages/ResetPasswordScreen";
@@ -46,7 +47,7 @@ import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
 
 type Tab = "gigs" | "discover" | "stats" | "profile";
-type ProfileRoute = "home" | "about" | "help" | "feedback";
+type ProfileRoute = "home" | "about" | "help" | "feedback" | "support";
 
 const HAPTICS_KEY = "wegig.hapticsEnabled";
 
@@ -481,6 +482,8 @@ function AppShell() {
             onPressLogo={goHome}
             scrollToTopSignal={statsScrollToTopSignal}
           />
+        ) : profileRoute === "support" ? (
+          <SupportWeGigScreen onBack={() => setProfileRoute("home")} />
         ) : profileRoute === "about" ? (
           <AboutPrivacyScreen
             onBack={() => setProfileRoute("home")}
@@ -495,6 +498,7 @@ function AppShell() {
           />
         ) : (
           <ProfileScreen
+            onSupport={() => setProfileRoute("support")}
             onPressLogo={goHome}
             onGoToGigs={() => {
               setProfileRoute("home");

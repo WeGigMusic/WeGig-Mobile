@@ -43,6 +43,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withOkHttp.js",
       "@react-native-community/datetimepicker",
       "expo-notifications",
       [

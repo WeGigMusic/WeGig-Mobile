@@ -7,6 +7,9 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "development"
+      },
       "android": {
         "buildType": "apk"
       }
@@ -20,7 +23,8 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:dependencyInsight --dependency okhttp --configuration releaseRuntimeClasspath :app:bundleRelease"
       }
     }
   },

@@ -20,13 +20,16 @@ type Props = {
   onBack: () => void;
   products?: SupportStoreProduct[];
   loading?: boolean;
-  onPurchase?: (key: SupportOptionKey) => Promise<"verified" | "cancelled" | "pending">;
+  availabilityMessage?: string | null;
+  onRetry?: () => void;
+  onPurchase?: (key: SupportOptionKey) => Promise<"verified" | "test-verified" | "cancelled" | "pending">;
 };
 
-export function SupportWeGigScreen({ onBack, products = [], loading = false, onPurchase }: Props) {
+export function SupportWeGigScreen({ onBack, products = [], loading = false, onPurchase, availabilityMessage, onRetry }: Props) {
   const [selected, setSelected] = React.useState<SupportOptionKey>("medium");
   const [expanded, setExpanded] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [testComplete, setTestComplete] = React.useState(false);
   const [complete, setComplete] = React.useState(false);
   const inFlight = React.useRef(false);
   const mounted = React.useRef(true);
@@ -51,10 +54,10 @@ export function SupportWeGigScreen({ onBack, products = [], loading = false, onP
     try {
       const result = await onPurchase(selected);
       if (!mounted.current) return;
-      if (result === "verified") setComplete(true);
+      if (result === "verified" || result === "test-verified") { setTestComplete(result === "test-verified"); setComplete(true); }
       else if (result === "pending") Alert.alert("Payment pending", "Your support will be confirmed once your payment is approved.");
     } catch {
-      if (mounted.current) Alert.alert("Payment not completed", "We couldn't confirm your payment. Please try again later.");
+      if (mounted.current) Alert.alert("Payment confirmation", "We couldn't confirm the payment yet. If you were charged, retry confirmation before making another contribution.");
     } finally {
       inFlight.current = false;
       if (mounted.current) setBusy(false);
@@ -81,8 +84,8 @@ export function SupportWeGigScreen({ onBack, products = [], loading = false, onP
         {complete ? <>
           <View style={styles.wordmark}><Image source={require("../../assets/logo-symbol-transparent.png")} style={styles.logo} /><Text style={styles.heroTitle}>WeGig</Text></View>
           <Text accessibilityRole="header" style={styles.thankTitle}>Thank you</Text>
-          <Text style={styles.copy}>Your support means a lot and helps keep WeGig independent.</Text>
-          <View style={styles.badgeSpace}><FoundingSupporterBadge /></View>
+          <Text style={styles.copy}>{testComplete ? "Test purchase confirmed. No paid supporter badge has been awarded." : "Your support means a lot and helps keep WeGig independent."}</Text>
+          {!testComplete && <View style={styles.badgeSpace}><FoundingSupporterBadge /></View>}
           <Pressable accessibilityRole="button" onPress={onBack} style={({ pressed }) => [styles.primary, styles.returnButton, pressed && styles.pressed]}><Text style={styles.primaryText}>Back to Profile</Text></Pressable>
         </> : <>
           <View style={styles.wordmark}><Text style={styles.heroTitle}>Back</Text><Image source={require("../../assets/logo-symbol-transparent.png")} style={styles.logo} /><Text style={styles.heroTitle}>WeGig</Text></View>
@@ -98,7 +101,8 @@ export function SupportWeGigScreen({ onBack, products = [], loading = false, onP
             {busy || loading ? <ActivityIndicator color="white" /> : <Text style={styles.primaryText}>Continue with {price(selected)}</Text>}
           </Pressable>
           <Text style={styles.note}>One-off contribution. No subscription.{"\n"}Completely optional.</Text>
-          {!loading && (!onPurchase || !products.length) && <Text accessibilityRole="alert" style={styles.availability}>Support payments aren’t available yet.</Text>}
+          {!loading && (availabilityMessage || !onPurchase || !products.length) && <Text accessibilityRole="alert" style={styles.availability}>{availabilityMessage ?? "Support payments aren’t available yet."}</Text>}
+          {onRetry && !busy && <Pressable accessibilityRole="button" disabled={loading} onPress={onRetry} style={styles.retry}><Text style={styles.note}>Retry confirmation</Text></Pressable>}
           <View style={styles.badgeSpace}><FoundingSupporterBadge /></View>
         </>}
       </ScrollView>
@@ -128,6 +132,7 @@ const styles = StyleSheet.create({
   primary: { minHeight: 58, backgroundColor: Colours.brand.primary, borderRadius: 14, justifyContent: "center", alignItems: "center", padding: 16, marginTop: 28 },
   primaryText: { color: "white", fontWeight: "700", fontSize: 18, textAlign: "center" },
   note: { color: Colours.text.secondary, textAlign: "center", fontSize: 13, lineHeight: 20, marginTop: 18 },
+  retry: { minHeight: 44, justifyContent: "center" },
   availability: { color: Colours.text.muted, textAlign: "center", marginTop: 12, fontSize: 13 },
   badgeSpace: { marginTop: 30, marginBottom: 20 },
   thankTitle: { color: "white", fontSize: 36, fontWeight: "700", textAlign: "center", marginVertical: 16 },

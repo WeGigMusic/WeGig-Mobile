@@ -36,6 +36,7 @@ import { GigsScreen } from "./src/pages/GigsScreen";
 import { DiscoverScreen } from "./src/pages/DiscoverScreen";
 import { StatsScreen } from "./src/pages/StatsScreen";
 import { SupportWeGigScreen } from "./src/pages/SupportWeGigScreen";
+import { useSupportBilling } from "./src/support/useSupportBilling";
 import { ProfileScreen } from "./src/pages/ProfileScreen";
 import AuthScreen from "./src/pages/AuthScreen";
 import ResetPasswordScreen from "./src/pages/ResetPasswordScreen";
@@ -193,7 +194,8 @@ function TabItem(props: {
   );
 }
 
-function AppShell() {
+function AppShell({ userId }: { userId: string }) {
+  const support = useSupportBilling(userId);
   const [tab, setTab] = React.useState<Tab>("gigs");
   const [profileRoute, setProfileRoute] =
     React.useState<ProfileRoute>("home");
@@ -483,7 +485,7 @@ function AppShell() {
             scrollToTopSignal={statsScrollToTopSignal}
           />
         ) : profileRoute === "support" ? (
-          <SupportWeGigScreen onBack={() => setProfileRoute("home")} />
+          <SupportWeGigScreen onBack={() => setProfileRoute("home")} products={support.products} loading={support.loading} onPurchase={support.onPurchase} availabilityMessage={support.issue} onRetry={support.retry} />
         ) : profileRoute === "about" ? (
           <AboutPrivacyScreen
             onBack={() => setProfileRoute("home")}
@@ -498,7 +500,8 @@ function AppShell() {
           />
         ) : (
           <ProfileScreen
-            onSupport={() => setProfileRoute("support")}
+            onSupport={() => { support.retry(); setProfileRoute("support"); }}
+            isFoundingSupporter={support.isFoundingSupporter}
             onPressLogo={goHome}
             onGoToGigs={() => {
               setProfileRoute("home");
@@ -714,7 +717,7 @@ export default function App() {
     <SafeAreaProvider>
       <PostHogProvider client={posthog} autocapture={false}>
         <ToastProvider>
-          <AppShell key={session.user.id} />
+          <AppShell key={session.user.id} userId={session.user.id} />
         </ToastProvider>
       </PostHogProvider>
     </SafeAreaProvider>

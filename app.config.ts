@@ -5,6 +5,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
+    plugins: [...(config.plugins ?? []), "expo-iap"],
     name: isDev ? "WeGig Dev" : "WeGig",
     slug: "WeGig-Mobile",
     scheme: isDev ? "wegig-dev" : "wegig",

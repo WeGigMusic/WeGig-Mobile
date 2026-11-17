@@ -203,9 +203,7 @@ export default function AuthScreen() {
     method: string
   ) {
     if (user) {
-      posthog.identify(user.id, {
-        email: user.email ?? null,
-      });
+     posthog.identify(user.id);
     }
 
     posthog.capture("login_completed", {

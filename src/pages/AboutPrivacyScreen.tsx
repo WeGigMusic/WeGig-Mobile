@@ -32,62 +32,100 @@ export default function AboutPrivacyScreen({
       >
         <Text style={styles.title}>About WeGig</Text>
 
- <Text style={styles.story}>
-  WeGig started because we love live music but kept forgetting gigs we had been to.
-
-  {"\n\n"}
-  Most of the time we were only reminded through old photos, and that was only when we actually remembered to take them. It made us realise how many great nights were slowly being lost. We felt it was about time there was a simple way to keep a proper log so we could remember, share and record our gig journeys going forward.
-
-  {"\n\n"}
-  Live music is more than just events. It is memories, discovery and the people you shared those moments with.
-
-  {"\n\n"}
-  We built WeGig to make it easy to track the gigs you have been to, relive the nights that mattered and discover what is coming next.
-</Text>
+        <Text style={styles.story}>
+          WeGig started because we love live music but kept forgetting gigs
+          we had been to.
+          {"\n\n"}
+          Most of the time we were only reminded through old photos, and
+          that was only when we actually remembered to take them. It made
+          us realise how many great nights were slowly being lost. We felt
+          it was about time there was a simple way to keep a proper log so
+          we could remember, share and record our gig journeys going forward.
+          {"\n\n"}
+          Live music is more than just events. It is memories, discovery
+          and the people you shared those moments with.
+          {"\n\n"}
+          We built WeGig to make it easy to track the gigs you have been to,
+          relive the nights that mattered and discover what is coming next.
+        </Text>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Privacy Policy</Text>
 
           <Text style={styles.body}>
-            Last updated: 16 March 2026
+            Last updated: 17 November 2026
             {"\n\n"}
-            WeGig (“we”, “our”, “us”) is a social music app that helps fans
-            track gigs, discover live music, and share their gig experiences
-            with friends.
+            WeGig is operated by WeGig Limited. This policy explains how
+            we use your information and the choices you have.
             {"\n\n"}
-            We collect basic account information such as display name, email
-            address when sign-in is enabled, and optional profile details such
-            as city.
+            Your information
             {"\n\n"}
-            We may also collect app usage data, including gigs you add or track,
-            artists and venues you interact with, badges and stats activity, and
-            basic analytics such as screens viewed and feature usage.
+            We use your account information and the gig details you save
+            to provide WeGig, sync your gig history and display your
+            personal stats. Your chosen profile name and photo are
+            stored on your device.
             {"\n\n"}
-            We may collect device information such as device type, operating
-            system version, and anonymous crash or performance data.
+            If you allow location access, we use your location to help
+            suggest nearby gigs and venues. You can change this
+            permission in your device settings. We do not track your
+            location in the background.
             {"\n\n"}
-            We use this information to personalise gig discovery, show “Next gig
-            near you” recommendations, sync your gig history across devices,
-            improve app performance and features, and communicate important
-            updates.
+            We use PostHog to understand which features people use and
+            improve WeGig. This includes app and device information and
+            activity such as screens, artist pages and setlists viewed.
+            This information is linked to an account identifier.
             {"\n\n"}
-            If you choose to provide your city or enable location features in
-            future versions, WeGig may use this to improve local gig
-            recommendations. We do not track precise background location.
+            If you make an optional contribution, Apple or Google handles
+            the payment. We receive transaction details to confirm the
+            contribution, recognise supporter status and handle refunds.
+            We do not receive your payment card details.
             {"\n\n"}
-            We do not sell your personal data. We may share limited data with
-            analytics providers, authentication providers such as Apple or
-            Google, and legal authorities if required by law.
+            Sharing and storage
             {"\n\n"}
-            We store data using modern industry security practices, but no
-            service can be completely secure.
+            We do not sell your personal data. We use service providers
+            for hosting, account sign-in, analytics and payments. We may
+            also disclose information where required by law.
             {"\n\n"}
-            You can edit profile information, and future versions may include
-            account deletion requests and gig export tools.
+            We use safeguards to protect your information. Account and
+            gig information is kept while you use WeGig, unless you
+            delete it or request account deletion.
             {"\n\n"}
-            We may update this policy as WeGig evolves.
+            Your choices and account deletion
             {"\n\n"}
-            Contact: wegigapp@proton.me
+            You can edit your profile and export your gig history from
+            the Profile screen.
+            {"\n\n"}
+            To delete your account, open Profile and select Delete account.
+            This removes your sign-in account and saved gig history.
+            The app also clears your saved profile, gig data and gig
+            reminders from the device where you request deletion.
+            {"\n\n"}
+            We also request deletion of the analytics data linked to your
+            account. This is processed separately and may take longer
+            to complete.
+            {"\n\n"}
+            Limited transaction and deletion records are retained to
+            handle refunds, prevent transaction reuse and keep deleted
+            accounts closed. Retained purchase records are no longer
+            linked to your WeGig account.
+            {"\n\n"}
+            Account deletion does not automatically refund contributions
+            or remove copies you have exported or shared elsewhere.
+            {"\n\n"}
+            You can contact us to request access to, correction of or
+            deletion of your personal information, or for help if you
+            cannot access your account.
+            {"\n\n"}
+            Contact
+            {"\n\n"}
+            Email: wegigapp@proton.me
+            {"\n\n"}
+            If you are unhappy with how we handle your information, you
+            can also complain to the UK Information Commissioner’s Office
+            at ico.org.uk.
+            {"\n\n"}
+            We may update this policy as WeGig develops. The date above
+            shows when it was last revised.
           </Text>
         </View>
       </ScrollView>
@@ -153,8 +191,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: Colours.text.primary,
     marginBottom: 12,
+    color: Colours.text.primary,
   },
 
   body: {

@@ -47,6 +47,7 @@ import FeedbackScreen from "./src/pages/FeedbackScreen";
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
 import { AccountDeletionBoundary } from "./src/components/AccountDeletionBoundary";
+
 type Tab = "gigs" | "discover" | "stats" | "profile";
 type ProfileRoute = "home" | "about" | "help" | "feedback" | "support";
 
@@ -485,7 +486,14 @@ function AppShell({ userId }: { userId: string }) {
             scrollToTopSignal={statsScrollToTopSignal}
           />
         ) : profileRoute === "support" ? (
-          <SupportWeGigScreen onBack={() => setProfileRoute("home")} products={support.products} loading={support.loading} onPurchase={support.onPurchase} availabilityMessage={support.issue} onRetry={support.retry} />
+          <SupportWeGigScreen
+            onBack={() => setProfileRoute("home")}
+            products={support.products}
+            loading={support.loading}
+            onPurchase={support.onPurchase}
+            availabilityMessage={support.issue}
+            onRetry={support.retry}
+          />
         ) : profileRoute === "about" ? (
           <AboutPrivacyScreen
             onBack={() => setProfileRoute("home")}
@@ -500,7 +508,10 @@ function AppShell({ userId }: { userId: string }) {
           />
         ) : (
           <ProfileScreen
-            onSupport={() => { support.retry(); setProfileRoute("support"); }}
+            onSupport={() => {
+              support.retry();
+              setProfileRoute("support");
+            }}
             isFoundingSupporter={support.isFoundingSupporter}
             onPressLogo={goHome}
             onGoToGigs={() => {
@@ -567,9 +578,7 @@ function WeGigApp() {
         setSession(recoverySession ?? null);
 
         if (recoverySession?.user) {
-          posthog.identify(recoverySession.user.id, {
-            email: recoverySession.user.email ?? null,
-          });
+          posthog.identify(recoverySession.user.id);
         }
 
         posthog.capture("password_recovery_opened");
@@ -615,9 +624,7 @@ function WeGigApp() {
         setSession(nextSession);
 
         if (nextSession?.user) {
-          posthog.identify(nextSession.user.id, {
-            email: nextSession.user.email ?? null,
-          });
+          posthog.identify(nextSession.user.id);
         }
       })
       .catch((error) => {
@@ -645,9 +652,7 @@ function WeGigApp() {
         }
 
         if (nextSession?.user) {
-          posthog.identify(nextSession.user.id, {
-            email: nextSession.user.email ?? null,
-          });
+          posthog.identify(nextSession.user.id);
         } else {
           posthog.reset();
         }

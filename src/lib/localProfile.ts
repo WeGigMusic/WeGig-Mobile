@@ -104,3 +104,20 @@ export async function importLegacyProfile(userId: string) {
   await saveLocalProfile(userId, profile);
   return { profile, photoMissing };
 }
+
+export async function deleteLocalProfile(userId: string): Promise<void> {
+  await FileSystem.deleteAsync(photoDirectory(userId), {
+    idempotent: true,
+  });
+
+  await AsyncStorage.removeItem(profileKey(userId));
+
+  const legacyOwner = await AsyncStorage.getItem(MIGRATION_OWNER_KEY);
+
+  if (!legacyOwner || legacyOwner === userId) {
+    await AsyncStorage.multiRemove([
+      ...LEGACY_KEYS,
+      MIGRATION_OWNER_KEY,
+    ]);
+  }
+}

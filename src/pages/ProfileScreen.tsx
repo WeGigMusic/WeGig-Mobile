@@ -32,11 +32,17 @@ import { posthog } from "../lib/analytics";
 import { syncGigReminderNotifications } from "../lib/notifications";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 import { avatarPresets } from "../config/avatarPresets";
+import { beginAccountDeletion } from "../lib/accountDeletion";
 import {
-  LocalProfile, loadLocalProfile, saveLocalProfile, copyProfilePhoto,
-  existingProfilePhoto, deleteProfilePhoto, hasLegacyProfile, importLegacyProfile,
+  LocalProfile,
+  loadLocalProfile,
+  saveLocalProfile,
+  copyProfilePhoto,
+  existingProfilePhoto,
+  deleteProfilePhoto,
+  hasLegacyProfile,
+  importLegacyProfile,
 } from "../lib/localProfile";
-
 
 const FIRST_GIG_ID_KEY = "wegig.firstGigId";
 const FAVOURITE_GIG_ID_KEY = "wegig.favouriteGigId";
@@ -116,7 +122,11 @@ function ActionRow(props: {
         ) : null}
       </View>
 
-      <Ionicons name="chevron-forward" size={16} color={Colours.text.muted} />
+      <Ionicons
+        name="chevron-forward"
+        size={16}
+        color={Colours.text.muted}
+      />
     </Pressable>
   );
 }
@@ -145,9 +155,11 @@ function toSafeFileName(value: string) {
 
 function csvCell(value: unknown) {
   const s = String(value ?? "");
+
   if (s.includes('"') || s.includes(",") || s.includes("\n")) {
     return `"${s.replace(/"/g, '""')}"`;
   }
+
   return s;
 }
 
@@ -170,28 +182,35 @@ function buildGigCsv(params: {
   ];
 
   const rows = gigs.map((gig) => [
-  gig.date ?? "",
-  gig.artist ?? "",
-  gig.venue ?? "",
-  gig.city ?? "",
-  typeof gig.rating === "number" ? String(gig.rating) : "",
-  gig.notes ?? "",
-  gig.ticketUrl ?? "",
-]);
+    gig.date ?? "",
+    gig.artist ?? "",
+    gig.venue ?? "",
+    gig.city ?? "",
+    typeof gig.rating === "number" ? String(gig.rating) : "",
+    gig.notes ?? "",
+    gig.ticketUrl ?? "",
+  ]);
 
   return [headers, ...rows]
     .map((row) => row.map(csvCell).join(","))
     .join("\n");
 }
 
-export function ProfileScreen({ scrollToTopSignal, onSupport, isFoundingSupporter = false }: ProfileScreenProps) {
+export function ProfileScreen({
+  scrollToTopSignal,
+  onSupport,
+  isFoundingSupporter = false,
+}: ProfileScreenProps) {
   const shareCardRef = React.useRef<ViewShot | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
 
+  const [startingDeletion, setStartingDeletion] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
-  const [stats, setStats] = React.useState<ReturnType<
-    typeof computeProfileStats
-  > | null>(null);
+
+  const [stats, setStats] = React.useState<
+    ReturnType<typeof computeProfileStats> | null
+  >(null);
+
   const [allGigs, setAllGigs] = React.useState<Gig[]>([]);
 
   const [displayName, setDisplayName] = React.useState("Music Fan");
@@ -210,57 +229,103 @@ export function ProfileScreen({ scrollToTopSignal, onSupport, isFoundingSupporte
 
   const [firstGigId, setFirstGigId] = React.useState("");
   const [favouriteGigId, setFavouriteGigId] = React.useState("");
-const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
-const [newPassword, setNewPassword] = React.useState("");
-const [confirmPassword, setConfirmPassword] = React.useState("");
-const [changingPassword, setChangingPassword] = React.useState(false);
+
+  const [passwordModalOpen, setPasswordModalOpen] = React.useState(false);
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [changingPassword, setChangingPassword] = React.useState(false);
+
   const [profileUserId, setProfileUserId] = React.useState("");
   const [profileReady, setProfileReady] = React.useState(false);
   const [profileSaving, setProfileSaving] = React.useState(false);
-  const profileRef = React.useRef<LocalProfile>({ displayName: "Music Fan", avatarPreset: "", avatarFile: "" });
+
+  const profileRef = React.useRef<LocalProfile>({
+    displayName: "Music Fan",
+    avatarPreset: "",
+    avatarFile: "",
+  });
+
   const profileSaveRef = React.useRef(false);
   const profileMountedRef = React.useRef(true);
 
-  const applyProfile = React.useCallback(async (userId: string, profile: LocalProfile) => {
-    const uri = profile.avatarFile ? await existingProfilePhoto(userId, profile.avatarFile) : "";
-    if (!profileMountedRef.current) return;
-    profileRef.current = profile;
-    setDisplayName(profile.displayName);
-    setAvatarPreset(profile.avatarPreset);
-    setAvatarUri(uri);
-    if (profile.avatarFile && !uri) {
-      Alert.alert("Photo unavailable", "Your saved photo could not be found on this phone. Please select it again. Your name has been kept.");
-    }
-  }, []);
+  const applyProfile = React.useCallback(
+    async (userId: string, profile: LocalProfile) => {
+      const uri = profile.avatarFile
+        ? await existingProfilePhoto(userId, profile.avatarFile)
+        : "";
+
+      if (!profileMountedRef.current) return;
+
+      profileRef.current = profile;
+      setDisplayName(profile.displayName);
+      setAvatarPreset(profile.avatarPreset);
+      setAvatarUri(uri);
+
+      if (profile.avatarFile && !uri) {
+        Alert.alert(
+          "Photo unavailable",
+          "Your saved photo could not be found on this phone. Please select it again. Your name has been kept.",
+        );
+      }
+    },
+    [],
+  );
 
   const loadPrefs = React.useCallback(async () => {
     try {
       const { data, error } = await supabase.auth.getSession();
+
       if (error) throw error;
+
       const userId = data.session?.user.id;
+
       if (!userId) throw new Error("Please sign in again.");
+
       let profile = await loadLocalProfile(userId);
+
       if (await hasLegacyProfile(userId)) {
         const restore = await new Promise<boolean>((resolve) => {
-          Alert.alert("Restore your profile?",
-            "An earlier version saved profile details on this phone. Restore them only if they belong to the account you are signed into now.", [
-              { text: "Start fresh", onPress: () => resolve(false) },
-              { text: "Restore my profile", onPress: () => resolve(true) },
-            ], { cancelable: false });
+          Alert.alert(
+            "Restore your profile?",
+            "An earlier version saved profile details on this phone. Restore them only if they belong to the account you are signed into now.",
+            [
+              {
+                text: "Start fresh",
+                onPress: () => resolve(false),
+              },
+              {
+                text: "Restore my profile",
+                onPress: () => resolve(true),
+              },
+            ],
+            { cancelable: false },
+          );
         });
+
         if (!profileMountedRef.current) return;
+
         if (restore) {
           const restored = await importLegacyProfile(userId);
           profile = restored.profile;
-          if (restored.photoMissing) Alert.alert("Select your photo again", "Your name has been restored, but the old photo is no longer on this phone.");
+
+          if (restored.photoMissing) {
+            Alert.alert(
+              "Select your photo again",
+              "Your name has been restored, but the old photo is no longer on this phone.",
+            );
+          }
         } else {
           await saveLocalProfile(userId, profile);
         }
       }
+
       await applyProfile(userId, profile);
+
       if (!profileMountedRef.current) return;
+
       setProfileUserId(userId);
       setProfileReady(true);
+
       const [notifyGig, notifyRate] = await Promise.all([
         AsyncStorage.getItem(NOTIFY_GIG_REMINDER_KEY),
         AsyncStorage.getItem(NOTIFY_RATE_REMINDER_KEY),
@@ -269,7 +334,12 @@ const [changingPassword, setChangingPassword] = React.useState(false);
       setGigReminderEnabled(notifyGig == null ? true : notifyGig === "1");
       setRateReminderEnabled(notifyRate == null ? true : notifyRate === "1");
     } catch (error: any) {
-      if (profileMountedRef.current) Alert.alert("Profile could not load", error?.message ?? "Please reopen Profile to try again.");
+      if (profileMountedRef.current) {
+        Alert.alert(
+          "Profile could not load",
+          error?.message ?? "Please reopen Profile to try again.",
+        );
+      }
     }
   }, [applyProfile]);
 
@@ -293,7 +363,10 @@ const [changingPassword, setChangingPassword] = React.useState(false);
     setGigReminderEnabled(next);
 
     try {
-      await AsyncStorage.setItem(NOTIFY_GIG_REMINDER_KEY, next ? "1" : "0");
+      await AsyncStorage.setItem(
+        NOTIFY_GIG_REMINDER_KEY,
+        next ? "1" : "0",
+      );
     } catch {}
   }, [gigReminderEnabled]);
 
@@ -302,15 +375,20 @@ const [changingPassword, setChangingPassword] = React.useState(false);
     setRateReminderEnabled(next);
 
     try {
-      await AsyncStorage.setItem(NOTIFY_RATE_REMINDER_KEY, next ? "1" : "0");
+      await AsyncStorage.setItem(
+        NOTIFY_RATE_REMINDER_KEY,
+        next ? "1" : "0",
+      );
     } catch {}
   }, [rateReminderEnabled]);
 
   const load = React.useCallback(async () => {
     setLoading(true);
+
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const nextGigs = res.gigs ?? [];
+
       setAllGigs(nextGigs);
       setStats(computeProfileStats(nextGigs));
     } catch {
@@ -323,10 +401,14 @@ const [changingPassword, setChangingPassword] = React.useState(false);
 
   React.useEffect(() => {
     profileMountedRef.current = true;
+
     void loadPrefs();
     void load();
     void loadPinnedGigIds();
-    return () => { profileMountedRef.current = false; };
+
+    return () => {
+      profileMountedRef.current = false;
+    };
   }, [load, loadPinnedGigIds, loadPrefs]);
 
   React.useEffect(() => {
@@ -340,6 +422,7 @@ const [changingPassword, setChangingPassword] = React.useState(false);
 
   React.useEffect(() => {
     if (loading) return;
+
     void syncGigReminderNotifications(allGigs);
   }, [allGigs, gigReminderEnabled, rateReminderEnabled, loading]);
 
@@ -348,69 +431,125 @@ const [changingPassword, setChangingPassword] = React.useState(false);
     setEditingDisplayName(true);
   }, [displayName]);
 
-  const persistProfile = React.useCallback(async (next: LocalProfile) => {
-    await saveLocalProfile(profileUserId, next);
-    const previousFile = profileRef.current.avatarFile;
-    profileRef.current = next;
-    await applyProfile(profileUserId, next);
-    if (previousFile && previousFile !== next.avatarFile) {
-      await deleteProfilePhoto(profileUserId, previousFile).catch(() => {});
-    }
-  }, [profileUserId, applyProfile]);
+  const persistProfile = React.useCallback(
+    async (next: LocalProfile) => {
+      await saveLocalProfile(profileUserId, next);
+
+      const previousFile = profileRef.current.avatarFile;
+
+      profileRef.current = next;
+      await applyProfile(profileUserId, next);
+
+      if (previousFile && previousFile !== next.avatarFile) {
+        await deleteProfilePhoto(
+          profileUserId,
+          previousFile,
+        ).catch(() => {});
+      }
+    },
+    [profileUserId, applyProfile],
+  );
 
   const saveDisplayName = React.useCallback(async () => {
     if (!profileReady || profileSaveRef.current) return;
+
     profileSaveRef.current = true;
     setProfileSaving(true);
+
     try {
-      await persistProfile({ ...profileRef.current, displayName: draftDisplayName.trim() || "Music Fan" });
+      await persistProfile({
+        ...profileRef.current,
+        displayName: draftDisplayName.trim() || "Music Fan",
+      });
+
       setEditingDisplayName(false);
     } catch (error: any) {
-      Alert.alert("Name not saved", error?.message ?? "Please try again.");
+      Alert.alert(
+        "Name not saved",
+        error?.message ?? "Please try again.",
+      );
     } finally {
       profileSaveRef.current = false;
       setProfileSaving(false);
     }
   }, [draftDisplayName, profileReady, persistProfile]);
 
-  const changeAvatar = React.useCallback(async (kind: "preset" | "photo" | "blank", presetId = "") => {
-    if (!profileReady || profileSaveRef.current) return;
-    profileSaveRef.current = true;
-    setProfileSaving(true);
-    let newFile = "";
-    let committed = false;
-    try {
-      if (kind === "photo") {
-        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert("Permission needed", "Allow photo library access to choose a profile picture.");
-          return;
-        }
-        const result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ["images"], allowsEditing: true, aspect: [1, 1], quality: 0.8,
-        });
-        if (result.canceled || !result.assets?.[0]?.uri) return;
-        newFile = await copyProfilePhoto(profileUserId, result.assets[0].uri);
-      }
-      await persistProfile({
-        ...profileRef.current,
-        avatarPreset: kind === "preset" ? presetId : "",
-        avatarFile: newFile,
-      });
-      committed = true;
-      setAvatarPickerVisible(false);
-    } catch (error: any) {
-      if (newFile && !committed && profileRef.current.avatarFile !== newFile) {
-        await deleteProfilePhoto(profileUserId, newFile).catch(() => {});
-      }
-      Alert.alert("Photo not saved", error?.message ?? "Please try again.");
-    } finally {
-      profileSaveRef.current = false;
-      setProfileSaving(false);
-    }
-  }, [profileReady, profileUserId, persistProfile]);
+  const changeAvatar = React.useCallback(
+    async (
+      kind: "preset" | "photo" | "blank",
+      presetId = "",
+    ) => {
+      if (!profileReady || profileSaveRef.current) return;
 
-  const handlePickPreset = (presetId: string) => changeAvatar("preset", presetId);
+      profileSaveRef.current = true;
+      setProfileSaving(true);
+
+      let newFile = "";
+      let committed = false;
+
+      try {
+        if (kind === "photo") {
+          const permission =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+          if (!permission.granted) {
+            Alert.alert(
+              "Permission needed",
+              "Allow photo library access to choose a profile picture.",
+            );
+            return;
+          }
+
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+          });
+
+          if (result.canceled || !result.assets?.[0]?.uri) return;
+
+          newFile = await copyProfilePhoto(
+            profileUserId,
+            result.assets[0].uri,
+          );
+        }
+
+        await persistProfile({
+          ...profileRef.current,
+          avatarPreset: kind === "preset" ? presetId : "",
+          avatarFile: newFile,
+        });
+
+        committed = true;
+        setAvatarPickerVisible(false);
+      } catch (error: any) {
+        if (
+          newFile &&
+          !committed &&
+          profileRef.current.avatarFile !== newFile
+        ) {
+          await deleteProfilePhoto(
+            profileUserId,
+            newFile,
+          ).catch(() => {});
+        }
+
+        Alert.alert(
+          "Photo not saved",
+          error?.message ?? "Please try again.",
+        );
+      } finally {
+        profileSaveRef.current = false;
+        setProfileSaving(false);
+      }
+    },
+    [profileReady, profileUserId, persistProfile],
+  );
+
+  const handlePickPreset = (presetId: string) =>
+    changeAvatar("preset", presetId);
+
   const handleUploadAvatar = () => changeAvatar("photo");
   const handleRemoveAvatar = () => changeAvatar("blank");
 
@@ -419,83 +558,148 @@ const [changingPassword, setChangingPassword] = React.useState(false);
       const supported = await Linking.canOpenURL(url);
 
       if (!supported) {
-        Alert.alert("Unavailable", "Couldn't open that link right now.");
+        Alert.alert(
+          "Unavailable",
+          "Couldn't open that link right now.",
+        );
         return;
       }
 
       await Linking.openURL(url);
     } catch {
-      Alert.alert("Unavailable", "Couldn't open that link right now.");
+      Alert.alert(
+        "Unavailable",
+        "Couldn't open that link right now.",
+      );
     }
   }, []);
 
   const handleChangePassword = React.useCallback(() => {
-  setNewPassword("");
-  setConfirmPassword("");
-  setPasswordModalOpen(true);
-}, []);
-
-const submitPasswordChange = React.useCallback(async () => {
-  const password = newPassword.trim();
-  const confirm = confirmPassword.trim();
-
-  if (password.length < 6) {
-    Alert.alert("Password too short", "Password must be at least 6 characters.");
-    return;
-  }
-
-  if (password !== confirm) {
-    Alert.alert("Passwords don't match", "Please enter the same password twice.");
-    return;
-  }
-
-  setChangingPassword(true);
-
-  try {
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
-
-    if (error) throw error;
-
-    posthog.capture("password_changed");
-    void posthog.flush();
-
-    setPasswordModalOpen(false);
     setNewPassword("");
     setConfirmPassword("");
+    setPasswordModalOpen(true);
+  }, []);
 
-    Alert.alert("Password updated", "Your password has been changed.");
-  } catch (e: any) {
-    Alert.alert("Update failed", e?.message ?? "Please try again.");
-  } finally {
-    setChangingPassword(false);
-  }
-}, [confirmPassword, newPassword]);
+  const submitPasswordChange = React.useCallback(async () => {
+    const password = newPassword.trim();
+    const confirm = confirmPassword.trim();
+
+    if (password.length < 6) {
+      Alert.alert(
+        "Password too short",
+        "Password must be at least 6 characters.",
+      );
+      return;
+    }
+
+    if (password !== confirm) {
+      Alert.alert(
+        "Passwords don't match",
+        "Please enter the same password twice.",
+      );
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password,
+      });
+
+      if (error) throw error;
+
+      posthog.capture("password_changed");
+      void posthog.flush();
+
+      setPasswordModalOpen(false);
+      setNewPassword("");
+      setConfirmPassword("");
+
+      Alert.alert(
+        "Password updated",
+        "Your password has been changed.",
+      );
+    } catch (e: any) {
+      Alert.alert(
+        "Update failed",
+        e?.message ?? "Please try again.",
+      );
+    } finally {
+      setChangingPassword(false);
+    }
+  }, [confirmPassword, newPassword]);
+
+  const handleDeleteAccount = React.useCallback(() => {
+    if (startingDeletion || profileSaveRef.current) return;
+
+    Alert.alert(
+      "Delete your account?",
+      "This permanently deletes your account and gig history. Your profile photo, saved profile and gig reminders will be cleared from this device. Transaction records are retained without the account link for refunds and to prevent reuse. Contributions are not automatically refunded.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete account",
+          style: "destructive",
+          onPress: async () => {
+            setStartingDeletion(true);
+
+            try {
+              await beginAccountDeletion();
+            } catch (error) {
+              setStartingDeletion(false);
+
+              Alert.alert(
+                "Deletion could not start",
+                error instanceof Error
+                  ? error.message
+                  : "Please retry.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  }, [startingDeletion]);
 
   const handleLogout = React.useCallback(() => {
-    Alert.alert("Log out", "Are you sure you want to log out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Log out",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await supabase.auth.signOut();
-            posthog.capture("logout_completed");
-            posthog.reset();
-          } catch (e: any) {
-            Alert.alert("Logout failed", e?.message ?? "Please try again.");
-          }
+    Alert.alert(
+      "Log out",
+      "Are you sure you want to log out?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
         },
-      },
-    ]);
+        {
+          text: "Log out",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await supabase.auth.signOut();
+
+              posthog.capture("logout_completed");
+              posthog.reset();
+            } catch (e: any) {
+              Alert.alert(
+                "Logout failed",
+                e?.message ?? "Please try again.",
+              );
+            }
+          },
+        },
+      ],
+    );
   }, []);
 
   const handleExportGigs = React.useCallback(async () => {
     if (exportingGigs) return;
 
     setExportingGigs(true);
+
     try {
       const res = await apiGet<GigsResponse>("/gigs");
       const gigs = res.gigs ?? [];
@@ -508,7 +712,11 @@ const submitPasswordChange = React.useCallback(async () => {
         return;
       }
 
-      const csv = buildGigCsv({ gigs, firstGigId, favouriteGigId });
+      const csv = buildGigCsv({
+        gigs,
+        firstGigId,
+        favouriteGigId,
+      });
 
       const exportDate = formatDisplayDate(new Date());
       const safeDate = exportDate.replace(/\s+/g, "-");
@@ -539,7 +747,10 @@ const submitPasswordChange = React.useCallback(async () => {
         url: fileUri,
       });
     } catch (e: any) {
-      Alert.alert("Export failed", e?.message ?? "Could not export gigs.");
+      Alert.alert(
+        "Export failed",
+        e?.message ?? "Could not export gigs.",
+      );
     } finally {
       setExportingGigs(false);
     }
@@ -561,11 +772,15 @@ const submitPasswordChange = React.useCallback(async () => {
     if (!shareCardRef.current || sharingProfile) return;
 
     setSharingProfile(true);
+
     try {
       const available = await Sharing.isAvailableAsync();
 
       if (!available) {
-        Alert.alert("Unavailable", "Sharing is not available on this device.");
+        Alert.alert(
+          "Unavailable",
+          "Sharing is not available on this device.",
+        );
         return;
       }
 
@@ -580,7 +795,9 @@ const submitPasswordChange = React.useCallback(async () => {
       });
 
       try {
-        await FileSystem.deleteAsync(targetUri, { idempotent: true });
+        await FileSystem.deleteAsync(targetUri, {
+          idempotent: true,
+        });
       } catch {}
 
       await FileSystem.copyAsync({
@@ -606,7 +823,10 @@ const submitPasswordChange = React.useCallback(async () => {
         },
       );
     } catch (e: any) {
-      Alert.alert("Share failed", e?.message ?? "Could not share profile.");
+      Alert.alert(
+        "Share failed",
+        e?.message ?? "Could not share profile.",
+      );
     } finally {
       setSharingProfile(false);
     }
@@ -616,11 +836,16 @@ const submitPasswordChange = React.useCallback(async () => {
   const totalGigs = stats?.total ?? 0;
   const topArtist = stats?.topArtist ?? "—";
   const topVenue = stats?.topVenue ?? "—";
-  const selectedPreset = avatarPresets.find((p) => p.id === avatarPreset);
+  const selectedPreset = avatarPresets.find(
+    (preset) => preset.id === avatarPreset,
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.body}>
+      <ScrollView
+        ref={scrollRef}
+        contentContainerStyle={styles.body}
+      >
         <View style={styles.profileHero}>
           <Pressable
             disabled={!profileReady || profileSaving}
@@ -631,13 +856,23 @@ const submitPasswordChange = React.useCallback(async () => {
             ]}
           >
             {avatarUri ? (
-              <Image source={{ uri: avatarUri }} style={styles.avatarImage}
+              <Image
+                source={{ uri: avatarUri }}
+                style={styles.avatarImage}
                 onError={() => {
                   setAvatarUri("");
-                  Alert.alert("Photo unavailable", "Please select your profile photo again. Your saved name has been kept.");
-                }} />
+
+                  Alert.alert(
+                    "Photo unavailable",
+                    "Please select your profile photo again. Your saved name has been kept.",
+                  );
+                }}
+              />
             ) : selectedPreset ? (
-              <Image source={selectedPreset.image} style={styles.avatarImage} />
+              <Image
+                source={selectedPreset.image}
+                style={styles.avatarImage}
+              />
             ) : (
               <Text style={styles.avatarText}>
                 {rawDisplayName.slice(0, 1).toUpperCase()}
@@ -669,7 +904,9 @@ const submitPasswordChange = React.useCallback(async () => {
                     pressed ? { opacity: 0.82 } : null,
                   ]}
                 >
-                  <Text style={styles.name}>{rawDisplayName}</Text>
+                  <Text style={styles.name}>
+                    {rawDisplayName}
+                  </Text>
                 </Pressable>
               )}
 
@@ -702,11 +939,14 @@ const submitPasswordChange = React.useCallback(async () => {
         ) : null}
 
         <SectionTitle title="Notifications" />
+
         <View style={styles.card}>
           <View style={styles.toggleGroup}>
             <View style={styles.toggleRowNoBorder}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.toggleTitle}>Gig reminders</Text>
+                <Text style={styles.toggleTitle}>
+                  Gig reminders
+                </Text>
                 <Text style={styles.toggleSubtitle}>
                   Get a reminder the day before
                 </Text>
@@ -716,14 +956,20 @@ const submitPasswordChange = React.useCallback(async () => {
                 value={gigReminderEnabled}
                 onValueChange={() => void toggleGigReminder()}
                 trackColor={SWITCH_TRACK_COLORS}
-                thumbColor={Platform.OS === "android" ? "#FFFFFF" : undefined}
+                thumbColor={
+                  Platform.OS === "android"
+                    ? "#FFFFFF"
+                    : undefined
+                }
                 ios_backgroundColor={SWITCH_TRACK_COLORS.false}
               />
             </View>
 
             <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.toggleTitle}>Rate your gigs</Text>
+                <Text style={styles.toggleTitle}>
+                  Rate your gigs
+                </Text>
                 <Text style={styles.toggleSubtitle}>
                   Get reminded to rate gigs
                 </Text>
@@ -733,7 +979,11 @@ const submitPasswordChange = React.useCallback(async () => {
                 value={rateReminderEnabled}
                 onValueChange={() => void toggleRateReminder()}
                 trackColor={SWITCH_TRACK_COLORS}
-                thumbColor={Platform.OS === "android" ? "#FFFFFF" : undefined}
+                thumbColor={
+                  Platform.OS === "android"
+                    ? "#FFFFFF"
+                    : undefined
+                }
                 ios_backgroundColor={SWITCH_TRACK_COLORS.false}
               />
             </View>
@@ -741,6 +991,7 @@ const submitPasswordChange = React.useCallback(async () => {
         </View>
 
         <SectionTitle title="Account" />
+
         <View style={styles.card}>
           <ActionRow
             title="Change password"
@@ -750,21 +1001,57 @@ const submitPasswordChange = React.useCallback(async () => {
           <ActionRow
             title="Log out"
             subtitle="Sign out of this device"
-            onPress={handleLogout}
+            onPress={
+              startingDeletion ? undefined : handleLogout
+            }
+          />
+          <ActionRow
+            title={
+              startingDeletion
+                ? "Starting deletion…"
+                : "Delete account"
+            }
+            subtitle="Permanently remove your account and gig history"
+            onPress={
+              startingDeletion
+                ? undefined
+                : handleDeleteAccount
+            }
             isLast
           />
         </View>
 
         <SectionTitle title="Support" />
-        <Pressable accessibilityRole="button" onPress={onSupport} disabled={!onSupport}
-          style={({ pressed }) => [styles.supportRow, pressed && { opacity: 0.8 }]}>
-          <Ionicons name="heart-outline" size={26} color="#A88742" />
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={onSupport}
+          disabled={!onSupport}
+          style={({ pressed }) => [
+            styles.supportRow,
+            pressed && { opacity: 0.8 },
+          ]}
+        >
+          <Ionicons
+            name="heart-outline"
+            size={26}
+            color="#A88742"
+          />
           <View style={{ flex: 1 }}>
-            <Text style={styles.actionTitle}>Support WeGig</Text>
-            <Text style={styles.actionSubtitle}>Help keep the app independent</Text>
+            <Text style={styles.actionTitle}>
+              Support WeGig
+            </Text>
+            <Text style={styles.actionSubtitle}>
+              Help keep the app independent
+            </Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={Colours.text.muted} />
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={Colours.text.muted}
+          />
         </Pressable>
+
         <View style={styles.card}>
           <ActionRow
             title="Our story"
@@ -807,7 +1094,9 @@ const submitPasswordChange = React.useCallback(async () => {
               size={34}
               color={Colours.text.primary}
             />
-            <Text style={styles.socialIconLabel}>@wegigmusic</Text>
+            <Text style={styles.socialIconLabel}>
+              @wegigmusic
+            </Text>
           </Pressable>
 
           <Pressable
@@ -823,16 +1112,27 @@ const submitPasswordChange = React.useCallback(async () => {
               size={34}
               color={Colours.text.primary}
             />
-            <Text style={styles.socialIconLabel}>@wegig</Text>
+            <Text style={styles.socialIconLabel}>
+              @wegig
+            </Text>
           </Pressable>
         </View>
 
-        <Text style={styles.versionText}>WeGig {APP_VERSION}</Text>
+        <Text style={styles.versionText}>
+          WeGig {APP_VERSION}
+        </Text>
+
         <View style={{ height: 20 }} />
       </ScrollView>
 
-      <View style={styles.hiddenShareLayer} pointerEvents="none">
-        <ViewShot ref={shareCardRef} options={{ format: "png", quality: 1 }}>
+      <View
+        style={styles.hiddenShareLayer}
+        pointerEvents="none"
+      >
+        <ViewShot
+          ref={shareCardRef}
+          options={{ format: "png", quality: 1 }}
+        >
           <View style={styles.shareCard}>
             <View style={styles.shareCardHeader}>
               <Image
@@ -870,97 +1170,123 @@ const submitPasswordChange = React.useCallback(async () => {
 
             <View style={styles.shareCardStatsRow}>
               <View style={styles.shareCardStatSmall}>
-                <Text style={styles.shareCardStatValue}>{totalGigs}</Text>
-                <Text style={styles.shareCardStatLabel}>Gigs logged</Text>
+                <Text style={styles.shareCardStatValue}>
+                  {totalGigs}
+                </Text>
+                <Text style={styles.shareCardStatLabel}>
+                  Gigs logged
+                </Text>
               </View>
 
               <View style={styles.shareCardDivider} />
 
               <View style={styles.shareCardStat}>
-                <Text style={styles.shareCardStatValue} numberOfLines={1}>
+                <Text
+                  style={styles.shareCardStatValue}
+                  numberOfLines={1}
+                >
                   {topArtist}
                 </Text>
-                <Text style={styles.shareCardStatLabel}>Top artist</Text>
+                <Text style={styles.shareCardStatLabel}>
+                  Top artist
+                </Text>
               </View>
 
               <View style={styles.shareCardDivider} />
 
               <View style={styles.shareCardStat}>
-                <Text style={styles.shareCardStatValue} numberOfLines={1}>
+                <Text
+                  style={styles.shareCardStatValue}
+                  numberOfLines={1}
+                >
                   {topVenue}
                 </Text>
-                <Text style={styles.shareCardStatLabel}>Top venue</Text>
+                <Text style={styles.shareCardStatLabel}>
+                  Top venue
+                </Text>
               </View>
             </View>
 
-            <Text style={styles.shareCardFooter}>Tracked with WeGig</Text>
+            <Text style={styles.shareCardFooter}>
+              Tracked with WeGig
+            </Text>
           </View>
         </ViewShot>
       </View>
 
-<Modal
-  visible={passwordModalOpen}
-  transparent
-  animationType="fade"
-  onRequestClose={() => setPasswordModalOpen(false)}
->
-  <View style={styles.passwordModalOverlay}>
-    <View style={styles.passwordModalCard}>
-      <Text style={styles.passwordModalTitle}>Change password</Text>
+      <Modal
+        visible={passwordModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPasswordModalOpen(false)}
+      >
+        <View style={styles.passwordModalOverlay}>
+          <View style={styles.passwordModalCard}>
+            <Text style={styles.passwordModalTitle}>
+              Change password
+            </Text>
 
-      <Text style={styles.passwordModalText}>
-        This updates your email login password.
-      </Text>
+            <Text style={styles.passwordModalText}>
+              This updates your email login password.
+            </Text>
 
-      <TextInput
-        value={newPassword}
-        onChangeText={setNewPassword}
-        placeholder="New password"
-        placeholderTextColor="rgba(255,255,255,0.42)"
-        secureTextEntry
-        autoCapitalize="none"
-        style={styles.passwordInput}
-      />
+            <TextInput
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="New password"
+              placeholderTextColor="rgba(255,255,255,0.42)"
+              secureTextEntry
+              autoCapitalize="none"
+              style={styles.passwordInput}
+            />
 
-      <TextInput
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        placeholder="Confirm password"
-        placeholderTextColor="rgba(255,255,255,0.42)"
-        secureTextEntry
-        autoCapitalize="none"
-        style={styles.passwordInput}
-      />
+            <TextInput
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm password"
+              placeholderTextColor="rgba(255,255,255,0.42)"
+              secureTextEntry
+              autoCapitalize="none"
+              style={styles.passwordInput}
+            />
 
-      <View style={styles.passwordModalActions}>
-        <Pressable
-          onPress={() => setPasswordModalOpen(false)}
-          disabled={changingPassword}
-          style={styles.passwordCancelBtn}
-        >
-          <Text style={styles.passwordCancelText}>Cancel</Text>
-        </Pressable>
+            <View style={styles.passwordModalActions}>
+              <Pressable
+                onPress={() => setPasswordModalOpen(false)}
+                disabled={changingPassword}
+                style={styles.passwordCancelBtn}
+              >
+                <Text style={styles.passwordCancelText}>
+                  Cancel
+                </Text>
+              </Pressable>
 
-        <Pressable
-          onPress={() => void submitPasswordChange()}
-          disabled={changingPassword}
-          style={[
-            styles.passwordSaveBtn,
-            changingPassword ? styles.passwordBtnDisabled : null,
-          ]}
-        >
-          <Text style={styles.passwordSaveText}>
-            {changingPassword ? "Updating…" : "Update"}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
-  </View>
-</Modal>
+              <Pressable
+                onPress={() => void submitPasswordChange()}
+                disabled={changingPassword}
+                style={[
+                  styles.passwordSaveBtn,
+                  changingPassword
+                    ? styles.passwordBtnDisabled
+                    : null,
+                ]}
+              >
+                <Text style={styles.passwordSaveText}>
+                  {changingPassword ? "Updating…" : "Update"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <AvatarPickerModal
         visible={avatarPickerVisible}
-        onClose={() => { if (!profileSaveRef.current) setAvatarPickerVisible(false); }}
+        onClose={() => {
+          if (!profileSaveRef.current) {
+            setAvatarPickerVisible(false);
+          }
+        }}
         onPickPreset={handlePickPreset}
         onUpload={handleUploadAvatar}
         onRemove={handleRemoveAvatar}
@@ -993,88 +1319,77 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-
   passwordModalOverlay: {
-  flex: 1,
-  backgroundColor: "rgba(0,0,0,0.78)",
-  alignItems: "center",
-  justifyContent: "center",
-  paddingHorizontal: 20,
-},
-
-passwordModalCard: {
-  width: "100%",
-  maxWidth: 380,
-  backgroundColor: "#17191C",
-  borderRadius: 18,
-  borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.14)",
-  padding: 18,
-},
-
-passwordModalTitle: {
-  color: Colours.text.primary,
-  fontSize: 18,
-  fontWeight: "800",
-  marginBottom: 8,
-},
-
-passwordModalText: {
-  color: Colours.text.muted,
-  fontSize: 13,
-  lineHeight: 18,
-  fontWeight: "600",
-  marginBottom: 14,
-},
-
-passwordInput: {
-  height: 48,
-  borderRadius: 14,
-  backgroundColor: "rgba(255,255,255,0.065)",
-  borderWidth: 1,
-  borderColor: "rgba(255,255,255,0.10)",
-  color: Colours.text.primary,
-  paddingHorizontal: 14,
-  fontSize: 14,
-  fontWeight: "700",
-  marginBottom: 10,
-},
-
-passwordModalActions: {
-  flexDirection: "row",
-  justifyContent: "flex-end",
-  gap: 10,
-  marginTop: 6,
-},
-
-passwordCancelBtn: {
-  paddingVertical: 9,
-  paddingHorizontal: 12,
-  borderRadius: 12,
-},
-
-passwordCancelText: {
-  color: Colours.text.muted,
-  fontWeight: "700",
-  fontSize: 13,
-},
-
-passwordSaveBtn: {
-  backgroundColor: "#2F8CFF",
-  paddingVertical: 9,
-  paddingHorizontal: 14,
-  borderRadius: 12,
-},
-
-passwordSaveText: {
-  color: "#FFFFFF",
-  fontWeight: "800",
-  fontSize: 13,
-},
-
-passwordBtnDisabled: {
-  opacity: 0.6,
-},
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.78)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  passwordModalCard: {
+    width: "100%",
+    maxWidth: 380,
+    backgroundColor: "#17191C",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+    padding: 18,
+  },
+  passwordModalTitle: {
+    color: Colours.text.primary,
+    fontSize: 18,
+    fontWeight: "800",
+    marginBottom: 8,
+  },
+  passwordModalText: {
+    color: Colours.text.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+    marginBottom: 14,
+  },
+  passwordInput: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.065)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.10)",
+    color: Colours.text.primary,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  passwordModalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 6,
+  },
+  passwordCancelBtn: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  passwordCancelText: {
+    color: Colours.text.muted,
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  passwordSaveBtn: {
+    backgroundColor: "#2F8CFF",
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  passwordSaveText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 13,
+  },
+  passwordBtnDisabled: {
+    opacity: 0.6,
+  },
   avatar: {
     width: 76,
     height: 76,
@@ -1143,7 +1458,16 @@ passwordBtnDisabled: {
     fontSize: 15,
     lineHeight: 19,
   },
-  supportRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: "#A88742", borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16 },
+  supportRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#A88742",
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
   card: {
     backgroundColor: Colours.background.card,
     borderRadius: 18,
@@ -1235,7 +1559,6 @@ passwordBtnDisabled: {
     color: Colours.text.muted,
     fontWeight: "700",
     fontSize: 13,
-    lineHeight: 17,
   },
   versionText: {
     textAlign: "center",
@@ -1350,4 +1673,3 @@ passwordBtnDisabled: {
     fontWeight: "600",
   },
 });
-

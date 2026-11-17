@@ -3,6 +3,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiDelete, apiPatch, apiPost } from "./api";
 import type { CreateGigInput, Gig } from "../shared/types/Gig";
 
+let queuePausedForDeletion = false;
+let activeFlush: Promise<{
+  sent: number;
+  remaining: number;
+  dropped: number;
+}> | null = null;
+
 const KEY = "wegig:offline:gigQueue:v2";
 
 export type QueuedAction =
@@ -138,7 +145,7 @@ async function sendQueuedAction(item: QueuedAction): Promise<void> {
   }
 }
 
-export async function flushGigQueue(): Promise<{
+async function flushGigQueueInternal(): Promise<{
   sent: number;
   remaining: number;
   dropped: number;
@@ -181,4 +188,36 @@ export async function flushGigQueue(): Promise<{
 
 export function isOfflineError(e: any): boolean {
   return isProbablyOfflineError(e);
+}
+
+export async function flushGigQueue(): Promise<{
+  sent: number;
+  remaining: number;
+  dropped: number;
+}> {
+  if (queuePausedForDeletion) {
+    return { sent: 0, remaining: 0, dropped: 0 };
+  }
+
+  if (activeFlush) return activeFlush;
+
+  activeFlush = flushGigQueueInternal();
+
+  try {
+    return await activeFlush;
+  } finally {
+    activeFlush = null;
+  }
+}
+
+export async function pauseGigQueueForDeletion(): Promise<void> {
+  queuePausedForDeletion = true;
+
+  if (activeFlush) {
+    await activeFlush;
+  }
+}
+
+export function resumeGigQueueAfterDeletion(): void {
+  queuePausedForDeletion = false;
 }

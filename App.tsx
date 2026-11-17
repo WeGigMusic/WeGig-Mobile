@@ -46,7 +46,7 @@ import FeedbackScreen from "./src/pages/FeedbackScreen";
 
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
-
+import { AccountDeletionBoundary } from "./src/components/AccountDeletionBoundary";
 type Tab = "gigs" | "discover" | "stats" | "profile";
 type ProfileRoute = "home" | "about" | "help" | "feedback" | "support";
 
@@ -531,7 +531,7 @@ function AppShell({ userId }: { userId: string }) {
   );
 }
 
-export default function App() {
+function WeGigApp() {
   const [session, setSession] = React.useState<Session | null>(
     null
   );
@@ -785,3 +785,11 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
+export default function App() {
+  return (
+    <AccountDeletionBoundary>
+      <WeGigApp />
+    </AccountDeletionBoundary>
+  );
+}

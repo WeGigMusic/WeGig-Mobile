@@ -22,6 +22,10 @@ import { CitySearchInput } from "../components/CitySearchInput";
 import { useToast } from "../components/ToastProvider";
 import { apiPost, apiGet } from "../lib/api";
 import {
+  captureAccountWork,
+  isAccountWorkCurrent,
+} from "../lib/accountWork";
+import {
   searchPastEvents,
   searchFutureEvents,
   type AppEvent,
@@ -302,6 +306,11 @@ export function AddGigScreen(
 ) {
   const { showToast } =
     useToast();
+
+  const workToken =
+    React.useRef(
+      captureAccountWork(),
+    ).current;
 
   const scrollRef =
     React.useRef<any>(null);
@@ -1183,21 +1192,38 @@ export function AddGigScreen(
   async function getExistingGigsBestEffort(): Promise<
     Gig[]
   > {
+    if (!isAccountWorkCurrent(workToken)) {
+      return [];
+    }
+
     try {
       const res =
         await apiGet<GigsResponse>(
           "/gigs",
         );
 
+      if (!isAccountWorkCurrent(workToken)) {
+        return [];
+      }
+
       const gigs =
         res?.gigs ?? [];
 
       await setCachedGigs(
         gigs,
+        workToken,
       );
+
+      if (!isAccountWorkCurrent(workToken)) {
+        return [];
+      }
 
       return gigs;
     } catch {
+      if (!isAccountWorkCurrent(workToken)) {
+        return [];
+      }
+
       return await getCachedGigs();
     }
   }
@@ -1582,6 +1608,10 @@ export function AddGigScreen(
 
   const submit =
     async () => {
+      if (!isAccountWorkCurrent(workToken)) {
+        return;
+      }
+
       const payload:
         CreateGigInput =
         {
@@ -1651,6 +1681,10 @@ export function AddGigScreen(
         const existing =
           await getExistingGigsBestEffort();
 
+        if (!isAccountWorkCurrent(workToken)) {
+          return;
+        }
+
         const duplicate =
           findDuplicate(
             existing,
@@ -1672,6 +1706,10 @@ export function AddGigScreen(
             payload,
           );
 
+        if (!isAccountWorkCurrent(workToken)) {
+          return;
+        }
+
         const nextCache =
           [
             created,
@@ -1684,7 +1722,12 @@ export function AddGigScreen(
 
         await setCachedGigs(
           nextCache,
+          workToken,
         );
+
+        if (!isAccountWorkCurrent(workToken)) {
+          return;
+        }
 
         if (
           addToCalendar
@@ -1707,6 +1750,10 @@ export function AddGigScreen(
           } catch {}
         }
 
+        if (!isAccountWorkCurrent(workToken)) {
+          return;
+        }
+
         showToast({
   message: "Gig saved",
 });
@@ -1719,13 +1766,22 @@ export function AddGigScreen(
       } catch (
         e: any
       ) {
+        if (!isAccountWorkCurrent(workToken)) {
+          return;
+        }
+
         if (
           isOfflineError(e)
         ) {
           try {
             await enqueueGig(
               payload,
+              workToken,
             );
+
+            if (!isAccountWorkCurrent(workToken)) {
+              return;
+            }
 
             Alert.alert(
               "Saved offline",
@@ -1742,6 +1798,10 @@ export function AddGigScreen(
           } catch (
             qErr: any
           ) {
+            if (!isAccountWorkCurrent(workToken)) {
+              return;
+            }
+
             Alert.alert(
               "Offline save failed",
               qErr?.message ??
@@ -1777,7 +1837,9 @@ export function AddGigScreen(
             "Failed to add gig",
         );
       } finally {
-        setLoading(false);
+        if (isAccountWorkCurrent(workToken)) {
+          setLoading(false);
+        }
       }
     };
 

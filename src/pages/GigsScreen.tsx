@@ -30,6 +30,10 @@ import {
   ApiError,
 } from "../lib/api";
 import { syncGigReminderNotifications } from "../lib/notifications";
+import {
+  captureAccountWork,
+  isAccountWorkCurrent,
+} from "../lib/accountWork";
 import type {
   Gig,
   GigsResponse,
@@ -652,6 +656,11 @@ export function GigsScreen(
   const { showToast } =
     useToast();
 
+  const workToken =
+    React.useRef(
+      captureAccountWork(),
+    ).current;
+
   const scrollY =
     React.useRef(
       new Animated.Value(
@@ -837,6 +846,10 @@ export function GigsScreen(
           background?: boolean;
         },
       ) => {
+        if (!isAccountWorkCurrent(workToken)) {
+          return;
+        }
+
         const background =
           options?.background ??
           false;
@@ -855,6 +868,10 @@ export function GigsScreen(
               "/gigs",
             );
 
+          if (!isAccountWorkCurrent(workToken)) {
+            return;
+          }
+
           const gigs =
             Array.isArray(
               res?.gigs,
@@ -872,12 +889,18 @@ export function GigsScreen(
 
           void setCachedGigs(
             gigs,
+            workToken,
           );
 
           void syncGigReminderNotifications(
             gigs,
+            workToken,
           );
         } catch (e: any) {
+          if (!isAccountWorkCurrent(workToken)) {
+            return;
+          }
+
           if (
             !background
           ) {
@@ -888,7 +911,8 @@ export function GigsScreen(
           }
         } finally {
           if (
-            !background
+            !background &&
+            isAccountWorkCurrent(workToken)
           ) {
             setLoading(
               false,
@@ -896,7 +920,7 @@ export function GigsScreen(
           }
         }
       },
-      [],
+      [workToken],
     );
 
   React.useEffect(() => {
@@ -906,11 +930,14 @@ export function GigsScreen(
     const bootstrap =
       async () => {
         await Promise.all([
-          hydrateCachedGigs(),
+          hydrateCachedGigs(workToken),
           hydrateArtistImageCache(),
         ]);
 
-        if (cancelled) {
+        if (
+          cancelled ||
+          !isAccountWorkCurrent(workToken)
+        ) {
           return;
         }
 
@@ -960,6 +987,7 @@ export function GigsScreen(
   }, [
     load,
     loadPinnedGigIds,
+    workToken,
   ]);
 
   React.useEffect(() => {

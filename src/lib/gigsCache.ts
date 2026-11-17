@@ -1,93 +1,88 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type {
-  Gig,
-  CreateGigInput,
-} from "../shared/types/Gig";
+import type { Gig, CreateGigInput } from "../shared/types/Gig";
+import {
+  captureAccountWork,
+  isAccountWorkCurrent,
+  runAccountWork,
+  type AccountWorkToken,
+} from "./accountWork";
 
-const GIGS_CACHE_KEY =
-  "wegig:gigs:cache:v1";
-
-const GIGS_CACHE_META_KEY =
-  "wegig:gigs:cacheMeta:v1";
+const GIGS_CACHE_KEY = "wegig:gigs:cache:v1";
+const GIGS_CACHE_META_KEY = "wegig:gigs:cacheMeta:v1";
 
 let gigsCache: Gig[] = [];
 let lastUpdatedAt = 0;
 
-export async function hydrateCachedGigs() {
-  try {
-    const entries =
-      await AsyncStorage.multiGet([
+export async function hydrateCachedGigs(
+  token: AccountWorkToken = captureAccountWork(),
+): Promise<void> {
+  await runAccountWork(token, async () => {
+    try {
+      const entries = await AsyncStorage.multiGet([
         GIGS_CACHE_KEY,
         GIGS_CACHE_META_KEY,
       ]);
 
-    const gigsRaw =
-      entries[0]?.[1] ?? null;
+      if (!isAccountWorkCurrent(token)) return;
 
-    const metaRaw =
-      entries[1]?.[1] ?? null;
+      const gigsRaw = entries[0]?.[1] ?? null;
+      const metaRaw = entries[1]?.[1] ?? null;
 
-    try {
-      const parsed =
-        gigsRaw
-          ? JSON.parse(gigsRaw)
-          : [];
+      try {
+        const parsed = gigsRaw ? JSON.parse(gigsRaw) : [];
+        gigsCache = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        gigsCache = [];
+      }
 
-      gigsCache =
-        Array.isArray(parsed)
-          ? parsed
-          : [];
+      try {
+        const meta = metaRaw ? JSON.parse(metaRaw) : null;
+        lastUpdatedAt =
+          typeof meta?.lastUpdatedAt === "number"
+            ? meta.lastUpdatedAt
+            : 0;
+      } catch {
+        lastUpdatedAt = 0;
+      }
     } catch {
+      if (!isAccountWorkCurrent(token)) return;
+
       gigsCache = [];
-    }
-
-    try {
-      const meta =
-        metaRaw
-          ? JSON.parse(metaRaw)
-          : null;
-
-      lastUpdatedAt =
-        typeof meta?.lastUpdatedAt ===
-        "number"
-          ? meta.lastUpdatedAt
-          : 0;
-    } catch {
       lastUpdatedAt = 0;
     }
-  } catch {
-    gigsCache = [];
-    lastUpdatedAt = 0;
-  }
+  });
 }
 
 export async function setCachedGigs(
   next: Gig[],
-) {
-  gigsCache =
-    Array.isArray(next)
-      ? next
-      : [];
+  token: AccountWorkToken = captureAccountWork(),
+): Promise<void> {
+  await runAccountWork(token, async () => {
+    gigsCache = Array.isArray(next) ? next : [];
+    lastUpdatedAt = Date.now();
 
-  lastUpdatedAt =
-    Date.now();
+    try {
+      await AsyncStorage.multiSet([
+        [GIGS_CACHE_KEY, JSON.stringify(gigsCache)],
+        [
+          GIGS_CACHE_META_KEY,
+          JSON.stringify({ lastUpdatedAt }),
+        ],
+      ]);
+    } catch {}
+  });
+}
 
-  try {
-    await AsyncStorage.multiSet([
-      [
-        GIGS_CACHE_KEY,
-        JSON.stringify(
-          gigsCache,
-        ),
-      ],
-      [
-        GIGS_CACHE_META_KEY,
-        JSON.stringify({
-          lastUpdatedAt,
-        }),
-      ],
-    ]);
-  } catch {}
+// Deletion cleanup must work while normal account work is paused.
+// Storage failures propagate so cleanup can be retried.
+export async function clearCachedGigsForDeletion(): Promise<void> {
+  gigsCache = [];
+  lastUpdatedAt = 0;
+
+  await AsyncStorage.multiRemove([
+    GIGS_CACHE_KEY,
+    GIGS_CACHE_META_KEY,
+  ]);
 }
 
 export function getCachedGigs(): Gig[] {
@@ -101,14 +96,8 @@ export function getCachedGigsMeta() {
   };
 }
 
-function norm(
-  value: unknown,
-) {
-  return String(
-    value ?? "",
-  )
-    .trim()
-    .toLowerCase();
+function norm(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 export function findDuplicateGig(
@@ -118,82 +107,34 @@ export function findDuplicateGig(
   },
   gigs: Gig[] = gigsCache,
 ): Gig | null {
-  const artist =
-    norm(
-      (draft as any).artist,
-    );
-
-  const venue =
-    norm(
-      (draft as any).venue,
-    );
-
-  const city =
-    norm(
-      (draft as any).city,
-    );
-
-  const date =
-    norm(
-      (draft as any).date,
-    );
-
-  const externalSource =
-    norm(
-      (draft as any)
-        .externalSource,
-    );
-
-  const externalId =
-    norm(
-      (draft as any)
-        .externalId,
-    );
+  const artist = norm(draft.artist);
+  const venue = norm(draft.venue);
+  const city = norm(draft.city);
+  const date = norm(draft.date);
+  const externalSource = norm(draft.externalSource);
+  const externalId = norm(draft.externalId);
 
   return (
     gigs.find((gig) => {
-      const gigExternalSource =
-        norm(
-          (gig as any)
-            .externalSource,
-        );
-
-      const gigExternalId =
-        norm(
-          (gig as any)
-            .externalId,
-        );
-
-      const matchesExternal =
-        Boolean(
-          externalSource &&
-            externalId &&
-            gigExternalSource ===
-              externalSource &&
-            gigExternalId ===
-              externalId,
-        );
-
-      const matchesManual =
-        Boolean(
-          artist &&
-            venue &&
-            city &&
-            date &&
-            norm(gig.artist) ===
-              artist &&
-            norm(gig.venue) ===
-              venue &&
-            norm(gig.city) ===
-              city &&
-            norm(gig.date) ===
-              date,
-        );
-
-      return (
-        matchesExternal ||
-        matchesManual
+      const matchesExternal = Boolean(
+        externalSource &&
+          externalId &&
+          norm(gig.externalSource) === externalSource &&
+          norm(gig.externalId) === externalId,
       );
+
+      const matchesManual = Boolean(
+        artist &&
+          venue &&
+          city &&
+          date &&
+          norm(gig.artist) === artist &&
+          norm(gig.venue) === venue &&
+          norm(gig.city) === city &&
+          norm(gig.date) === date,
+      );
+
+      return matchesExternal || matchesManual;
     }) ?? null
   );
 }

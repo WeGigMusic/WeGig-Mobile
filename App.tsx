@@ -43,7 +43,10 @@ import ResetPasswordScreen from "./src/pages/ResetPasswordScreen";
 import AboutPrivacyScreen from "./src/pages/AboutPrivacyScreen";
 import HelpScreen from "./src/pages/HelpScreen";
 import FeedbackScreen from "./src/pages/FeedbackScreen";
-
+import {
+  captureAccountWork,
+  isAccountWorkCurrent,
+} from "./src/lib/accountWork";
 import type { CreateGigInput } from "./src/shared/types/Gig";
 import { Colours } from "./src/theme/colours";
 import { AccountDeletionBoundary } from "./src/components/AccountDeletionBoundary";
@@ -260,6 +263,9 @@ function AppShell({ userId }: { userId: string }) {
   }, []);
 
   const runSync = React.useCallback(async () => {
+    const workToken = captureAccountWork();
+
+    if (!isAccountWorkCurrent(workToken)) return;
     if (syncInFlightRef.current) return;
 
     syncInFlightRef.current = true;
@@ -267,18 +273,26 @@ function AppShell({ userId }: { userId: string }) {
     try {
       const online = await checkOnline();
 
+      if (!isAccountWorkCurrent(workToken)) return;
+
       await refreshQueuedCount();
 
-      if (!online) return;
+      if (!online || !isAccountWorkCurrent(workToken)) return;
 
       setSyncing(true);
 
       try {
         const before = await getQueuedGigsCount();
 
-        await flushGigQueue();
+        if (!isAccountWorkCurrent(workToken)) return;
+
+        await flushGigQueue(workToken);
+
+        if (!isAccountWorkCurrent(workToken)) return;
 
         const after = await getQueuedGigsCount();
+
+        if (!isAccountWorkCurrent(workToken)) return;
 
         setQueuedCount(after);
 
@@ -290,13 +304,17 @@ function AppShell({ userId }: { userId: string }) {
           }
 
           justSyncedTimeoutRef.current = setTimeout(() => {
+            if (!isAccountWorkCurrent(workToken)) return;
+
             setJustSynced(false);
           }, 1800);
 
           setRefreshKey((k) => k + 1);
         }
       } finally {
-        setSyncing(false);
+        if (isAccountWorkCurrent(workToken)) {
+          setSyncing(false);
+        }
       }
     } finally {
       syncInFlightRef.current = false;

@@ -1,7 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
-import type { Gig } from "../shared/types/Gig";
 import { Platform } from "react-native";
+import type { Gig } from "../shared/types/Gig";
+import {
+  captureAccountWork,
+  isAccountWorkCurrent,
+  runAccountWork,
+  type AccountWorkToken,
+} from "./accountWork";
 
 const NOTIFICATION_IDS_KEY = "wegig.notificationIds";
 const NOTIFY_GIG_REMINDER_KEY = "wegig.notifyGigReminder";
@@ -16,6 +22,7 @@ type StoredNotificationIds = Record<
 >;
 
 let configured = false;
+let reminderTail: Promise<void> = Promise.resolve();
 
 export function configureNotificationBehaviour() {
   if (configured) return;
@@ -34,7 +41,11 @@ export function configureNotificationBehaviour() {
 export async function ensureNotificationPermissions(): Promise<boolean> {
   const existing = await Notifications.getPermissionsAsync();
 
-  if (existing.granted || existing.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+  if (
+    existing.granted ||
+    existing.ios?.status ===
+      Notifications.IosAuthorizationStatus.PROVISIONAL
+  ) {
     return true;
   }
 
@@ -42,7 +53,8 @@ export async function ensureNotificationPermissions(): Promise<boolean> {
 
   return (
     requested.granted ||
-    requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+    requested.ios?.status ===
+      Notifications.IosAuthorizationStatus.PROVISIONAL
   );
 }
 
@@ -57,15 +69,21 @@ export async function configureNotificationChannel() {
 }
 
 function parseLocalYmd(value?: string): Date | null {
-  const raw = String(value ?? "").trim();
-  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const match = String(value ?? "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
   if (!match) return null;
 
-  const year = Number(match[1]);
-  const monthIndex = Number(match[2]) - 1;
-  const day = Number(match[3]);
-
-  return new Date(year, monthIndex, day, 0, 0, 0, 0);
+  return new Date(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    0,
+    0,
+    0,
+    0,
+  );
 }
 
 function atLocalTime(base: Date, hour: number, minute: number) {
@@ -77,28 +95,39 @@ function atLocalTime(base: Date, hour: number, minute: number) {
 function getDayBeforeReminderTime(gigDate: Date) {
   const base = new Date(gigDate);
   base.setDate(base.getDate() - 1);
-  return atLocalTime(base, 19, 0); // 7pm local
+  return atLocalTime(base, 19, 0);
 }
 
 function getDayAfterRatingReminderTime(gigDate: Date) {
   const base = new Date(gigDate);
   base.setDate(base.getDate() + 1);
-  return atLocalTime(base, 11, 0); // 11am local
+  return atLocalTime(base, 11, 0);
 }
 
 async function loadStoredNotificationIds(): Promise<StoredNotificationIds> {
   try {
     const raw = await AsyncStorage.getItem(NOTIFICATION_IDS_KEY);
     if (!raw) return {};
-    const parsed = JSON.parse(raw) as StoredNotificationIds;
-    return parsed && typeof parsed === "object" ? parsed : {};
+
+    const parsed = JSON.parse(raw);
+
+    return parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+      ? parsed
+      : {};
   } catch {
     return {};
   }
 }
 
-async function saveStoredNotificationIds(value: StoredNotificationIds) {
-  await AsyncStorage.setItem(NOTIFICATION_IDS_KEY, JSON.stringify(value));
+async function saveStoredNotificationIds(
+  value: StoredNotificationIds,
+) {
+  await AsyncStorage.setItem(
+    NOTIFICATION_IDS_KEY,
+    JSON.stringify(value),
+  );
 }
 
 async function cancelNotificationId(id?: string) {
@@ -109,18 +138,16 @@ async function cancelNotificationId(id?: string) {
   } catch {}
 }
 
-async function cancelAllTrackedNotifications() {
-  const stored = await loadStoredNotificationIds();
-
+async function cancelTrackedNotifications(
+  stored: StoredNotificationIds,
+) {
   await Promise.all(
     Object.values(stored).flatMap((entry) =>
-      [entry.dayBeforeId, entry.rateReminderId].filter(Boolean).map((id) =>
-        cancelNotificationId(id),
-      ),
+      [entry.dayBeforeId, entry.rateReminderId]
+        .filter((id): id is string => Boolean(id))
+        .map((id) => cancelNotificationId(id)),
     ),
   );
-
-  await saveStoredNotificationIds({});
 }
 
 async function scheduleOneOffNotification(params: {
@@ -129,7 +156,7 @@ async function scheduleOneOffNotification(params: {
   date: Date;
   data: Record<string, string>;
 }) {
-  const identifier = await Notifications.scheduleNotificationAsync({
+  return Notifications.scheduleNotificationAsync({
     content: {
       title: params.title,
       body: params.body,
@@ -139,49 +166,66 @@ async function scheduleOneOffNotification(params: {
     trigger: {
       type: Notifications.SchedulableTriggerInputTypes.DATE,
       date: params.date,
-      channelId: Platform.OS === "android" ? "gig-reminders" : undefined,
+      channelId:
+        Platform.OS === "android" ? "gig-reminders" : undefined,
     },
   });
-
-  return identifier;
 }
 
-export async function syncGigReminderNotifications(gigs: Gig[]) {
+async function syncReminders(
+  gigs: Gig[],
+  token: AccountWorkToken,
+): Promise<void> {
+  if (!isAccountWorkCurrent(token)) return;
+
   configureNotificationBehaviour();
   await configureNotificationChannel();
+
+  if (!isAccountWorkCurrent(token)) return;
 
   const [gigReminderRaw, rateReminderRaw] = await Promise.all([
     AsyncStorage.getItem(NOTIFY_GIG_REMINDER_KEY),
     AsyncStorage.getItem(NOTIFY_RATE_REMINDER_KEY),
   ]);
 
-  const gigReminderEnabled = gigReminderRaw == null ? true : gigReminderRaw === "1";
-  const rateReminderEnabled = rateReminderRaw == null ? true : rateReminderRaw === "1";
+  if (!isAccountWorkCurrent(token)) return;
+
+  const gigReminderEnabled =
+    gigReminderRaw == null || gigReminderRaw === "1";
+  const rateReminderEnabled =
+    rateReminderRaw == null || rateReminderRaw === "1";
 
   if (!gigReminderEnabled && !rateReminderEnabled) {
-    await cancelAllTrackedNotifications();
+    const stored = await loadStoredNotificationIds();
+
+    if (!isAccountWorkCurrent(token)) return;
+
+    await cancelTrackedNotifications(stored);
+
+    if (!isAccountWorkCurrent(token)) return;
+
+    await saveStoredNotificationIds({});
     return;
   }
 
   const hasPermission = await ensureNotificationPermissions();
-  if (!hasPermission) {
-    return;
-  }
+
+  if (!hasPermission || !isAccountWorkCurrent(token)) return;
 
   const existing = await loadStoredNotificationIds();
 
-  await Promise.all(
-    Object.values(existing).flatMap((entry) =>
-      [entry.dayBeforeId, entry.rateReminderId].filter(Boolean).map((id) =>
-        cancelNotificationId(id),
-      ),
-    ),
-  );
+  if (!isAccountWorkCurrent(token)) return;
+
+  await cancelTrackedNotifications(existing);
+
+  if (!isAccountWorkCurrent(token)) return;
 
   const now = new Date();
   const nextStored: StoredNotificationIds = {};
 
   for (const gig of gigs) {
+    if (!isAccountWorkCurrent(token)) return;
+
     const gigDate = parseLocalYmd(gig.date);
     if (!gigDate) continue;
 
@@ -193,7 +237,9 @@ export async function syncGigReminderNotifications(gigs: Gig[]) {
       if (dayBeforeAt.getTime() > now.getTime()) {
         perGig.dayBeforeId = await scheduleOneOffNotification({
           title: "Gig tomorrow",
-          body: `${gig.artist} at ${gig.venue}${gig.city ? ` • ${gig.city}` : ""}`,
+          body: `${gig.artist} at ${gig.venue}${
+            gig.city ? ` • ${gig.city}` : ""
+          }`,
           date: dayBeforeAt,
           data: {
             type: "gig_reminder",
@@ -202,6 +248,8 @@ export async function syncGigReminderNotifications(gigs: Gig[]) {
         });
       }
     }
+
+    if (!isAccountWorkCurrent(token)) return;
 
     if (rateReminderEnabled && typeof gig.rating !== "number") {
       const dayAfterAt = getDayAfterRatingReminderTime(gigDate);
@@ -224,5 +272,23 @@ export async function syncGigReminderNotifications(gigs: Gig[]) {
     }
   }
 
+  if (!isAccountWorkCurrent(token)) return;
+
   await saveStoredNotificationIds(nextStored);
+}
+
+export async function syncGigReminderNotifications(
+  gigs: Gig[],
+  token: AccountWorkToken = captureAccountWork(),
+): Promise<void> {
+  await runAccountWork(token, async () => {
+    // Run reminder updates in order so two screens cannot schedule
+    // overlapping sets of reminders at the same time.
+    const task = reminderTail.then(() => syncReminders(gigs, token));
+
+    // Keep later updates usable even if this update fails.
+    reminderTail = task.catch(() => {});
+
+    await task;
+  });
 }

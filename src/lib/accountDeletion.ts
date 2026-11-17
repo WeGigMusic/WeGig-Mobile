@@ -4,12 +4,16 @@ import { apiDelete } from "./api";
 import { supabase } from "./supabase";
 import { posthog } from "./analytics";
 import { deleteLocalProfile } from "./localProfile";
-import { setCachedGigs } from "./gigsCache";
+import { clearCachedGigsForDeletion } from "./gigsCache";
 import {
   clearQueue,
   pauseGigQueueForDeletion,
   resumeGigQueueAfterDeletion,
 } from "./offlineQueue";
+import {
+  pauseAccountWorkForDeletion,
+  resumeAccountWorkAfterDeletion,
+} from "./accountWork";
 
 const PENDING_KEY = "wegig.accountDeletionPending";
 const listeners = new Set<() => void>();
@@ -29,19 +33,24 @@ export type PendingDeletion = {
   serverDeleted: boolean;
 };
 
-export async function getPendingAccountDeletion():
-Promise<PendingDeletion | null> {
+export async function getPendingAccountDeletion(): Promise<
+  PendingDeletion | null
+> {
   const stored = await AsyncStorage.getItem(PENDING_KEY);
   if (!stored) return null;
 
   const value = JSON.parse(stored);
 
   if (
+    !value ||
+    typeof value !== "object" ||
     typeof value.userId !== "string" ||
     !value.userId ||
     typeof value.serverDeleted !== "boolean"
   ) {
-    throw new Error("Account deletion recovery data could not be read.");
+    throw new Error(
+      "Account deletion recovery data could not be read.",
+    );
   }
 
   return value;
@@ -51,26 +60,31 @@ export function subscribeToAccountDeletion(
   listener: () => void,
 ): () => void {
   listeners.add(listener);
+
   return () => {
     listeners.delete(listener);
   };
 }
 
 function notifyListeners(): void {
-  listeners.forEach(listener => listener());
+  listeners.forEach((listener) => listener());
 }
 
 export async function beginAccountDeletion(): Promise<void> {
   const { data, error } = await supabase.auth.getSession();
 
   if (error || !data.session) {
-    throw new Error("Please sign in again before deleting your account.");
+    throw new Error(
+      "Please sign in again before deleting your account.",
+    );
   }
 
   const existing = await getPendingAccountDeletion();
 
   if (existing && existing.userId !== data.session.user.id) {
-    throw new Error("Another account has unfinished deletion cleanup.");
+    throw new Error(
+      "Another account has unfinished deletion cleanup.",
+    );
   }
 
   const pending: PendingDeletion = existing ?? {
@@ -78,7 +92,11 @@ export async function beginAccountDeletion(): Promise<void> {
     serverDeleted: false,
   };
 
-  await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+  await AsyncStorage.setItem(
+    PENDING_KEY,
+    JSON.stringify(pending),
+  );
+
   notifyListeners();
 }
 
@@ -86,9 +104,14 @@ export async function deleteMyAccount(): Promise<void> {
   const pending = await getPendingAccountDeletion();
 
   if (!pending) {
-    throw new Error("No confirmed account deletion is pending.");
+    throw new Error(
+      "No confirmed account deletion is pending.",
+    );
   }
 
+  // Block new account work and wait for existing work to settle
+  // before deleting server data or clearing local storage.
+  await pauseAccountWorkForDeletion();
   await pauseGigQueueForDeletion();
 
   if (!pending.serverDeleted) {
@@ -100,28 +123,39 @@ export async function deleteMyAccount(): Promise<void> {
       );
     }
 
-    const result = await apiDelete<{ deleted: boolean }>("/account", {
-      confirmation: "DELETE",
-    });
+    const result = await apiDelete<{ deleted: boolean }>(
+      "/account",
+      {
+        confirmation: "DELETE",
+      },
+    );
 
     if (result?.deleted !== true) {
-      throw new Error("Deletion could not be confirmed. Please retry.");
+      throw new Error(
+        "Deletion could not be confirmed. Please retry.",
+      );
     }
 
     pending.serverDeleted = true;
-    await AsyncStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+
+    await AsyncStorage.setItem(
+      PENDING_KEY,
+      JSON.stringify(pending),
+    );
   }
 
   await clearQueue();
   await Notifications.cancelAllScheduledNotificationsAsync();
   await Notifications.dismissAllNotificationsAsync();
   await deleteLocalProfile(pending.userId);
-  await setCachedGigs([]);
+  await clearCachedGigsForDeletion();
   await AsyncStorage.multiRemove(LOCAL_KEYS);
 
   posthog.reset();
 
-  const result = await supabase.auth.signOut({ scope: "local" });
+  const result = await supabase.auth.signOut({
+    scope: "local",
+  });
 
   if (result.error) {
     throw new Error(
@@ -129,7 +163,12 @@ export async function deleteMyAccount(): Promise<void> {
     );
   }
 
+  // Resume work only after all cleanup succeeds. The generation
+  // remains changed, so work from before deletion stays invalid.
   await AsyncStorage.removeItem(PENDING_KEY);
+
   resumeGigQueueAfterDeletion();
+  resumeAccountWorkAfterDeletion();
+
   notifyListeners();
 }

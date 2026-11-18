@@ -53,7 +53,7 @@ export default function AboutPrivacyScreen({
           <Text style={styles.sectionTitle}>Privacy Policy</Text>
 
           <Text style={styles.body}>
-            Last updated: 17 November 2026
+            Last updated: 18 November 2026
             {"\n\n"}
             WeGig is operated by WeGig Limited. This policy explains how
             we use your information and the choices you have.
@@ -118,7 +118,7 @@ export default function AboutPrivacyScreen({
             {"\n\n"}
             Contact
             {"\n\n"}
-            Email: wegigapp@proton.me
+            Email: help-wegig@proton.me
             {"\n\n"}
             If you are unhappy with how we handle your information, you
             can also complain to the UK Information Commissioner’s Office

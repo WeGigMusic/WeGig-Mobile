@@ -431,24 +431,20 @@ export function ProfileScreen({
     setEditingDisplayName(true);
   }, [displayName]);
 
-  const persistProfile = React.useCallback(
-    async (next: LocalProfile) => {
-      await saveLocalProfile(profileUserId, next);
-
-      const previousFile = profileRef.current.avatarFile;
-
-      profileRef.current = next;
-      await applyProfile(profileUserId, next);
-
-      if (previousFile && previousFile !== next.avatarFile) {
-        await deleteProfilePhoto(
-          profileUserId,
-          previousFile,
-        ).catch(() => {});
-      }
-    },
-    [profileUserId, applyProfile],
-  );
+  const persistProfile = React.useCallback(async (next: LocalProfile) => {
+    if (!profileReady || !profileUserId) throw new Error("Your profile is still loading.");
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user.id !== profileUserId) {
+      throw new Error("The signed-in account changed. Please reopen Profile.");
+    }
+    await saveLocalProfile(profileUserId, next);
+    const previousFile = profileRef.current.avatarFile;
+    profileRef.current = next;
+    await applyProfile(profileUserId, next);
+    if (previousFile && previousFile !== next.avatarFile) {
+      await deleteProfilePhoto(profileUserId, previousFile).catch(() => {});
+    }
+  }, [profileReady, profileUserId, applyProfile]);
 
   const saveDisplayName = React.useCallback(async () => {
     if (!profileReady || profileSaveRef.current) return;

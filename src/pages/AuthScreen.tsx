@@ -25,6 +25,14 @@ WebBrowser.maybeCompleteAuthSession();
 
 const HAPTICS_KEY = "wegig.hapticsEnabled";
 
+async function openLegalPage(page: "privacy" | "terms") {
+  try {
+    await Linking.openURL(`https://www.wegig.live/${page}/`);
+  } catch {
+    Alert.alert("Unable to open page", "Please try again.");
+  }
+}
+
 const APPLE_LOGIN_ENABLED = Platform.OS === "ios";
 
 type SocialProvider = "google";
@@ -649,6 +657,24 @@ export default function AuthScreen() {
               Continue with Apple
             </Text>
           </PremiumButton>
+
+          <View style={styles.legalLinks}>
+            <Text
+              accessibilityRole="link"
+              style={styles.legalLink}
+              onPress={() => void openLegalPage("privacy")}
+            >
+              Privacy Policy
+            </Text>
+            <Text style={styles.legalLink}>|</Text>
+            <Text
+              accessibilityRole="link"
+              style={styles.legalLink}
+              onPress={() => void openLegalPage("terms")}
+            >
+              Terms &amp; Conditions
+            </Text>
+          </View>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -656,6 +682,20 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
+  legalLinks: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 12,
+  },
+  legalLink: {
+    color: "#9CA3AF",
+    fontSize: 12,
+    paddingVertical: 8,
+  },
+
   container: {
     flex: 1,
     backgroundColor: "#0B0B0F",

@@ -19,8 +19,8 @@ import {
   InterruptionModeIOS,
 } from "expo-av";
 import type { Session } from "@supabase/supabase-js";
-import { PostHogProvider } from "posthog-react-native";
-import { posthog } from "./src/lib/analytics";
+import { posthog, stopAnalytics } from "./src/lib/analytics";
+import { AnalyticsPreference } from "./src/components/AnalyticsPreference";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
@@ -574,6 +574,13 @@ function WeGigApp() {
     React.useState(false);
 
   const recoveryUrlRef = React.useRef<string | null>(null);
+  const analyticsAccountRef = React.useRef<string | null>(null);
+  const updateSession = React.useCallback((next: Session | null) => {
+    const id = next?.user.id ?? null;
+    if (analyticsAccountRef.current !== id) stopAnalytics();
+    analyticsAccountRef.current = id;
+    setSession(next);
+  }, []);
 
   const handleIncomingUrl = React.useCallback(
     async (url: string) => {
@@ -588,16 +595,13 @@ function WeGigApp() {
       recoveryUrlRef.current = url;
 
       try {
+        stopAnalytics();
         setRecoveryLoading(true);
 
         const recoverySession =
           await establishRecoverySession(url);
 
-        setSession(recoverySession ?? null);
-
-        if (recoverySession?.user) {
-          posthog.identify(recoverySession.user.id);
-        }
+        updateSession(recoverySession ?? null);
 
         posthog.capture("password_recovery_opened");
         void posthog.flush();
@@ -614,7 +618,7 @@ function WeGigApp() {
         setRecoveryLoading(false);
       }
     },
-    []
+    [updateSession]
   );
 
   React.useEffect(() => {
@@ -639,18 +643,14 @@ function WeGigApp() {
 
         const nextSession = data.session ?? null;
 
-        setSession(nextSession);
-
-        if (nextSession?.user) {
-          posthog.identify(nextSession.user.id);
-        }
+        updateSession(nextSession);
       })
       .catch((error) => {
         console.log("[auth] getSession failed", error);
 
         if (!mounted) return;
 
-        setSession(null);
+        updateSession(null);
       })
       .finally(() => {
         if (!mounted) return;
@@ -662,18 +662,15 @@ function WeGigApp() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
       (event, nextSession) => {
-        setSession(nextSession ?? null);
+        updateSession(nextSession ?? null);
         setAuthLoading(false);
 
         if (event === "PASSWORD_RECOVERY") {
+          stopAnalytics();
           setPasswordRecovery(true);
         }
 
-        if (nextSession?.user) {
-          posthog.identify(nextSession.user.id);
-        } else {
-          posthog.reset();
-        }
+
       }
     );
 
@@ -696,7 +693,7 @@ function WeGigApp() {
       subscription.unsubscribe();
       linkingSubscription.remove();
     };
-  }, [handleIncomingUrl]);
+  }, [handleIncomingUrl, updateSession]);
 
   if (authLoading || recoveryLoading) {
     return (
@@ -709,16 +706,13 @@ function WeGigApp() {
   if (passwordRecovery) {
     return (
       <SafeAreaProvider>
-        <PostHogProvider
-          client={posthog}
-          autocapture={false}
-        >
+        <>
           <ResetPasswordScreen
             onComplete={() => {
               setPasswordRecovery(false);
             }}
           />
-        </PostHogProvider>
+        </>
       </SafeAreaProvider>
     );
   }
@@ -726,23 +720,22 @@ function WeGigApp() {
   if (!session) {
     return (
       <SafeAreaProvider>
-        <PostHogProvider
-          client={posthog}
-          autocapture={false}
-        >
+        <>
           <AuthScreen />
-        </PostHogProvider>
+        </>
       </SafeAreaProvider>
     );
   }
 
   return (
     <SafeAreaProvider>
-      <PostHogProvider client={posthog} autocapture={false}>
+      <>
         <ToastProvider>
-          <AppShell key={session.user.id} userId={session.user.id} />
+          <AnalyticsPreference key={session.user.id} userId={session.user.id} email={session.user.email}>
+            <AppShell key={session.user.id} userId={session.user.id} />
+          </AnalyticsPreference>
         </ToastProvider>
-      </PostHogProvider>
+      </>
     </SafeAreaProvider>
   );
 }

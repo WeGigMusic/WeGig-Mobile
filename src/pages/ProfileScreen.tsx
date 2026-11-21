@@ -1,3 +1,4 @@
+import { useAnalyticsPreference } from "../components/AnalyticsPreference";
 import React from "react";
 import {
   SafeAreaView,
@@ -201,6 +202,7 @@ export function ProfileScreen({
   onSupport,
   isFoundingSupporter = false,
 }: ProfileScreenProps) {
+  const analytics = useAnalyticsPreference();
   const shareCardRef = React.useRef<ViewShot | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
 
@@ -1059,6 +1061,15 @@ export function ProfileScreen({
             subtitle="How your data is handled"
             onPress={handleOpenPrivacy}
           />
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.toggleTitle}>Share usage analytics</Text>
+              <Text style={styles.toggleSubtitle}>Optional usage data linked to your account and email</Text>
+            </View>
+            <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
+              disabled={analytics.busy} onValueChange={(value) => void analytics.choose(value)}
+              trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
+          </View>
           <ActionRow
             title="Send feedback"
             subtitle="Ideas, bugs and suggestions"

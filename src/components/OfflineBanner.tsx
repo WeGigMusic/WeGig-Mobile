@@ -23,8 +23,8 @@ export function OfflineBanner(props: {
     title = "🎸 Backstage mode";
     subtitle =
       queuedCount > 0
-        ? `${queuedCount} gig${queuedCount === 1 ? "" : "s"} queued — we'll sync when you're back online`
-        : "Keep logging gigs — we'll sync when you're back online";
+        ? `${queuedCount} gig${queuedCount === 1 ? "" : "s"} queued and we'll sync when you're back online`
+        : "Keep logging gigs and we'll sync when you're back online";
   } else if (syncing) {
     title = "🎛️ Syncing the setlist";
     subtitle =

@@ -45,7 +45,7 @@ export function SupportWeGigScreen({ onBack, products = [], loading = false, onP
   const product = products.find((item) => item.key === selected);
   const preview = products.length === 0;
   const price = (key: SupportOptionKey) => products.find((item) => item.key === key)?.displayPrice
-    ?? (preview ? `£${SUPPORT_OPTIONS.find((item) => item.key === key)!.amount}` : "Unavailable");
+    ?? (loading ? "…" : "Unavailable");
 
   const purchase = async () => {
     if (!onPurchase || !product || inFlight.current) return;

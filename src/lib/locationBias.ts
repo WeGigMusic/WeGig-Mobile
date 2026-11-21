@@ -27,9 +27,9 @@ export async function getLocationBias(): Promise<
     if (lastKnown) {
       return {
         latitude:
-          lastKnown.coords.latitude,
+          Math.round(lastKnown.coords.latitude * 100) / 100,
         longitude:
-          lastKnown.coords.longitude,
+          Math.round(lastKnown.coords.longitude * 100) / 100,
       };
     }
 
@@ -41,9 +41,9 @@ export async function getLocationBias(): Promise<
 
     return {
       latitude:
-        current.coords.latitude,
+        Math.round(current.coords.latitude * 100) / 100,
       longitude:
-        current.coords.longitude,
+        Math.round(current.coords.longitude * 100) / 100,
     };
   } catch {
     return undefined;

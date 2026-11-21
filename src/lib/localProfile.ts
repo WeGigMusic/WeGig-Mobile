@@ -12,11 +12,15 @@ const MIGRATION_OWNER_KEY = "wegig.profileMigrationOwner";
 const blankProfile = (): LocalProfile => ({
   displayName: "Music Fan", avatarPreset: "", avatarFile: "",
 });
-const profileKey = (userId: string) => `wegig.profile.v1.${userId}`;
+function requireUserId(userId: string) {
+  if (!userId.trim()) throw new Error("Cannot access a profile without a signed-in account.");
+  return userId;
+}
+const profileKey = (userId: string) => `wegig.profile.v1.${requireUserId(userId)}`;
 
 function photoDirectory(userId: string) {
   if (!FileSystem.documentDirectory) throw new Error("Profile storage is unavailable.");
-  return `${FileSystem.documentDirectory}profiles/${encodeURIComponent(userId)}/`;
+  return `${FileSystem.documentDirectory}profiles/${encodeURIComponent(requireUserId(userId))}/`;
 }
 
 export function profilePhotoUri(userId: string, filename: string) {
@@ -37,7 +41,10 @@ export async function loadLocalProfile(userId: string): Promise<LocalProfile> {
 }
 
 export async function saveLocalProfile(userId: string, profile: LocalProfile) {
-  await AsyncStorage.setItem(profileKey(userId), JSON.stringify(profile));
+  const key = profileKey(userId);
+  await AsyncStorage.setItem(key, JSON.stringify(profile));
+  const stored = await AsyncStorage.getItem(key);
+  if (stored !== JSON.stringify(profile)) throw new Error("Profile changes could not be verified on this device.");
 }
 
 export async function copyProfilePhoto(userId: string, sourceUri: string) {
@@ -47,6 +54,9 @@ export async function copyProfilePhoto(userId: string, sourceUri: string) {
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
   const uri = profilePhotoUri(userId, filename);
   await FileSystem.copyAsync({ from: sourceUri, to: uri });
+  if (!(await FileSystem.getInfoAsync(uri)).exists) {
+    throw new Error("Profile photo could not be saved on this device.");
+  }
   return filename;
 }
 

@@ -100,7 +100,7 @@ export function SupportWeGigScreen({ onBack, products = [], loading = false, onP
             style={({ pressed }) => [styles.primary, (!product || !onPurchase || loading || busy) && styles.disabled, pressed && styles.pressed]}>
             {busy || loading ? <ActivityIndicator color="white" /> : <Text style={styles.primaryText}>Continue with {price(selected)}</Text>}
           </Pressable>
-          <Text style={styles.note}>One-off contribution. No subscription.{"\n"}Completely optional.</Text>
+          <Text style={styles.note}>One-off contribution. No subscription.</Text>
           {!loading && (availabilityMessage || !onPurchase || !products.length) && <Text accessibilityRole="alert" style={styles.availability}>{availabilityMessage ?? "Support payments aren’t available yet."}</Text>}
           {onRetry && !busy && !loading && <Pressable accessibilityRole="button" disabled={loading} onPress={onRetry} style={styles.retry}><Text style={styles.note}>Retry confirmation</Text></Pressable>}
           <View style={styles.badgeSpace}><FoundingSupporterBadge /></View>

@@ -510,7 +510,7 @@ function AppShell({ userId }: { userId: string }) {
             loading={support.loading}
             onPurchase={support.onPurchase}
             availabilityMessage={support.issue}
-            onRetry={support.retry}
+            onRetry={support.confirmationOutstanding ? support.retry : undefined}
           />
         ) : profileRoute === "about" ? (
           <AboutPrivacyScreen

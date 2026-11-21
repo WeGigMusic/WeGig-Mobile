@@ -153,6 +153,6 @@ export function useSupportBilling(userId: string) {
     return purchaseRef.current(key);
   }, [confirmationOutstanding]);
   const retry = React.useCallback(() => { void refreshRef.current?.(); }, []);
-  return { products, loading, isFoundingSupporter, issue, retry,
+  return { products, loading, isFoundingSupporter, issue, retry, confirmationOutstanding,
     onPurchase: !loading && !confirmationOutstanding && products.length ? purchase : undefined };
 }

@@ -1819,9 +1819,8 @@ export function AddGigScreen(
           );
 
         if (
-          msg.includes(
-            "409",
-          )
+          e?.status === 409 ||
+          msg.includes("409")
         ) {
           Alert.alert(
             "Already logged",

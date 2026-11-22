@@ -3,14 +3,20 @@ import { Alert, AppState, Modal, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import AnalyticsConsent from "./AnalyticsConsent";
 import { readAnalyticsConsent, saveAnalyticsConsent } from "../lib/analyticsConsent";
-import { startAnalytics, stopAnalytics } from "../lib/analytics";
+import { analyticsEnabled, startAnalytics, stopAnalytics } from "../lib/analytics";
 import { supabase } from "../lib/supabase";
 
 type Preference = { accepted: boolean | null; busy: boolean; choose: (value: boolean) => Promise<void> };
 const Context = React.createContext<Preference>({ accepted: null, busy: true, choose: async () => {} });
 export const useAnalyticsPreference = () => React.useContext(Context);
 
-export function AnalyticsPreference({userId, email, children}: React.PropsWithChildren<{userId: string; email?: string}>) {
+type AnalyticsPreferenceProps = React.PropsWithChildren<{ userId: string; email?: string }>;
+
+export function AnalyticsPreference(props: AnalyticsPreferenceProps) {
+  return analyticsEnabled ? <EnabledAnalyticsPreference {...props} /> : <>{props.children}</>;
+}
+
+function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPreferenceProps) {
   const [accepted, setAccepted] = React.useState<boolean | null>(null);
   const [busy, setBusy] = React.useState(true);
   const [prompt, setPrompt] = React.useState(false);

@@ -29,7 +29,7 @@ import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
 import { supabase } from "../lib/supabase";
-import { posthog } from "../lib/analytics";
+import { analyticsEnabled, posthog } from "../lib/analytics";
 import { syncGigReminderNotifications } from "../lib/notifications";
 import type { GigsResponse, Gig } from "../shared/types/Gig";
 import { avatarPresets } from "../config/avatarPresets";
@@ -1061,15 +1061,17 @@ export function ProfileScreen({
             subtitle="How your data is handled"
             onPress={handleOpenPrivacy}
           />
-          <View style={styles.toggleRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.toggleTitle}>Share usage analytics</Text>
-              <Text style={styles.toggleSubtitle}>Optional usage data linked to your account and email</Text>
+          {analyticsEnabled && (
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleTitle}>Share usage analytics</Text>
+                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account and email</Text>
+              </View>
+              <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
+                disabled={analytics.busy} onValueChange={(value) => void analytics.choose(value)}
+                trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
             </View>
-            <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
-              disabled={analytics.busy} onValueChange={(value) => void analytics.choose(value)}
-              trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
-          </View>
+          )}
           <ActionRow
             title="Send feedback"
             subtitle="Ideas, bugs and suggestions"

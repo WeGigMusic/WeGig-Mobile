@@ -1,5 +1,7 @@
 import PostHog from "posthog-react-native";
 
+export const analyticsEnabled = process.env.EXPO_PUBLIC_ANALYTICS_ENABLED === "true";
+
 let active: PostHog | undefined;
 let generation = 0;
 const gates = new WeakMap<PostHog, AbortController>();
@@ -37,7 +39,7 @@ export function stopAnalytics(): void {
 export async function startAnalytics(userId: string, email?: string): Promise<void> {
   stopAnalytics();
   const current = generation;
-  if (!userId) return;
+  if (!analyticsEnabled || !userId) return;
   const client: PostHog = new ConsentPostHog("phc_zvQgDRM5mPmUp7Q23oTPYL7WYwsuSKGDTfNbkngQ2S7K", {
     host: "https://eu.posthog.com",
     persistence: "memory",

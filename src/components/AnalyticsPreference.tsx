@@ -23,6 +23,7 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
   const epoch = React.useRef(0);
   const alive = React.useRef(false);
   const saving = React.useRef(false);
+  const withdrawn = React.useRef(false);
   const refreshQueue = React.useRef(Promise.resolve());
   const pendingKey = `wegig.analytics.withdrawal.${userId}`;
   const current = (n: number) => alive.current && epoch.current === n;
@@ -39,10 +40,14 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
           if (!current(n) || !(await verify()) || !current(n)) return;
           const pendingWithdrawal = await AsyncStorage.getItem(pendingKey);
           if (!current(n)) return;
-          if (pendingWithdrawal) {
+          if (pendingWithdrawal || withdrawn.current) {
+            withdrawn.current = true;
+            setAccepted(false);
+            setPrompt(false);
             await saveAnalyticsConsent(userId, false);
             if (!current(n)) return;
-            await AsyncStorage.removeItem(pendingKey);
+            // Keep the local denial until an explicit successful opt-in.
+            return;
           }
           const value = await readAnalyticsConsent(userId);
           if (!current(n) || !(await verify()) || !current(n)) return;
@@ -67,12 +72,12 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
     return () => { alive.current = false; ++epoch.current; stopAnalytics(); sub.remove(); };
   }, [userId, email]);
   const choose = async (value: boolean) => {
-    if (saving.current || busy) return;
+    if (saving.current || (busy && value)) return;
     saving.current = true;
     const n = ++epoch.current;
     stopAnalytics();
     setBusy(true);
-    if (!value) { setAccepted(false); setPrompt(false); }
+    if (!value) { withdrawn.current = true; setAccepted(false); setPrompt(false); }
     let withdrawalQueued = false;
     try {
       if (!value) {
@@ -81,7 +86,10 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       }
       if (!(await verify()) || !current(n)) return;
       await saveAnalyticsConsent(userId, value);
-      await AsyncStorage.removeItem(pendingKey);
+      if (value) {
+        await AsyncStorage.removeItem(pendingKey);
+        withdrawn.current = false;
+      }
       if (!current(n) || !(await verify()) || !current(n)) return;
       setAccepted(value); setPrompt(false);
       if (value && AppState.currentState === "active") await startAnalytics(userId, email);

@@ -82,6 +82,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   const url = `${BASE_URL}${normalizedPath}`;
   const method = init?.method ?? "GET";
+  const endpoint = normalizedPath.split("?", 1)[0];
 
   const isFormData =
     typeof FormData !== "undefined" && init?.body instanceof FormData;
@@ -98,12 +99,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       }),
       DEFAULT_TIMEOUT_MS,
     );
-  } catch (error: unknown) {
-    console.log("API network error:", {
-      url,
-      method,
-      message: error instanceof Error ? error.message : String(error),
-    });
+  } catch {
+    console.log("API network error:", { endpoint, method });
 
     throw new Error(FRIENDLY_API_ERROR);
   }
@@ -111,13 +108,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => "");
 
-    console.log("API response error:", {
-      url,
-      method,
-      status: res.status,
-      statusText: res.statusText,
-      body: text,
-    });
+    console.log("API response error:", { endpoint, method, status: res.status });
 
     throw new ApiError({
       url,
@@ -137,7 +128,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     return JSON.parse(text) as T;
   } catch {
-    console.log("API JSON parse error:", { url, method, text });
+    console.log("API JSON parse error:", { endpoint, method });
     throw new Error(FRIENDLY_API_ERROR);
   }
 }

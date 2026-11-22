@@ -2,6 +2,7 @@ import React from "react";
 import { AppState, Platform } from "react-native";
 import * as Application from "expo-application";
 import type * as Iap from "expo-iap";
+import { posthog } from "../lib/analytics";
 import { getSupportStatus, verifySupportPurchase } from "./api";
 import { createPurchaseProcessor, SUPPORT_KEYS, supportId, type PurchaseResult, type Store, type SupportKey } from "./purchases";
 
@@ -23,42 +24,58 @@ export function useSupportBilling(userId: string) {
     let removeError: (() => void) | undefined;
     let running: Promise<void> | null = null;
     let connected = false;
+    let confirmationBlocked = false;
+    let confirmationRevision = 0;
+    let deliveries = 0;
+    const updateConfirmation = (blocked: boolean) => {
+      if (blocked) confirmationRevision++;
+      confirmationBlocked = blocked;
+      setConfirmationOutstanding(blocked);
+    };
     const store: Store = Platform.OS === "ios" ? "apple" : "google";
     const originalApp = (Platform.OS === "ios" && Application.applicationId === "com.wegig.mobile") || (Platform.OS === "android" && Application.applicationId === "com.wegig.app");
     const settle = (productId: string | undefined, result?: PurchaseResult, error?: Error) => {
       const current = pending.current;
       if (!current || (productId && current.productId !== productId)) return;
       clearTimeout(current.timer); pending.current = null;
-      if (error) current.reject(error); else current.resolve(result ?? "cancelled");
+      if (error) current.reject(error);
+      else {
+        if (result === "verified") {
+          posthog.capture("support_purchase_completed", { store });
+          void posthog.flush();
+        }
+        current.resolve(result ?? "cancelled");
+      }
     };
     const deferred = (productId?: string) => {
       if (alive) {
-        setConfirmationOutstanding(true);
+        updateConfirmation(true);
         setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
         settle(productId, "pending");
       }
     };
     let process: ((purchase: Iap.Purchase) => Promise<PurchaseResult | undefined>) | undefined;
     const deliver = async (purchase: Iap.Purchase) => {
+      deliveries++;
       try {
         const result = await process?.(purchase);
         if (!alive || !result) return;
         if (result === "pending") {
-          setConfirmationOutstanding(true);
+          updateConfirmation(true);
           setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
-        } else { setConfirmationOutstanding(false); setIssue(null); }
+        } else if (!confirmationBlocked) { setIssue(null); }
         settle(purchase.productId, result);
       } catch {
         if (!alive) return;
-        setConfirmationOutstanding(true);
+        updateConfirmation(true);
         setIssue("Your payment still needs confirmation. Retry confirmation before making another contribution.");
         settle(purchase.productId, undefined, new Error("Confirmation delayed"));
-      }
+      } finally { deliveries--; }
     };
     const refresh = (): Promise<void> => {
       if (running) return running;
       running = (async () => {
-        if (alive) { setLoading(true); setIssue(null); }
+        if (alive) { purchaseRef.current = null; setLoading(true); setIssue(null); }
         try {
           const account = await getSupportStatus(userId);
           if (!alive) return;
@@ -97,6 +114,7 @@ export function useSupportBilling(userId: string) {
             return displayPrice ? [{ key, displayPrice }] : [];
           }));
           // StoreKit unfinished transactions include consumables that history omits.
+          const revision = confirmationRevision;
           const unfinished = Platform.OS === "ios" ? await native.getPendingTransactionsIOS() : await native.getAvailablePurchases();
           let failed = false;
           let waiting = false;
@@ -105,16 +123,18 @@ export function useSupportBilling(userId: string) {
             catch { failed = true; }
           }
           if (!alive) return;
-          setConfirmationOutstanding(failed || waiting);
+          const changedDuringRecovery = revision !== confirmationRevision || deliveries > 0;
+          updateConfirmation(failed || waiting || changedDuringRecovery);
+          if (changedDuringRecovery && !failed && !waiting) setIssue("Retry confirmation to finish checking outstanding payments.");
           if (waiting) setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
           if (failed) setIssue("Your payment still needs confirmation. Retry confirmation before making another contribution.");
           purchaseRef.current = async key => {
-            if (!alive || pending.current || failed || waiting) throw new Error("Payment unavailable");
+            if (!alive || pending.current || deliveries > 0 || confirmationBlocked || failed || waiting) throw new Error("Payment unavailable");
             const productId = supportId(store, key);
             const result = new Promise<PurchaseResult>((resolve, reject) => {
               const timer = setTimeout(() => {
                 if (!alive) return;
-                setConfirmationOutstanding(true);
+                updateConfirmation(true);
                 setIssue("Confirmation is taking longer than expected. Retry confirmation before paying again.");
                 settle(productId, undefined, new Error("Confirmation delayed"));
               }, 120000);

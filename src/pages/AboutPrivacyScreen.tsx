@@ -53,7 +53,7 @@ export default function AboutPrivacyScreen({
           <Text style={styles.sectionTitle}>Privacy Policy</Text>
 
           <Text style={styles.body}>
-            Last updated: 18 November 2026
+            Last updated: 22 November 2026
             {"\n\n"}
             WeGig is operated by WeGig Limited. This policy explains how
             we use your information and the choices you have.
@@ -70,10 +70,18 @@ export default function AboutPrivacyScreen({
             permission in your device settings. We do not track your
             location in the background.
             {"\n\n"}
-            We use PostHog to understand which features people use and
+            Optional usage analytics are off by default. If you agree,
+            we use PostHog to understand which features people use and
             improve WeGig. This includes app and device information and
             activity such as screens, artist pages and setlists viewed.
-            This information is linked to an account identifier.
+            This information may be linked to your account identifier.
+            {"\n\n"}
+            You can change your choice under Share usage analytics in
+            Profile. Declining does not restrict access to WeGig.
+            Turning analytics off stops new collection on your device.
+            Changes made offline may need to sync before taking effect
+            on other devices. You can contact us to request deletion of
+            previously collected analytics.
             {"\n\n"}
             If you make an optional contribution, Apple or Google handles
             the payment. We receive transaction details to confirm the

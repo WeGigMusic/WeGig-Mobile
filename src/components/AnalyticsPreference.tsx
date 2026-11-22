@@ -6,8 +6,8 @@ import { readAnalyticsConsent, saveAnalyticsConsent } from "../lib/analyticsCons
 import { analyticsEnabled, startAnalytics, stopAnalytics } from "../lib/analytics";
 import { supabase } from "../lib/supabase";
 
-type Preference = { accepted: boolean | null; busy: boolean; choose: (value: boolean) => Promise<void> };
-const Context = React.createContext<Preference>({ accepted: null, busy: true, choose: async () => {} });
+type Preference = { accepted: boolean | null; busy: boolean; canWithdraw: boolean; choose: (value: boolean) => Promise<void> };
+const Context = React.createContext<Preference>({ accepted: null, busy: true, canWithdraw: false, choose: async () => {} });
 export const useAnalyticsPreference = () => React.useContext(Context);
 
 type AnalyticsPreferenceProps = React.PropsWithChildren<{ userId: string; email?: string }>;
@@ -23,14 +23,17 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
   const epoch = React.useRef(0);
   const alive = React.useRef(false);
   const saving = React.useRef(false);
+  const withdrawn = React.useRef(false);
   const refreshQueue = React.useRef(Promise.resolve());
   const pendingKey = `wegig.analytics.withdrawal.${userId}`;
   const current = (n: number) => alive.current && epoch.current === n;
   const verify = async () => (await supabase.auth.getSession()).data.session?.user.id === userId;
   React.useEffect(() => {
     alive.current = true;
+    let refreshing = false;
     const refresh = async () => {
       if (saving.current) return;
+      refreshing = true;
       const n = ++epoch.current;
       stopAnalytics();
       setBusy(true);
@@ -39,10 +42,15 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
           if (!current(n) || !(await verify()) || !current(n)) return;
           const pendingWithdrawal = await AsyncStorage.getItem(pendingKey);
           if (!current(n)) return;
-          if (pendingWithdrawal) {
+          if (pendingWithdrawal || withdrawn.current) {
+            withdrawn.current = true;
+            setAccepted(false);
+            setPrompt(false);
             await saveAnalyticsConsent(userId, false);
             if (!current(n)) return;
             await AsyncStorage.removeItem(pendingKey);
+            withdrawn.current = false;
+            return;
           }
           const value = await readAnalyticsConsent(userId);
           if (!current(n) || !(await verify()) || !current(n)) return;
@@ -55,6 +63,7 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
             setPrompt(false);
           }
         } finally {
+          refreshing = false;
           if (current(n)) setBusy(false);
         }
       });
@@ -64,24 +73,29 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       if (state === "active") void refresh();
       else { stopAnalytics(); if (!saving.current) ++epoch.current; }
     });
-    return () => { alive.current = false; ++epoch.current; stopAnalytics(); sub.remove(); };
+    const retry = setInterval(() => {
+      if (!refreshing && withdrawn.current && AppState.currentState === "active") void refresh();
+    }, 15000);
+    return () => { clearInterval(retry); alive.current = false; ++epoch.current; stopAnalytics(); sub.remove(); };
   }, [userId, email]);
   const choose = async (value: boolean) => {
-    if (saving.current || busy) return;
+    if (saving.current || (busy && value)) return;
     saving.current = true;
     const n = ++epoch.current;
     stopAnalytics();
     setBusy(true);
-    if (!value) { setAccepted(false); setPrompt(false); }
+    if (!value) { withdrawn.current = true; setAccepted(false); setPrompt(false); }
     let withdrawalQueued = false;
     try {
       if (!value) {
         await AsyncStorage.setItem(pendingKey, "1");
         withdrawalQueued = true;
       }
+      await refreshQueue.current;
       if (!(await verify()) || !current(n)) return;
       await saveAnalyticsConsent(userId, value);
       await AsyncStorage.removeItem(pendingKey);
+      withdrawn.current = false;
       if (!current(n) || !(await verify()) || !current(n)) return;
       setAccepted(value); setPrompt(false);
       if (value && AppState.currentState === "active") await startAnalytics(userId, email);
@@ -97,7 +111,7 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       }
     } finally { saving.current = false; if (current(n)) setBusy(false); }
   };
-  return <Context.Provider value={{accepted, busy, choose}}>
+  return <Context.Provider value={{accepted, busy, canWithdraw: accepted === true && !saving.current, choose}}>
     {children}
     <Modal visible={prompt} transparent animationType="fade" onRequestClose={() => void choose(false)}>
       <View style={{flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(0,0,0,0.55)"}}>

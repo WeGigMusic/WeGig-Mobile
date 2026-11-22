@@ -487,17 +487,6 @@ export function ProfileScreen({
 
       try {
         if (kind === "photo") {
-          const permission =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-          if (!permission.granted) {
-            Alert.alert(
-              "Permission needed",
-              "Allow photo library access to choose a profile picture.",
-            );
-            return;
-          }
-
           const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
             allowsEditing: true,
@@ -1065,10 +1054,10 @@ export function ProfileScreen({
             <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.toggleTitle}>Share usage analytics</Text>
-                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account and email</Text>
+                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account identifier</Text>
               </View>
               <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
-                disabled={analytics.busy} onValueChange={(value) => void analytics.choose(value)}
+                disabled={analytics.busy && !analytics.canWithdraw} onValueChange={(value) => void analytics.choose(value)}
                 trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
             </View>
           )}

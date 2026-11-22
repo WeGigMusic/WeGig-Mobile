@@ -18,10 +18,16 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_ANALYTICS_ENABLED": "true"
       }
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_ANALYTICS_ENABLED": "true"
+      },
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:dependencyInsight --dependency okhttp --configuration releaseRuntimeClasspath :app:bundleRelease"

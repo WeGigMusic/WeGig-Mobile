@@ -6,8 +6,8 @@ import { readAnalyticsConsent, saveAnalyticsConsent } from "../lib/analyticsCons
 import { analyticsEnabled, startAnalytics, stopAnalytics } from "../lib/analytics";
 import { supabase } from "../lib/supabase";
 
-type Preference = { accepted: boolean | null; busy: boolean; choose: (value: boolean) => Promise<void> };
-const Context = React.createContext<Preference>({ accepted: null, busy: true, choose: async () => {} });
+type Preference = { accepted: boolean | null; busy: boolean; canWithdraw: boolean; choose: (value: boolean) => Promise<void> };
+const Context = React.createContext<Preference>({ accepted: null, busy: true, canWithdraw: false, choose: async () => {} });
 export const useAnalyticsPreference = () => React.useContext(Context);
 
 type AnalyticsPreferenceProps = React.PropsWithChildren<{ userId: string; email?: string }>;
@@ -111,7 +111,7 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       }
     } finally { saving.current = false; if (current(n)) setBusy(false); }
   };
-  return <Context.Provider value={{accepted, busy, choose}}>
+  return <Context.Provider value={{accepted, busy, canWithdraw: accepted === true && !saving.current, choose}}>
     {children}
     <Modal visible={prompt} transparent animationType="fade" onRequestClose={() => void choose(false)}>
       <View style={{flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(0,0,0,0.55)"}}>

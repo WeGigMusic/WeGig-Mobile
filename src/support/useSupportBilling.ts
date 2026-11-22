@@ -59,7 +59,7 @@ export function useSupportBilling(userId: string) {
         if (result === "pending") {
           updateConfirmation(true);
           setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
-        } else { updateConfirmation(false); setIssue(null); }
+        } else if (!confirmationBlocked) { setIssue(null); }
         settle(purchase.productId, result);
       } catch {
         if (!alive) return;

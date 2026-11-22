@@ -18,9 +18,11 @@ export async function readStoreAgeSignal(): Promise<StoreAgeSignal> {
       if (eligible !== true) return { status: "unavailable", required };
       required = true;
     } else if (Platform.OS === "android") {
-      const native = requireOptionalNativeModule<{ isMandatorySharingAsync(): Promise<boolean> }>("WeGigAgeSignals");
+      const native = requireOptionalNativeModule<{ isMandatorySharingAsync(): Promise<boolean | null> }>("WeGigAgeSignals");
       if (!native) return { status: "unavailable", required };
-      if (!(await native.isMandatorySharingAsync())) return { status: "not-required" };
+      const mandatory = await native.isMandatorySharingAsync();
+      if (mandatory === false) return { status: "not-required" };
+      if (mandatory !== true) return { status: "unavailable", required };
 
       required = true;
       const access = await AgeRange.requestAgeSignalsAccessAsync();

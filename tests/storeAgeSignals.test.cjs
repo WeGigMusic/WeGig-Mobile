@@ -66,6 +66,14 @@ test("iOS distinguishes a declined request from an unavailable signal", async ()
   assert.deepEqual(unavailable.calls, ["eligibility"]);
 });
 
+test("an indeterminate Android eligibility result does not request an age range", async () => {
+  const { calls, read } = loadReader("android", { eligibility: null });
+  const result = await read();
+  assert.equal(result.status, "unavailable");
+  assert.equal(result.required, false);
+  assert.deepEqual(calls, ["eligibility"]);
+});
+
 test("Google Play verification required does not request an age range", async () => {
   const { calls, read } = loadReader("android", {
     eligibility: true,

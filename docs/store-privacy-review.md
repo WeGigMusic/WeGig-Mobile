@@ -29,6 +29,8 @@ Provider sources: https://developers.google.com/maps/security/compliance/securit
 Platform definitions: https://developer.apple.com/app-store/app-privacy-details/ and https://support.google.com/googleplay/android-developer/answer/10787469.
 
 ## Analytics
+Optional analytics will be available at public launch and stays off until the user opts in. After sign-in, the app prompts accounts with no saved choice for the current consent version. The Profile switch lets the user change that choice later. Declining leaves the app usable.
+
 Explicit events reviewed in App.tsx, AuthScreen.tsx, ProfileScreen.tsx, useSupportBilling.ts and analytics.ts: stats_viewed, profile_viewed, discover_viewed, gig_created, support_screen_viewed, password_recovery_opened, login_completed (method), sign_up_started, password_reset_requested, login_method_selected (provider), password_changed, logout_completed, support_purchase_completed (store), analytics_foreground_started. Identification uses account ID. No raw coordinates, search terms or email in these explicit payloads. The SDK app properties are limited in source to app version, build number and OS name. Actual transport and session metadata remain unverified. Authentication events before consent may not be delivered; foreground starts are not unique sessions. Session replay and geo-IP enrichment disabled in source. Verify live payloads and withdrawal before submission.
 
 ## Working declarations
@@ -50,7 +52,7 @@ The profile name and photo are local in the reviewed app. Native share and expor
 
 - Match the public privacy policy and both store declarations to the final release configuration and applicable distributed versions. Existing policy, in-app deletion and the physical iPhone App Review recording are in place. Carry forward that evidence.
 - Confirm the remaining declaration answers that depend on provider evidence. These are whether location is retained beyond the request or linked, whether relevant disclosures count as sharing under Google Play's rules, and which properties the final analytics payload contains if analytics ships. Render workspace settings and Google Places request-body retention are still unverified.
-- If launching with optional account-linked analytics, resolve the existing children's consent and regional launch questions before enabling it for public users. If those questions remain unresolved, consider disabling optional analytics for public launch and aligning the final disclosures accordingly. This is a release configuration decision. Internal testing can continue on its existing track.
+- Optional account-linked analytics is in launch scope. Resolve the existing children's consent and regional launch questions, verify the final iOS withdrawal flow and actual SDK payload, and reflect the feature in both declarations.
 - Record approval and any unresolved risks in the existing DPIA. Confirm that its launch scope reflects the dormant scanner and local-only profile photo. Carry forward the completed Android build 27 offline withdrawal and disposable-account deletion evidence. An outstanding historical deletion request stays in its own follow-up, unless the DPIA identifies it as a launch dependency.
 
 Store listings, provider settings and the 21 November DPIA document were not changed by this review.

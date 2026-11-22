@@ -487,17 +487,6 @@ export function ProfileScreen({
 
       try {
         if (kind === "photo") {
-          const permission =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-          if (!permission.granted) {
-            Alert.alert(
-              "Permission needed",
-              "Allow photo library access to choose a profile picture.",
-            );
-            return;
-          }
-
           const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
             allowsEditing: true,

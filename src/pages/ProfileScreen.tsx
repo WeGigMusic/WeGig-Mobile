@@ -1057,7 +1057,7 @@ export function ProfileScreen({
                 <Text style={styles.toggleSubtitle}>Optional usage data linked to your account identifier</Text>
               </View>
               <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
-                disabled={analytics.busy} onValueChange={(value) => void analytics.choose(value)}
+                disabled={analytics.busy && !analytics.canWithdraw} onValueChange={(value) => void analytics.choose(value)}
                 trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
             </View>
           )}

@@ -13,3 +13,8 @@ Use disposable test accounts and store sandbox/license testing. Do not use real 
 Record platform, build, sandbox or production environment, test timestamp, expected/actual result, redacted transaction reference, webhook outcome, ledger and badge state. Never record tokens or receipts in this document. A refund initiated in a store does not prove server notification processing. Existing initial £1 sandbox tests and automated regression checks need not be repeated separately unless needed for a lifecycle scenario.
 
 No public release or live-payment validation is implied.
+
+
+## Refund during recovery
+
+A server-confirmed `PURCHASE_REFUNDED` response ends that recovery attempt without granting supporter status or consuming the transaction. Other verification failures remain retryable. Validate with a store-distributed test build that a refunded item does not block another contribution after recovery, and that the supporter badge reflects the server ledger after refresh.

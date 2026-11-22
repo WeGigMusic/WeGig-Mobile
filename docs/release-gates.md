@@ -1,8 +1,8 @@
 # Release gates — 22 November 2026
 
 ## Build baseline
-- iOS build 24: EAS d9c385ea-8340-4e53-aafe-66d41cbbb1f2, uploaded to App Store Connect; processing/test results pending.
-- Android preview: EAS 6488091b-bc3e-4c69-8f26-5dfbca56ef1f; four public configuration variables loaded, analytics enabled subject to consent; compilation pending when recorded.
+- iOS build 24: EAS d9c385ea-8340-4e53-aafe-66d41cbbb1f2, installed via TestFlight and reproduced the offline withdrawal defect; it predates the fix.
+- Android preview: EAS 6488091b-bc3e-4c69-8f26-5dfbca56ef1f; build completed with four public configuration variables loaded; it predates the latest analytics and payment recovery changes. Compiled permissions and resolved OkHttp are pending.
 - In-app privacy wording commit 9efa045 is newer than these builds; include in final candidate. Documentation-only commits do not require rebuilds.
 
 ## Release blockers

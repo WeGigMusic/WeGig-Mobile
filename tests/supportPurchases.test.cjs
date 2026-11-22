@@ -7,7 +7,7 @@ const ts = require('typescript');
 const compiled = ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/support/purchases.ts'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } });
 const exportsObject = {};
 new Function('exports', compiled.outputText)(exportsObject);
-const { createPurchaseProcessor, supportId } = exportsObject;
+const { createPurchaseProcessor, SupportApiError, supportId } = exportsObject;
 const account = { appleAppAccountToken: 'user-1', googleObfuscatedAccountId: 'account-hash', isFoundingSupporter: false, isTestSupporter: false };
 const purchase = () => ({ id: '123', productId: supportId('apple','small'), purchaseState: 'purchased', appAccountToken: 'user-1' });
 const verdict = { verified: true, environment: 'production', isFoundingSupporter: true, isTestSupporter: false };
@@ -62,5 +62,17 @@ test('concurrent failed verification is retried only once per transaction', asyn
  assert.equal(attempts,1);
  assert.deepEqual(await Promise.all([process(purchase()),process(purchase())]),['verified','verified']);
  assert.equal(attempts,2);
+ assert.deepEqual(calls,['grant','finish']);
+});
+
+test('server-confirmed refunds are terminal without granting or consuming', async () => {
+ const {process,calls}=processor({verify:async transaction=>{
+   if (transaction.id !== '123') return verdict;
+   throw new SupportApiError('PURCHASE_REFUNDED');
+ }});
+ assert.deepEqual(await Promise.all([process(purchase()),process(purchase())]),['cancelled','cancelled']);
+ assert.equal(await process(purchase()),'cancelled');
+ assert.deepEqual(calls,[]);
+ assert.equal(await process({...purchase(),id:'another'}),'verified');
  assert.deepEqual(calls,['grant','finish']);
 });

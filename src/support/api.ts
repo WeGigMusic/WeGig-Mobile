@@ -1,10 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { requireApiBaseUrl } from "../config/env";
-import type { Store, StorePurchase, SupportStatus, Verification } from "./purchases";
-
-export class SupportApiError extends Error {
-  constructor(readonly code: string) { super("Support confirmation is unavailable"); }
-}
+import { SupportApiError, type Store, type StorePurchase, type SupportStatus, type Verification } from "./purchases";
 async function request<T>(userId: string, path: string, body?: unknown): Promise<T> {
   const { data } = await supabase.auth.getSession();
   if (!data.session || data.session.user.id !== userId) throw new SupportApiError("ACCOUNT_CHANGED");

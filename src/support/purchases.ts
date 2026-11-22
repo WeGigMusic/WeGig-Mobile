@@ -21,6 +21,10 @@ export function supportId(store: Store, key: SupportKey): string {
 export function supportKey(store: Store, id: string): SupportKey | undefined {
   return SUPPORT_KEYS.find(key => supportId(store, key) === id);
 }
+export class SupportApiError extends Error {
+  constructor(readonly code: string) { super("Support confirmation is unavailable"); }
+}
+
 export type PurchaseResult = "verified" | "test-verified" | "cancelled" | "pending";
 
 // Deduplicate simultaneous listener/recovery deliveries, but allow later retries
@@ -47,7 +51,15 @@ export function createPurchaseProcessor<P extends StorePurchase>(options: {
     const existing = inFlight.get(identity);
     if (existing) return existing;
     const operation = (async () => {
-      const verified = await options.verify(purchase);
+      let verified: Verification;
+      try {
+        verified = await options.verify(purchase);
+      } catch (error) {
+        if (!(error instanceof SupportApiError) || error.code !== "PURCHASE_REFUNDED") throw error;
+        // A server-confirmed refund is terminal and must never grant support or
+        // be consumed as a successful purchase.
+        return "cancelled";
+      }
       if (verified.verified !== true || !["production", "sandbox"].includes(verified.environment)) throw new Error("Payment not verified");
       const result: PurchaseResult = verified.environment === "sandbox" ? "test-verified" : "verified";
       options.onVerified(verified);

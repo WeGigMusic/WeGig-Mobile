@@ -21,6 +21,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { posthog, stopAnalytics } from "./src/lib/analytics";
 import { AnalyticsPreference } from "./src/components/AnalyticsPreference";
+import { StoreAgeGate } from "./src/components/StoreAgeGate";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "./src/components/ToastProvider";
 import { OfflineBanner } from "./src/components/OfflineBanner";
@@ -731,9 +732,11 @@ function WeGigApp() {
     <SafeAreaProvider>
       <>
         <ToastProvider>
-          <AnalyticsPreference key={session.user.id} userId={session.user.id} email={session.user.email}>
-            <AppShell key={session.user.id} userId={session.user.id} />
-          </AnalyticsPreference>
+          <StoreAgeGate key={session.user.id}>
+            <AnalyticsPreference userId={session.user.id} email={session.user.email}>
+              <AppShell userId={session.user.id} />
+            </AnalyticsPreference>
+          </StoreAgeGate>
         </ToastProvider>
       </>
     </SafeAreaProvider>

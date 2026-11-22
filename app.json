@@ -45,6 +45,14 @@
     "plugins": [
       "./plugins/withOkHttp.js",
       "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow WeGig to choose a profile photo.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       "expo-notifications",
       [
         "expo-calendar",

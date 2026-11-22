@@ -47,4 +47,4 @@ Privacy declarations remain provisional until provider retention and sharing, li
 
 ### Production artist search smoke check
 
-Radiohead and Portishead returned matching results, and Blur returned HTTP 502. Earlier production checks saw Radiohead return both 200 and 502. The live API already spaces requests and retries upstream 429 and 503 responses. These samples show intermittent availability across searches. The exact upstream cause is unconfirmed. No mobile code change is planned for this candidate on that evidence.
+Radiohead and Portishead returned matching results, and Blur returned HTTP 502. Earlier production checks saw Radiohead return both 200 and 502. The live API already spaces requests and retries upstream 429 and 503 responses. These samples show intermittent availability across searches. The exact upstream cause is unconfirmed. Add Gig now tells users they can save the typed artist and offers a retry. A forced 502 check against the screen handlers verified that manual entry submits successfully without a MusicBrainz ID.

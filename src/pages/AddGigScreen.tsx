@@ -803,13 +803,10 @@ export function AddGigScreen(
           );
 
           setMbOpen(true);
-        } catch (
-          e: any
-        ) {
+        } catch {
           if (searchId !== artistSearchIdRef.current) return;
           setMbError(
-            e?.message ??
-              "Artist search failed",
+            "Artist suggestions are temporarily unavailable. You can still save this gig using the artist name you typed.",
           );
 
           setMbResults([]);
@@ -1963,13 +1960,15 @@ export function AddGigScreen(
             ) : null}
 
             {mbError ? (
-              <Text
-                style={
-                  styles.errorText
-                }
-              >
-                {mbError}
-              </Text>
+              <View>
+                <Text style={styles.errorText}>{mbError}</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void runMbSearch(artist)}
+                >
+                  <Text style={styles.muted}>Retry artist suggestions</Text>
+                </Pressable>
+              </View>
             ) : null}
 
             {!isDiscoverPrefill &&

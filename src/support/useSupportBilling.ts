@@ -24,6 +24,11 @@ export function useSupportBilling(userId: string) {
     let removeError: (() => void) | undefined;
     let running: Promise<void> | null = null;
     let connected = false;
+    let confirmationBlocked = false;
+    const updateConfirmation = (blocked: boolean) => {
+      confirmationBlocked = blocked;
+      setConfirmationOutstanding(blocked);
+    };
     const store: Store = Platform.OS === "ios" ? "apple" : "google";
     const originalApp = (Platform.OS === "ios" && Application.applicationId === "com.wegig.mobile") || (Platform.OS === "android" && Application.applicationId === "com.wegig.app");
     const settle = (productId: string | undefined, result?: PurchaseResult, error?: Error) => {
@@ -41,7 +46,7 @@ export function useSupportBilling(userId: string) {
     };
     const deferred = (productId?: string) => {
       if (alive) {
-        setConfirmationOutstanding(true);
+        updateConfirmation(true);
         setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
         settle(productId, "pending");
       }
@@ -52,13 +57,13 @@ export function useSupportBilling(userId: string) {
         const result = await process?.(purchase);
         if (!alive || !result) return;
         if (result === "pending") {
-          setConfirmationOutstanding(true);
+          updateConfirmation(true);
           setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
-        } else { setConfirmationOutstanding(false); setIssue(null); }
+        } else { updateConfirmation(false); setIssue(null); }
         settle(purchase.productId, result);
       } catch {
         if (!alive) return;
-        setConfirmationOutstanding(true);
+        updateConfirmation(true);
         setIssue("Your payment still needs confirmation. Retry confirmation before making another contribution.");
         settle(purchase.productId, undefined, new Error("Confirmation delayed"));
       }
@@ -66,7 +71,7 @@ export function useSupportBilling(userId: string) {
     const refresh = (): Promise<void> => {
       if (running) return running;
       running = (async () => {
-        if (alive) { setLoading(true); setIssue(null); }
+        if (alive) { purchaseRef.current = null; setLoading(true); setIssue(null); }
         try {
           const account = await getSupportStatus(userId);
           if (!alive) return;
@@ -113,16 +118,16 @@ export function useSupportBilling(userId: string) {
             catch { failed = true; }
           }
           if (!alive) return;
-          setConfirmationOutstanding(failed || waiting);
+          updateConfirmation(failed || waiting);
           if (waiting) setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
           if (failed) setIssue("Your payment still needs confirmation. Retry confirmation before making another contribution.");
           purchaseRef.current = async key => {
-            if (!alive || pending.current || failed || waiting) throw new Error("Payment unavailable");
+            if (!alive || pending.current || confirmationBlocked || failed || waiting) throw new Error("Payment unavailable");
             const productId = supportId(store, key);
             const result = new Promise<PurchaseResult>((resolve, reject) => {
               const timer = setTimeout(() => {
                 if (!alive) return;
-                setConfirmationOutstanding(true);
+                updateConfirmation(true);
                 setIssue("Confirmation is taking longer than expected. Retry confirmation before paying again.");
                 settle(productId, undefined, new Error("Confirmation delayed"));
               }, 120000);

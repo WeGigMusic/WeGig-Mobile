@@ -1734,20 +1734,18 @@ export function AddGigScreen(
         ) {
           try {
             await addGigToCalendar({
-  title:
-    created.artist,
-
-  location: [
-    created.venue,
-    created.city,
-  ]
-    .filter(Boolean)
-    .join(", "),
-
-  date:
-    created.date,
-});
-          } catch {}
+              title: created.artist,
+              location: [created.venue, created.city].filter(Boolean).join(", "),
+              date: created.date,
+            });
+          } catch (error) {
+            if (isAccountWorkCurrent(workToken)) {
+              Alert.alert(
+                "Gig saved, calendar not updated",
+                error instanceof Error ? error.message : "Couldn’t add the event to your calendar.",
+              );
+            }
+          }
         }
 
         if (!isAccountWorkCurrent(workToken)) {

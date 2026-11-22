@@ -8,7 +8,7 @@ export async function addGigToCalendar(params: {
   const { status } = await Calendar.requestCalendarPermissionsAsync();
 
   if (status !== "granted") {
-    return;
+    throw new Error("Allow WeGig to access your calendar in your phone settings, then try again.");
   }
 
   const calendars = await Calendar.getCalendarsAsync(
@@ -17,7 +17,9 @@ export async function addGigToCalendar(params: {
 
   const calendar = calendars.find((c) => c.allowsModifications);
 
-  if (!calendar) return;
+  if (!calendar) {
+    throw new Error("No writable calendar is available on this phone.");
+  }
 
   const startDate = new Date(`${params.date}T19:00:00`);
   const endDate = new Date(`${params.date}T23:00:00`);

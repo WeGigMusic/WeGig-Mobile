@@ -5,7 +5,7 @@
 - Android build 27 (1.0.0) is available through Google Play Internal testing. The supplied AAB verified version code 27, OkHttp and OkHttp URLConnection 4.12.1, and absence of the seven blocked permissions. Calendar permissions are present.
 - Android build 27 passed photo selection, upcoming gig sharing, export, calendar, Discover city search, and offline analytics withdrawal. The switch stayed off on reconnect, Supabase showed consent version 1 saved as off, and the timestamped PostHog check found no events after withdrawal in the observed window.
 - Account deletion passed with a disposable account. The physical iPhone recording was already sent in the App Review reply for Guideline 5.1.1(v). Carry the existing evidence into the next submission notes as requested by Apple. Apple acceptance is pending.
-- The Google cancellation recovery change is in draft API PR #3 and the corresponding mobile handling is newer than build 27. Calendar error feedback is also newer than build 27.
+- The Google cancellation recovery change is in draft API PR #3 and the corresponding mobile handling is newer than build 27. Calendar error feedback is also newer than build 27. The API draft still compares cleanly against current main. Merge and deploy only after approval, then exercise cancellation from the matching Play-distributed mobile build.
 
 ## Release blockers
 - [x] Verify compiled Android permissions and resolved OkHttp version for build 27.
@@ -16,9 +16,10 @@
 - [ ] Assess remaining dependency advisories, compatible updates and actual exposure; no automatic force upgrades or implicit risk acceptance.
 - [ ] Finalise provider data handling, DPIA and store privacy answers (see store-privacy-review.md); historical analytics deletion remains separate.
 - [ ] Await Apple acceptance of the account deletion response and reconcile Google pending changes with the final binary and staged rollout intent.
-- [ ] Validate final source commit with typecheck, regression tests and Expo Doctor; review diffs before merge.
+- [x] Validate mobile source through fecbadd. TypeScript, 39 automated tests, Expo Doctor 18/18, and local iOS and Android JavaScript exports passed on 22 November. Re-run affected checks if source changes before release.
 - [ ] Verify final release binary provenance and smoke test changes since iOS build 24 and Android build 27.
-- [ ] Confirm both public store listings and visually check the landing page on mobile and desktop before publishing the website branch. The replacement QR destination has been verified.
+- [x] Verify the staged website at mobile and desktop widths. Browser checks passed at 320, 390 and 1440 CSS pixels. The replacement QR points to the WeGig website.
+- [ ] Confirm both public store listings before publishing the website branch. Both listing URLs returned HTTP 404 from the unauthenticated release check on 22 November. Google Play Internal testing remains available separately.
 
 Ticket scanning remains future roadmap; no scanner feature testing required this cycle. Keep disabled. No public publication, production deployment, merge or risk sign-off implied by this checklist.
 

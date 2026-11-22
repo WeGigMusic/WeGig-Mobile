@@ -55,8 +55,10 @@ export function createPurchaseProcessor<P extends StorePurchase>(options: {
       try {
         verified = await options.verify(purchase);
       } catch (error) {
-        if (!(error instanceof SupportApiError) || error.code !== "PURCHASE_REFUNDED") throw error;
-        // A server-confirmed refund is terminal and must never grant support or
+        if (!(error instanceof SupportApiError)) throw error;
+        if (error.code === "PAYMENT_PENDING") return "pending";
+        if (error.code !== "PURCHASE_REFUNDED" && error.code !== "PAYMENT_CANCELLED") throw error;
+        // A server-confirmed refund or cancellation is terminal and must never grant support or
         // be consumed as a successful purchase.
         return "cancelled";
       }

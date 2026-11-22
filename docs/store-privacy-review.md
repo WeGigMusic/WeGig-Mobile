@@ -36,3 +36,19 @@ Account email and identifier, saved gig content and transaction history: collect
 
 ## Release evidence needed
 Compiled permissions, live analytics payloads and consent behavior, provider retention/logs, release-binary location verification, current store questionnaires, DPIA review, historical analytics deletion and residual dependency exposure. Website policy amendments staged separately; in-app consent wording updated. No store declaration submitted.
+
+## Draft entries by store
+
+| Data | Apple working entry | Google Play working entry |
+| --- | --- | --- |
+| Email and account ID | Email Address and User ID, linked, App Functionality | Email address and User IDs, collected for account management and app functionality |
+| Saved gigs and notes | Other User Content, linked, App Functionality | Other user-generated content, collected for app functionality |
+| Optional usage analytics | Product Interaction and User ID, linked, Analytics | App interactions and User IDs, optional, collected for analytics |
+| Contributions | Purchase History, linked, App Functionality | Purchase history, collected for app functionality and fraud prevention as applicable |
+| Device location | Coarse Location, App Functionality. Retention and linkage discussed above. | Precise Location, optional, collected for app functionality. Confirm sharing treatment. |
+
+The profile name and photo are local in the reviewed app. Native share and export are user-initiated. Review the actually distributed versions and live analytics payloads before finalising the forms. Card details are handled by the stores. The location and SDK evidence above is still provisional.
+
+## DPIA draft review
+
+The 21 November draft remains unsigned. Update launch scope to remove dormant ticket import and Google ticket recognition, and distinguish local profile photos from any future gig-image uploads. Add the current Google Places and Render location flows, including the two different store classifications. Reflect successful disposable-account deletion testing and separately record retained transaction safeguards, historical PostHog deletion and the pending physical offline-withdrawal check. Keep children's analytics consent, provider and transfer evidence, retention and final director approval open. Do not treat the provisional residual-risk ratings as approved.

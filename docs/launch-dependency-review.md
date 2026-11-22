@@ -22,3 +22,15 @@ No production release or risk acceptance is implied by this document.
 image-size 1.2.1 remains flagged for later parser DoS issues despite fixing the original GHSA-m5qc-5hw7-8vg7 range. The 2.1.0 trial broke Metro asset bundling and was reverted. Metro imports 1.2.1 from its Node asset-processing code to read image dimensions. Do not introduce an unreviewed fork. Upstream tracking: https://github.com/react/metro/issues/1762 and https://www.npmjs.com/package/image-size?activeTab=versions.
 
 The remaining high finding is in Metro’s Node build-time image parser. The photo picker and other app image flows do not invoke Metro’s parser. The moderate findings still need an individual exposure review. Restrict build inputs to reviewed source/assets and trusted dependencies. This does not eliminate supply-chain risk. Residual risk has not been accepted. Native OkHttp exact artifact availability and resolved version still require confirmation from Gradle/build evidence.
+
+## Remaining moderate findings
+
+The lockfile audit counts affected parent packages as well as root advisories. The three direct moderate findings are:
+
+| Dependency | Observed use | Compatible fix assessment |
+| --- | --- | --- |
+| glob 13.0.7 | Expo CLI, config, fingerprinting and Metro config run filesystem discovery during development and builds. | Advisory affects versions through 14.0.1. No fix within 13 was identified. |
+| minimatch 9.0.9 and 10.2.6 | Expo CLI and glob process project-side patterns. No app interaction passes user input to these call sites. | Patched in 11.0.1. An override crosses the installed majors. |
+| uuid 3.4.0 | Expo ngrok creates a development tunnel name using v4 without a supplied buffer. | The advisory concerns v3, v5 and v6 with a caller-supplied buffer. The fix crosses major versions and the audited call does not use the affected API. |
+
+No direct exposure to user input in the installed mobile app was identified for these paths. Keep the findings open for the controlled Expo SDK upgrade and use reviewed source and assets in the meantime. This review does not accept residual risk.

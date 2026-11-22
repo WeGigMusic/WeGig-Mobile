@@ -76,3 +76,11 @@ test('server-confirmed refunds are terminal without granting or consuming', asyn
  assert.equal(await process({...purchase(),id:'another'}),'verified');
  assert.deepEqual(calls,['grant','finish']);
 });
+
+test('explicit provider pending and cancellation responses neither grant nor consume', async () => {
+ for (const [code, result] of [['PAYMENT_PENDING', 'pending'], ['PAYMENT_CANCELLED', 'cancelled']]) {
+   const {process,calls}=processor({verify:async()=>{ throw new SupportApiError(code); }});
+   assert.equal(await process(purchase()), result);
+   assert.deepEqual(calls, []);
+ }
+});

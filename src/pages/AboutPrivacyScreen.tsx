@@ -66,14 +66,17 @@ export default function AboutPrivacyScreen({
             stored on your device.
             {"\n\n"}
             If you allow location access, we use your location to help
-            suggest nearby gigs and venues. You can change this
+            suggest nearby gigs and venues. For city and venue search, rounded
+            location can be sent to Google Places, directly or through
+            the WeGig API. You can change this
             permission in your device settings. We do not track your
             location in the background.
             {"\n\n"}
             Optional usage analytics are off by default. If you agree,
             we use PostHog to understand which features people use and
-            improve WeGig. This includes app and device information and
-            activity such as screens, artist pages and setlists viewed.
+            improve WeGig. This includes app version, build and operating system, and
+            activity such as opening an artist page or setlist. These
+            events do not include artist names, venues or gig dates.
             This information may be linked to your account identifier.
             {"\n\n"}
             You can change your choice under Share usage analytics in

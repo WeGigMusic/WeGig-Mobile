@@ -424,6 +424,11 @@ function AppShell({ userId }: { userId: string }) {
         return;
       }
 
+      if (next === "discover") {
+        posthog.capture("discover_viewed");
+        void posthog.flush();
+      }
+
       if (next === "stats") {
         posthog.capture("stats_viewed");
         void posthog.flush();
@@ -528,6 +533,8 @@ function AppShell({ userId }: { userId: string }) {
           <ProfileScreen
             onSupport={() => {
               support.retry();
+              posthog.capture("support_screen_viewed");
+              void posthog.flush();
               setProfileRoute("support");
             }}
             isFoundingSupporter={support.isFoundingSupporter}

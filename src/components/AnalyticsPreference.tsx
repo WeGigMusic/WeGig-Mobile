@@ -46,7 +46,8 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
             setPrompt(false);
             await saveAnalyticsConsent(userId, false);
             if (!current(n)) return;
-            // Keep the local denial until an explicit successful opt-in.
+            await AsyncStorage.removeItem(pendingKey);
+            withdrawn.current = false;
             return;
           }
           const value = await readAnalyticsConsent(userId);
@@ -84,12 +85,11 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
         await AsyncStorage.setItem(pendingKey, "1");
         withdrawalQueued = true;
       }
+      await refreshQueue.current;
       if (!(await verify()) || !current(n)) return;
       await saveAnalyticsConsent(userId, value);
-      if (value) {
-        await AsyncStorage.removeItem(pendingKey);
-        withdrawn.current = false;
-      }
+      await AsyncStorage.removeItem(pendingKey);
+      withdrawn.current = false;
       if (!current(n) || !(await verify()) || !current(n)) return;
       setAccepted(value); setPrompt(false);
       if (value && AppState.currentState === "active") await startAnalytics(userId, email);

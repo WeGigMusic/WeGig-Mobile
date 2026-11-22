@@ -23,7 +23,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_ANALYTICS_ENABLED": "false"
+        "EXPO_PUBLIC_ANALYTICS_ENABLED": "true"
       },
       "android": {
         "buildType": "app-bundle",

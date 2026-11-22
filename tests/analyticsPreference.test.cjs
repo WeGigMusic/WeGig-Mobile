@@ -13,7 +13,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../src/c
 // Network and storage are mocked; the production preference component executes.
 function setup() {
   const storage = new Map(), remote = new Map([["a", true], ["b", true]]);
-  let retry;
+  let retry, consentRead;
   let online = true, user = "a", starts = [], active = false, listener, cleanup, slots = [], cursor = 0, effect, component;
   const react = {
     createContext: () => ({ Provider: "provider" }),
@@ -41,7 +41,7 @@ function setup() {
     },
     "./AnalyticsConsent": () => null,
     "../lib/analyticsConsent": {
-      readAnalyticsConsent: async id => { if (!online) throw Error("offline"); return remote.get(id) ?? null; },
+      readAnalyticsConsent: async id => { if (!online) throw Error("offline"); return consentRead ? consentRead() : remote.get(id) ?? null; },
       saveAnalyticsConsent: async (id,v) => { if (!online) throw Error("offline"); remote.set(id,v); },
     },
     "../lib/analytics": { analyticsEnabled: true, startAnalytics: async id => { starts.push(id); active = true; }, stopAnalytics: () => { active = false; } },
@@ -62,6 +62,7 @@ function setup() {
   function unmount() { cleanup?.(); cleanup = undefined; slots = []; }
   return { storage, remote, starts, render, settle, unmount,
     online(v) { online = v; },
+    mockConsentRead(read) { consentRead = read; },
     tick() { retry?.(); },
     retryActive: () => !!retry,
     foreground() { listener("background"); listener("active"); },
@@ -132,4 +133,37 @@ test("pending withdrawal retries without app restart and timer is cleaned up", a
   h.remote.set("a",true); h.tick(); await h.settle();
   assert.equal(h.remote.get("a"),true);
   h.unmount(); assert.equal(h.retryActive(),false);
+});
+
+
+test("withdrawal during a preference refresh ignores a stale server grant", async () => {
+  const h = setup();
+  h.render();
+  let preference = await h.settle();
+  assert.equal(preference.accepted, true);
+
+  let finishRead;
+  const pendingRead = new Promise(resolve => { finishRead = resolve; });
+  let markReadStarted;
+  const readStarted = new Promise(resolve => { markReadStarted = resolve; });
+  h.mockConsentRead(() => {
+    markReadStarted();
+    return pendingRead;
+  });
+  h.foreground();
+  await readStarted;
+  preference = h.render();
+  assert.equal(preference.busy, true);
+  assert.equal(preference.canWithdraw, true);
+
+  const withdrawal = preference.choose(false);
+  assert.equal(h.render().accepted, false);
+  assert.equal(h.active(), false);
+  finishRead(true);
+  await withdrawal;
+
+  assert.equal(h.render().accepted, false);
+  assert.equal(h.remote.get("a"), false);
+  assert.equal(h.active(), false);
+  assert.deepEqual(h.starts, ["a"]);
 });

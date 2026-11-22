@@ -53,3 +53,14 @@ test('malformed verification never grants or finishes', async () => {
  const {process,calls}=processor({verify:async()=>({verified:false,environment:'production'})});
  await assert.rejects(process(purchase())); assert.deepEqual(calls,[]);
 });
+
+test('concurrent failed verification is retried only once per transaction', async () => {
+ let attempts=0;
+ const {process,calls}=processor({verify:async()=>{if(++attempts===1) throw Error('offline'); return verdict;}});
+ const failed=await Promise.allSettled([process(purchase()),process(purchase())]);
+ assert.ok(failed.every(result=>result.status==='rejected'));
+ assert.equal(attempts,1);
+ assert.deepEqual(await Promise.all([process(purchase()),process(purchase())]),['verified','verified']);
+ assert.equal(attempts,2);
+ assert.deepEqual(calls,['grant','finish']);
+});

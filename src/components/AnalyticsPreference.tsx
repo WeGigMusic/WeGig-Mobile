@@ -17,6 +17,7 @@ export function AnalyticsPreference({userId, email, children}: React.PropsWithCh
   const epoch = React.useRef(0);
   const alive = React.useRef(false);
   const saving = React.useRef(false);
+  const refreshQueue = React.useRef(Promise.resolve());
   const pendingKey = `wegig.analytics.withdrawal.${userId}`;
   const current = (n: number) => alive.current && epoch.current === n;
   const verify = async () => (await supabase.auth.getSession()).data.session?.user.id === userId;
@@ -27,20 +28,30 @@ export function AnalyticsPreference({userId, email, children}: React.PropsWithCh
       const n = ++epoch.current;
       stopAnalytics();
       setBusy(true);
-      try {
-        if (!(await verify()) || !current(n)) return;
-        if (await AsyncStorage.getItem(pendingKey)) {
-          await saveAnalyticsConsent(userId, false);
-          await AsyncStorage.removeItem(pendingKey);
+      refreshQueue.current = refreshQueue.current.then(async () => {
+        try {
+          if (!current(n) || !(await verify()) || !current(n)) return;
+          const pendingWithdrawal = await AsyncStorage.getItem(pendingKey);
+          if (!current(n)) return;
+          if (pendingWithdrawal) {
+            await saveAnalyticsConsent(userId, false);
+            if (!current(n)) return;
+            await AsyncStorage.removeItem(pendingKey);
+          }
+          const value = await readAnalyticsConsent(userId);
+          if (!current(n) || !(await verify()) || !current(n)) return;
+          setAccepted(value);
+          setPrompt(value === null);
+          if (value === true && AppState.currentState === "active") await startAnalytics(userId, email);
+        } catch {
+          if (current(n)) {
+            setAccepted(false);
+            setPrompt(false);
+          }
+        } finally {
+          if (current(n)) setBusy(false);
         }
-        const value = await readAnalyticsConsent(userId);
-        if (!current(n) || !(await verify()) || !current(n)) return;
-        setAccepted(value);
-        setPrompt(value === null);
-        if (value === true && AppState.currentState === "active") await startAnalytics(userId, email);
-      } catch {
-        if (current(n)) { setAccepted(false); setPrompt(false); }
-      } finally { if (current(n)) setBusy(false); }
+      });
     };
     void refresh();
     const sub = AppState.addEventListener("change", state => {
@@ -56,8 +67,12 @@ export function AnalyticsPreference({userId, email, children}: React.PropsWithCh
     stopAnalytics();
     setBusy(true);
     if (!value) { setAccepted(false); setPrompt(false); }
+    let withdrawalQueued = false;
     try {
-      if (!value) await AsyncStorage.setItem(pendingKey, "1");
+      if (!value) {
+        await AsyncStorage.setItem(pendingKey, "1");
+        withdrawalQueued = true;
+      }
       if (!(await verify()) || !current(n)) return;
       await saveAnalyticsConsent(userId, value);
       await AsyncStorage.removeItem(pendingKey);
@@ -65,7 +80,15 @@ export function AnalyticsPreference({userId, email, children}: React.PropsWithCh
       setAccepted(value); setPrompt(false);
       if (value && AppState.currentState === "active") await startAnalytics(userId, email);
     } catch {
-      if (current(n)) { setAccepted(false); setPrompt(false); Alert.alert("Unable to save preference", "Analytics is off on this device. Please try again when connected."); }
+      if (current(n)) {
+        setAccepted(false);
+        setPrompt(false);
+        if (withdrawalQueued) {
+          Alert.alert("Analytics turned off", "We’ll sync this choice when you next open WeGig with a connection.");
+        } else {
+          Alert.alert("Unable to save preference", "Analytics is off for now. Please try saving your preference again.");
+        }
+      }
     } finally { saving.current = false; if (current(n)) setBusy(false); }
   };
   return <Context.Provider value={{accepted, busy, choose}}>

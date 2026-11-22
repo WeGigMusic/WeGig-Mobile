@@ -72,7 +72,7 @@ export const posthog = {
     active?.capture(...args);
   },
   async flush(): Promise<void> {
-    await active?.flush();
+    await active?.flush().catch(() => undefined);
   },
   reset: stopAnalytics,
 };

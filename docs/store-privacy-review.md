@@ -14,9 +14,17 @@ Foreground device location is optional. After permission is granted, `src/lib/lo
 
 No caller of the Mapbox reverse-geocoding helper was found in the reviewed mobile source. Check the actual release binary and provider configuration before making broader claims about collection.
 
-**Apple working answer:** the rounded device coordinates fall within Apple's Coarse Location definition. Disclose for App Functionality if WeGig or a provider can access them beyond the real-time request. Retention and linkage still need evidence.
+### Provider evidence
 
-**Google Play working answer:** use Precise Location for the two-decimal device coordinates sent off-device. A 0.01° by 0.01° rounding cell is at most about 1.24 km², below Google's 3 km² threshold. Mark the feature optional and used for app functionality. Review provider terms and logging before selecting ephemeral processing or making a final sharing determination.
+Google Maps Platform documents request logging, including URLs, timestamps and requester IPs, with retention varying by purpose. It does not specify whether the Places Autocomplete POST body or its coordinate fields are retained, or give a Places-specific retention period. Keep the store assessment conservative until that is confirmed.
+
+Render documents built-in public HTTP request logs on Pro workspaces and higher. Workspace log retention is 7 days on Hobby, 14 on Pro and 30 on Scale or Enterprise. Confirm the workspace tier and any log streams in the private settings. The API city handler does not persist the request or log its coordinates directly.
+
+Provider sources: https://developers.google.com/maps/security/compliance/security-compliance and https://render.com/docs/logging.
+
+**Apple working answer:** the rounded device coordinates fall within Apple's Coarse Location definition. Prepare Coarse Location for App Functionality as the conservative answer. A real-time-only exclusion would require evidence that neither WeGig nor a provider retains access to the coordinates. Linkage still needs evidence.
+
+**Google Play working answer:** use Precise Location for the two-decimal device coordinates sent off-device. A 0.01° by 0.01° rounding cell is at most about 1.24 km², below Google's 3 km² threshold. Mark the feature optional and used for app functionality. Draft as collected and not processed ephemerally while coordinate retention is unconfirmed. Confirm the applicable provider terms before making the final sharing determination.
 
 Platform definitions: https://developer.apple.com/app-store/app-privacy-details/ and https://support.google.com/googleplay/android-developer/answer/10787469.
 

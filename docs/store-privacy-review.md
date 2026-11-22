@@ -16,15 +16,17 @@ No caller of the Mapbox reverse-geocoding helper was found in the reviewed mobil
 
 ### Provider evidence
 
-Google Maps Platform documents request logging, including URLs, timestamps and requester IPs, with retention varying by purpose. It does not specify whether the Places Autocomplete POST body or its coordinate fields are retained, or give a Places-specific retention period. Keep the store assessment conservative until that is confirmed.
+Google Maps Platform's standard terms §4.4 explicitly say Google receives coordinates, search terms and IP addresses and may retain and use them to provide and improve Google products and services. The terms incorporate controller-controller terms. Google's compliance page gives no Places-specific retention period. Treat the transfer as non-ephemeral and do not rely on the Play service-provider exception for Places under these terms. Verify the agreement applicable to WeGig's billing account and any exception before submission.
 
-Render documents built-in public HTTP request logs on Pro workspaces and higher. Workspace log retention is 7 days on Hobby, 14 on Pro and 30 on Scale or Enterprise. Confirm the workspace tier and any log streams in the private settings. The API city handler does not persist the request or log its coordinates directly.
+Section 4.4(c)(ii) also distinguishes information supplied directly by end users in the normal functioning of Maps from information supplied by the customer. It restricts sending European end-user personal data, including data of UK users. The WeGig API forwards device-derived coordinates. Treat that server-side flow as a contract question before public release. If it is not permitted under the applicable agreement, remove it and retain typed-city search. Rounding alone does not demonstrate anonymisation.
 
-Provider sources: https://developers.google.com/maps/security/compliance/security-compliance and https://render.com/docs/logging.
+Render's DPA describes processing customer personal data under customer instructions. Treat Render hosting as service-provider processing for Google Play to the extent it acts on those instructions. Render documents built-in public HTTP request logs on Pro and higher, with workspace log retention of 7 days on Hobby, 14 on Pro and 30 on Scale or Enterprise. WeGig's tier and any log streams remain private configuration checks. The API handler has no database write or direct logging of those coordinates.
+
+Provider sources: https://developers.google.com/maps/security/compliance/security-compliance https://cloud.google.com/maps-platform/terms, https://render.com/docs/logging and https://render.com/dpa.
 
 **Apple working answer:** the rounded device coordinates fall within Apple's Coarse Location definition. Prepare Coarse Location for App Functionality as the conservative answer. A real-time-only exclusion would require evidence that neither WeGig nor a provider retains access to the coordinates. Linkage still needs evidence.
 
-**Google Play working answer:** use Precise Location for the two-decimal device coordinates sent off-device. A 0.01° by 0.01° rounding cell is at most about 1.24 km², below Google's 3 km² threshold. Mark the feature optional and used for app functionality. Draft as collected and not processed ephemerally while coordinate retention is unconfirmed. Confirm the applicable provider terms before making the final sharing determination.
+**Google Play working answer:** use Precise Location for the two-decimal device coordinates sent off-device. A 0.01° by 0.01° rounding cell is at most about 1.24 km², below Google's 3 km² threshold. Mark the feature optional and used for app functionality. Draft as collected, shared with Google Places, and not processed ephemerally under the standard terms. Revisit only if the final build removes the transfer or an applicable exception is substantiated.
 
 Platform definitions: https://developer.apple.com/app-store/app-privacy-details/ and https://support.google.com/googleplay/android-developer/answer/10787469.
 
@@ -44,14 +46,25 @@ Account email and identifier, saved gig content and transaction history: collect
 | Saved gigs and notes | Other User Content, linked, App Functionality | Other user-generated content, collected for app functionality |
 | Optional usage analytics | Product Interaction and User ID, linked, Analytics | App interactions and User IDs, optional, collected for analytics |
 | Contributions | Purchase History, linked, App Functionality | Purchase history, collected for app functionality and fraud prevention as applicable |
-| Device location | Coarse Location, App Functionality. Retention and linkage discussed above. | Precise Location, optional, collected for app functionality. Confirm sharing treatment. |
+| Device location | Coarse Location, App Functionality. Retention and linkage discussed above. | Precise Location, optional, collected and shared with Google Places, non-ephemeral, for app functionality in the current draft. |
 
 The profile name and photo are local in the reviewed app. Native share and export are user-initiated. Review the actually distributed versions and live analytics payloads before finalising the forms. Card details are handled by the stores. The location and SDK evidence above is still provisional.
+
+## Children's consent for optional analytics
+
+Scope checked here is the UK, EU and US. Earlier broad availability selections do not establish the final territories. Other markets and state-specific requirements remain subject to a targeted review of the actual list.
+
+- UK: Article 8 uses age 13 when relying on consent for an online service offered directly to children. Below it, verified parental authorisation is required where Article 8 applies. Assess proportionate age assurance for relying on children's own consent. Applying the Children's Code protections broadly does not replace the consent-age assessment.
+- EU: Article 8 defaults to 16 and Member States can lower their threshold to no less than 13. A single 13+ term does not cover all EU markets. A verified 16+ eligibility floor for optional analytics can simplify the Article 8 implementation while preserving access to core app features. It does not resolve all local requirements.
+- US: COPPA generally covers services directed to children under 13 and general-audience services with actual knowledge that they collect personal information from under-13s. If covered, obtain verifiable parental consent where required, or keep the relevant processing off. Check launch-state rules separately. Do not assume the account-linked PostHog implementation qualifies for an internal-operations exception.
+- Implementation implication: the current Allow prompt alone does not establish age eligibility. Keep optional analytics available at launch for eligible users. If required in the selected launch markets, put eligibility checks ahead of both the first-sign-in prompt and the Profile opt-in, leaving unknown or ineligible accounts off and core features usable. Do not collect a full date of birth by default. Platform age signals have limited availability and need an unknown-signal path.
+
+Sources: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/lawful-basis/consent/what-is-valid-consent/, https://eur-lex.europa.eu/eli/reg/2016/679/oj, https://www.ftc.gov/business-guidance/resources/complying-coppa-frequently-asked-questions, https://developer.apple.com/support/age-assurance/ and https://developer.android.com/distribute/age-appropriate-experiences/regional-protections.
 
 ## Minimum privacy work before public release
 
 - Match the public privacy policy and both store declarations to the final release configuration and applicable distributed versions. Existing policy, in-app deletion and the physical iPhone App Review recording are in place. Carry forward that evidence.
-- Confirm the remaining declaration answers that depend on provider evidence. These are whether location is retained beyond the request or linked, whether relevant disclosures count as sharing under Google Play's rules, and which properties the final analytics payload contains if analytics ships. Render workspace settings and Google Places request-body retention are still unverified.
+- Confirm Google Maps contractual coverage for the location forwarding and Render workspace tier and log streams. The draft assumes Places can retain the data and treats it as shared. Confirm Apple linkage and the final analytics payload against the shipped build.
 - Optional account-linked analytics is in launch scope. Resolve the existing children's consent and regional launch questions, verify the final iOS withdrawal flow and actual SDK payload, and reflect the feature in both declarations.
 - Record approval and any unresolved risks in the existing DPIA. Confirm that its launch scope reflects the dormant scanner and local-only profile photo. Carry forward the completed Android build 27 offline withdrawal and disposable-account deletion evidence. An outstanding historical deletion request stays in its own follow-up, unless the DPIA identifies it as a launch dependency.
 

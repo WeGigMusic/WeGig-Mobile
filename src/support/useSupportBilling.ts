@@ -2,6 +2,7 @@ import React from "react";
 import { AppState, Platform } from "react-native";
 import * as Application from "expo-application";
 import type * as Iap from "expo-iap";
+import { posthog } from "../lib/analytics";
 import { getSupportStatus, verifySupportPurchase } from "./api";
 import { createPurchaseProcessor, SUPPORT_KEYS, supportId, type PurchaseResult, type Store, type SupportKey } from "./purchases";
 
@@ -29,7 +30,14 @@ export function useSupportBilling(userId: string) {
       const current = pending.current;
       if (!current || (productId && current.productId !== productId)) return;
       clearTimeout(current.timer); pending.current = null;
-      if (error) current.reject(error); else current.resolve(result ?? "cancelled");
+      if (error) current.reject(error);
+      else {
+        if (result === "verified") {
+          posthog.capture("support_purchase_completed", { store });
+          void posthog.flush();
+        }
+        current.resolve(result ?? "cancelled");
+      }
     };
     const deferred = (productId?: string) => {
       if (alive) {

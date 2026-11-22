@@ -25,7 +25,10 @@ export function useSupportBilling(userId: string) {
     let running: Promise<void> | null = null;
     let connected = false;
     let confirmationBlocked = false;
+    let confirmationRevision = 0;
+    let deliveries = 0;
     const updateConfirmation = (blocked: boolean) => {
+      if (blocked) confirmationRevision++;
       confirmationBlocked = blocked;
       setConfirmationOutstanding(blocked);
     };
@@ -53,6 +56,7 @@ export function useSupportBilling(userId: string) {
     };
     let process: ((purchase: Iap.Purchase) => Promise<PurchaseResult | undefined>) | undefined;
     const deliver = async (purchase: Iap.Purchase) => {
+      deliveries++;
       try {
         const result = await process?.(purchase);
         if (!alive || !result) return;
@@ -66,7 +70,7 @@ export function useSupportBilling(userId: string) {
         updateConfirmation(true);
         setIssue("Your payment still needs confirmation. Retry confirmation before making another contribution.");
         settle(purchase.productId, undefined, new Error("Confirmation delayed"));
-      }
+      } finally { deliveries--; }
     };
     const refresh = (): Promise<void> => {
       if (running) return running;
@@ -110,6 +114,7 @@ export function useSupportBilling(userId: string) {
             return displayPrice ? [{ key, displayPrice }] : [];
           }));
           // StoreKit unfinished transactions include consumables that history omits.
+          const revision = confirmationRevision;
           const unfinished = Platform.OS === "ios" ? await native.getPendingTransactionsIOS() : await native.getAvailablePurchases();
           let failed = false;
           let waiting = false;
@@ -118,11 +123,13 @@ export function useSupportBilling(userId: string) {
             catch { failed = true; }
           }
           if (!alive) return;
-          updateConfirmation(failed || waiting);
+          const changedDuringRecovery = revision !== confirmationRevision || deliveries > 0;
+          updateConfirmation(failed || waiting || changedDuringRecovery);
+          if (changedDuringRecovery && !failed && !waiting) setIssue("Retry confirmation to finish checking outstanding payments.");
           if (waiting) setIssue("Your payment is awaiting approval. It will be checked again when you return to WeGig.");
           if (failed) setIssue("Your payment still needs confirmation. Retry confirmation before making another contribution.");
           purchaseRef.current = async key => {
-            if (!alive || pending.current || confirmationBlocked || failed || waiting) throw new Error("Payment unavailable");
+            if (!alive || pending.current || deliveries > 0 || confirmationBlocked || failed || waiting) throw new Error("Payment unavailable");
             const productId = supportId(store, key);
             const result = new Promise<PurchaseResult>((resolve, reject) => {
               const timer = setTimeout(() => {

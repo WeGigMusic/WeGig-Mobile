@@ -21,6 +21,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "We use your location to suggest nearby gigs and auto-fill venues.",
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.declared-age-range": true
       }
     },
     "android": {

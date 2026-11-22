@@ -1,0 +1,12 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+android {
+  namespace 'expo.modules.wegigagesignals'
+}
+
+dependencies {
+  implementation 'com.google.android.play:age-signals:0.0.6'
+}

@@ -28,9 +28,15 @@ External administrative follow-ups: HMRC VAT correction, Apple currency support,
 
 ## Next TestFlight candidate
 
-The checked source baseline is `a1915c2` on `feature/support-wegig`. Use the iOS `production` EAS profile for the consolidated TestFlight build. The generated configuration uses bundle ID `com.wegig.mobile`, version 1.0.0, remote build numbering with auto-increment, and optional analytics enabled subject to consent. Photo-library usage is present, with camera and microphone usage descriptions absent. Verify the actual build number and source commit in EAS before device testing.
+The checked source baseline is `5b5c92d` on `feature/support-wegig`. Use the iOS `production` EAS profile for the consolidated TestFlight build. The generated configuration uses bundle ID `com.wegig.mobile`, version 1.0.0, remote build numbering with auto-increment, and optional analytics enabled subject to consent. Photo-library usage is present, with camera and microphone usage descriptions absent. Verify the actual build number and source commit in EAS before device testing.
 
-The source contains in-app account deletion, the offline analytics withdrawal fix and its refresh regression test, updated location and analytics privacy wording, and calendar failure feedback. TypeScript and all 39 tests passed on this baseline.
+The source contains in-app account deletion, the offline analytics withdrawal fix and its refresh regression test, updated location and analytics privacy wording, and calendar failure feedback. The iOS JavaScript export passed on app source `3c32948`. The later test-only commit `5b5c92d` passed all 41 mobile tests.
+
+### Additional pre-build checks
+
+- Forced a 502 in the screen's artist request and verified that the existing manual form submitted the typed artist. A separate authenticated local API test saved and reloaded a gig without a MusicBrainz ID using PostgreSQL.
+- Verified that a delayed consent response from a previous account cannot re-enable analytics after switching accounts.
+- Verified that the local API returns the expected cancellation, pending and temporary failure codes with simulated Google responses and creates no support purchase for them. The mobile tests confirmed that only cancellation clears the payment block. Physical Google Play sandbox testing is still pending.
 
 ### TestFlight validation
 

@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "build:android:preview": "eas build -p android --profile preview",
     "build:android:production": "eas build -p android --profile production",
-    "submit:android": "eas submit -p android --profile production"
+    "submit:android": "eas submit -p android --profile production",
+    "postinstall": "node scripts/prepare-expo-age-range.cjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

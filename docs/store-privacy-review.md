@@ -34,9 +34,6 @@ Explicit events reviewed in App.tsx, AuthScreen.tsx, ProfileScreen.tsx, useSuppo
 ## Working declarations
 Account email and identifier, saved gig content and transaction history: collected for app functionality (and applicable financial/fraud purposes). Optional usage and device analytics: consent-controlled, linked to account; confirm SDK fields and diagnostics. Location: optional functionality, transmitted as above; confirm platform classification. Profile name/photo stored locally in reviewed implementation; verify sharing/export paths. Ticket scanner not exposed in reviewed navigation; API gate defaults off, production variable reported absent. No advertising tracking identified in reviewed code; confirm all SDKs and providers. Verify encryption in transit, retention, deletion and processor settings. Do not claim no collection solely because data is not persisted.
 
-## Release evidence needed
-Final-binary permissions, live analytics payload fields, iOS consent behaviour, provider retention/logs, release-binary location verification, current store questionnaires, DPIA review, historical analytics deletion and residual dependency exposure. Website policy amendments staged separately; in-app consent wording updated. No store declaration submitted.
-
 ## Draft entries by store
 
 | Data | Apple working entry | Google Play working entry |
@@ -49,6 +46,13 @@ Final-binary permissions, live analytics payload fields, iOS consent behaviour, 
 
 The profile name and photo are local in the reviewed app. Native share and export are user-initiated. Review the actually distributed versions and live analytics payloads before finalising the forms. Card details are handled by the stores. The location and SDK evidence above is still provisional.
 
-## DPIA draft review
+## Minimum privacy work before public release
 
-The 21 November draft remains unsigned. Update launch scope to remove dormant ticket import and Google ticket recognition, and distinguish local profile photos from any future gig-image uploads. Add the current Google Places and Render location flows, including the two different store classifications. Reflect successful disposable-account deletion testing and separately record retained transaction safeguards, historical PostHog deletion and the Android build 27 offline-withdrawal pass (switch, Supabase and PostHog) and the pending iOS check. Keep children's analytics consent, provider and transfer evidence, retention and final director approval open. Do not treat the provisional residual-risk ratings as approved.
+- Match the public privacy policy and both store declarations to the final release configuration and applicable distributed versions. Existing policy, in-app deletion and the physical iPhone App Review recording are in place. Carry forward that evidence.
+- Confirm the remaining declaration answers that depend on provider evidence. These are whether location is retained beyond the request or linked, whether relevant disclosures count as sharing under Google Play's rules, and which properties the final analytics payload contains if analytics ships. Render workspace settings and Google Places request-body retention are still unverified.
+- If launching with optional account-linked analytics, resolve the existing children's consent and regional launch questions before enabling it for public users. If those questions remain unresolved, consider disabling optional analytics for public launch and aligning the final disclosures accordingly. This is a release configuration decision. Internal testing can continue on its existing track.
+- Record approval and any unresolved risks in the existing DPIA. Confirm that its launch scope reflects the dormant scanner and local-only profile photo. Carry forward the completed Android build 27 offline withdrawal and disposable-account deletion evidence. An outstanding historical deletion request stays in its own follow-up, unless the DPIA identifies it as a launch dependency.
+
+Store listings, provider settings and the 21 November DPIA document were not changed by this review.
+
+References: https://developer.apple.com/help/app-store-connect/reference/app-information/app-privacy/, https://support.google.com/googleplay/android-developer/answer/10787469, and https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/how-do-we-do-a-dpia/.

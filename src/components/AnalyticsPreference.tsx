@@ -30,8 +30,10 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
   const verify = async () => (await supabase.auth.getSession()).data.session?.user.id === userId;
   React.useEffect(() => {
     alive.current = true;
+    let refreshing = false;
     const refresh = async () => {
       if (saving.current) return;
+      refreshing = true;
       const n = ++epoch.current;
       stopAnalytics();
       setBusy(true);
@@ -61,6 +63,7 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
             setPrompt(false);
           }
         } finally {
+          refreshing = false;
           if (current(n)) setBusy(false);
         }
       });
@@ -70,7 +73,10 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       if (state === "active") void refresh();
       else { stopAnalytics(); if (!saving.current) ++epoch.current; }
     });
-    return () => { alive.current = false; ++epoch.current; stopAnalytics(); sub.remove(); };
+    const retry = setInterval(() => {
+      if (!refreshing && withdrawn.current && AppState.currentState === "active") void refresh();
+    }, 15000);
+    return () => { clearInterval(retry); alive.current = false; ++epoch.current; stopAnalytics(); sub.remove(); };
   }, [userId, email]);
   const choose = async (value: boolean) => {
     if (saving.current || (busy && value)) return;

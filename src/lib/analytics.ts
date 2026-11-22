@@ -36,7 +36,7 @@ export function stopAnalytics(): void {
   }
 }
 
-export async function startAnalytics(userId: string, email?: string): Promise<void> {
+export async function startAnalytics(userId: string, _email?: string): Promise<void> {
   stopAnalytics();
   const current = generation;
   if (!analyticsEnabled || !userId) return;
@@ -62,7 +62,9 @@ export async function startAnalytics(userId: string, email?: string): Promise<vo
     }
     gates.set(client, new AbortController());
     active = client;
-    client.identify(userId, email ? { email } : {});
+    client.identify(userId);
+    client.capture("analytics_foreground_started");
+    void client.flush().catch(() => undefined);
   } catch {
     if (generation === current) stopAnalytics();
     void client.optOut().catch(() => undefined);

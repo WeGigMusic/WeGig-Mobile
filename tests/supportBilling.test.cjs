@@ -5,11 +5,11 @@ const ts=require("typescript");
 const vm=require("node:vm");
 const path=require("node:path");
 const compile=name=>ts.transpileModule(fs.readFileSync(path.join(__dirname,"../src/support",name),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText;
-function setup(){
+function setup(store = "apple"){
  const purchases={}; new Function("exports",compile("purchases.ts"))(purchases);
- let cursor=0,slots=[],effect,cleanup,updated,errors,requests=0,fail=false,unfinished=[],hold;
+ let cursor=0,slots=[],effect,cleanup,updated,errors,requests=0,fail=false,unfinished=[],hold, verificationCode;
  const account={appleAppAccountToken:"a",googleObfuscatedAccountId:"b",isFoundingSupporter:false};
- const sku=purchases.supportId("apple","small");
+ const sku=purchases.supportId(store,"small");
  const react={
  useState(v){const i=cursor++;if(!(i in slots))slots[i]=v;return [slots[i],x=>{slots[i]=x;}];},
  useRef(v){const i=cursor++;if(!(i in slots))slots[i]={current:v};return slots[i];},
@@ -23,14 +23,15 @@ function setup(){
  initConnection:async()=>true,endConnection:async()=>true,
  fetchProducts:async()=>[{id:sku,type:"in-app",platform:"ios",displayPrice:"£1"}],
  getPendingTransactionsIOS:async()=>{if(hold)await hold;return unfinished;},
+ getAvailablePurchases:async()=>unfinished,
  requestPurchase:async()=>{requests++;},finishTransaction:async()=>{}
  };
- const deps={react,"react-native":{Platform:{OS:"ios"},AppState:{addEventListener(){return {remove(){}};}}},"expo-application":{applicationId:"com.wegig.mobile"},"expo-iap":native,"../lib/analytics":{posthog:{capture(){},flush:async()=>{}}},"./purchases":purchases,"./api":{getSupportStatus:async()=>account,verifySupportPurchase:async()=>{if(fail)throw Error("offline");return {verified:true,environment:"production",isFoundingSupporter:true};}}};
+ const deps={react,"react-native":{Platform:{OS:store==="apple"?"ios":"android"},AppState:{addEventListener(){return {remove(){}};}}},"expo-application":{applicationId:store==="apple"?"com.wegig.mobile":"com.wegig.app"},"expo-iap":native,"../lib/analytics":{posthog:{capture(){},flush:async()=>{}}},"./purchases":purchases,"./api":{getSupportStatus:async()=>account,verifySupportPurchase:async()=>{if(fail)throw Error("offline");if(verificationCode)throw new purchases.SupportApiError(verificationCode);return {verified:true,environment:"production",isFoundingSupporter:true};}}};
  const mod={exports:{}};
  vm.runInNewContext(compile("useSupportBilling.ts"),{module:mod,exports:mod.exports,require:n=>{assert.ok(Object.hasOwn(deps,n),n);return deps[n];},setTimeout,clearTimeout});
  function render(){cursor=0;const result=mod.exports.useSupportBilling("a");if(effect){const e=effect;effect=undefined;cleanup=e();}return result;}
  const settle=async()=>{await new Promise(r=>setImmediate(r));return render();};
- return {render,settle,requests:()=>requests,close:()=>cleanup?.(),fail:v=>{fail=v;},pending:()=>errors({code:"pending",productId:sku}),deliver:(id="1")=>updated({id,productId:sku,purchaseState:"purchased",appAccountToken:"a"}),hold:()=>{let release;hold=new Promise(r=>{release=r;});return ()=>{hold=undefined;release();};}};
+ return {render,settle,setRecoveryCode(code){verificationCode=code;unfinished=[{id:"old",productId:sku,purchaseState:"purchased",obfuscatedAccountIdAndroid:"b",purchaseToken:"old-token"}];},requests:()=>requests,close:()=>cleanup?.(),fail:v=>{fail=v;},pending:()=>errors({code:"pending",productId:sku}),deliver:(id="1")=>updated({id,productId:sku,purchaseState:"purchased",appAccountToken:"a"}),hold:()=>{let release;hold=new Promise(r=>{release=r;});return ()=>{hold=undefined;release();};}};
 }
 test("stale payment handler cannot start a second contribution or bypass pending confirmation",async t=>{
  const h=setup();t.after(h.close);h.render();const p=await h.settle();assert.ok(p.onPurchase);
@@ -52,5 +53,22 @@ test("refresh blocks stale handlers and concurrent pending notifications survive
  await assert.rejects(p.onPurchase("small"),/Payment unavailable/);
  h.pending();release();const next=await h.settle();
  assert.equal(next.confirmationOutstanding,true);assert.equal(next.onPurchase,undefined);
+ assert.equal(h.requests(),0);
+});
+
+test("Google recovery stays blocked on temporary or pending responses and clears on cancellation",async t=>{
+ const h=setup("google");t.after(h.close);h.render();
+ let state=await h.settle();
+ assert.ok(state.onPurchase);
+
+ for(const code of ["PURCHASE_VERIFICATION_UNAVAILABLE","PAYMENT_PENDING","PAYMENT_CANCELLED"]){
+  h.setRecoveryCode(code);
+  state.retry();
+  state=await h.settle();
+  const cancelled=code==="PAYMENT_CANCELLED";
+  assert.equal(state.confirmationOutstanding,!cancelled);
+  assert.equal(Boolean(state.onPurchase),cancelled);
+  assert.equal(state.isFoundingSupporter,false);
+ }
  assert.equal(h.requests(),0);
 });

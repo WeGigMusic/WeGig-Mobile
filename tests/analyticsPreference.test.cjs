@@ -167,3 +167,30 @@ test("withdrawal during a preference refresh ignores a stale server grant", asyn
   assert.equal(h.active(), false);
   assert.deepEqual(h.starts, ["a"]);
 });
+
+
+test("a stale consent read cannot start analytics after an account switch", async () => {
+  const h = setup();
+  let finishRead;
+  const pendingRead = new Promise(resolve => { finishRead = resolve; });
+  let markReadStarted;
+  const readStarted = new Promise(resolve => { markReadStarted = resolve; });
+  h.mockConsentRead(() => {
+    markReadStarted();
+    return pendingRead;
+  });
+  h.render();
+  await readStarted;
+
+  h.unmount();
+  h.user("b");
+  h.remote.set("b", false);
+  h.mockConsentRead(undefined);
+  h.render();
+  assert.equal((await h.settle()).accepted, false);
+
+  finishRead(true);
+  assert.equal((await h.settle()).accepted, false);
+  assert.equal(h.active(), false);
+  assert.deepEqual(h.starts, []);
+});

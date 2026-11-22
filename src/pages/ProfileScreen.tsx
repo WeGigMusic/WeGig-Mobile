@@ -1054,7 +1054,7 @@ export function ProfileScreen({
             <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.toggleTitle}>Share usage analytics</Text>
-                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account and email</Text>
+                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account identifier</Text>
               </View>
               <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
                 disabled={analytics.busy} onValueChange={(value) => void analytics.choose(value)}

@@ -4,11 +4,13 @@ Reviewed analytics.ts, AnalyticsPreference.tsx, AnalyticsConsent.tsx, App.tsx,
 AuthScreen, ProfileScreen, GigsScreen, DiscoverScreen, StatsScreen and useSupportBilling.
 This is a partial static inventory, not live verification.
 
-Production flag false disables both SDK and consent UI. For consent-based launch,
-set true only after controlled testing and compliance review; never fabricate consent.
-Current SDK identifies account ID and optionally email. Assess removal of email and
-update disclosures if changed. Keep replay, automatic lifecycle tracking, remote
-configuration and surveys disabled pending assessment.
+The preview and production EAS profiles make analytics available after account-level
+opt-in. The SDK identifies opted-in users by account ID without providing email.
+Replay, automatic lifecycle tracking, remote configuration and surveys are disabled.
+The SDK app properties are limited to app version, build number and OS name.
+Artist-page and setlist events record the interaction without artist, venue or date.
+The SDK may attach its own transport and session metadata; confirm the actual payload
+on a device before finalising the declarations.
 
 Observed event calls: gig_created, stats_viewed, profile_viewed,
 password_recovery_opened, login_completed, sign_up_started, password_changed,

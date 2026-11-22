@@ -395,9 +395,7 @@ export function ArtistScreen(props: {
   }, [props.artist]);
 
   React.useEffect(() => {
-    posthog.capture("artist_page_viewed", {
-      artist: props.artist,
-    });
+    posthog.capture("artist_page_viewed");
 
     void posthog.flush();
   }, [props.artist]);
@@ -597,11 +595,7 @@ const releases = spotifyData?.releases ?? [];
                   key={item.id}
                   item={item}
                   onPress={(next) => {
-                    posthog.capture("setlist_opened", {
-                      artist: props.artist,
-                      venue: next.venueName,
-                      date: next.eventDate,
-                    });
+                    posthog.capture("setlist_opened");
 
                     void posthog.flush();
                     setSelectedSetlist(next);

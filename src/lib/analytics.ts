@@ -46,6 +46,11 @@ export async function startAnalytics(userId: string, _email?: string): Promise<v
     disableGeoip: true,
     enableSessionReplay: false,
     captureAppLifecycleEvents: false,
+    customAppProperties: ({ $app_version, $app_build, $os_name }) => ({
+      $app_version,
+      $app_build,
+      $os_name,
+    }),
     defaultOptIn: false,
     preloadFeatureFlags: false,
     disableRemoteConfig: true,

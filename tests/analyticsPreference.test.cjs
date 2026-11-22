@@ -13,6 +13,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../src/c
 // Network and storage are mocked; the production preference component executes.
 function setup() {
   const storage = new Map(), remote = new Map([["a", true], ["b", true]]);
+  let retry;
   let online = true, user = "a", starts = [], active = false, listener, cleanup, slots = [], cursor = 0, effect, component;
   const react = {
     createContext: () => ({ Provider: "provider" }),
@@ -47,7 +48,7 @@ function setup() {
     "../lib/supabase": { supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: user } } } }) } } },
   };
   const mod = { exports: {} };
-  vm.runInNewContext(source, { module: mod, exports: mod.exports, require: name => {
+  vm.runInNewContext(source, { setInterval: fn => { retry = fn; return 1; }, clearInterval: () => { retry = undefined; }, module: mod, exports: mod.exports, require: name => {
     assert.ok(Object.hasOwn(deps,name), name); return deps[name];
   } });
   function render() {
@@ -61,6 +62,8 @@ function setup() {
   function unmount() { cleanup?.(); cleanup = undefined; slots = []; }
   return { storage, remote, starts, render, settle, unmount,
     online(v) { online = v; },
+    tick() { retry?.(); },
+    retryActive: () => !!retry,
     foreground() { listener("background"); listener("active"); },
     user(v) { user = v; },
     active: () => active };
@@ -117,4 +120,16 @@ test("offline withdrawal is cleared after successful foreground synchronization"
   assert.equal(p.accepted,false);
   assert.equal(h.remote.get("a"),false);
   assert.equal(h.storage.has("wegig.analytics.withdrawal.a"),false);
+});
+
+test("pending withdrawal retries without app restart and timer is cleaned up", async () => {
+  const h = setup(); h.render(); let p = await h.settle();
+  h.online(false); await p.choose(false);
+  h.online(true); h.tick(); p = await h.settle();
+  assert.equal(p.accepted,false);
+  assert.equal(h.remote.get("a"),false);
+  assert.equal(h.storage.has("wegig.analytics.withdrawal.a"),false);
+  h.remote.set("a",true); h.tick(); await h.settle();
+  assert.equal(h.remote.get("a"),true);
+  h.unmount(); assert.equal(h.retryActive(),false);
 });

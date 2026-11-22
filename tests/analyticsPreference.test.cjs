@@ -98,3 +98,23 @@ test("local denial is isolated by account on remount", async () => {
   assert.equal(h.storage.get("wegig.analytics.withdrawal.a"),"1");
   assert.equal(h.starts.at(-1),"b");
 });
+
+test("acknowledged withdrawal does not overwrite a later remote opt-in", async () => {
+  const h = setup(); h.render(); let p = await h.settle();
+  await p.choose(false);
+  assert.equal(h.remote.get("a"),false);
+  assert.equal(h.storage.has("wegig.analytics.withdrawal.a"),false);
+  h.remote.set("a",true);
+  h.foreground(); p = await h.settle();
+  assert.equal(p.accepted,true);
+  assert.equal(h.remote.get("a"),true);
+  assert.equal(h.active(),true);
+});
+test("offline withdrawal is cleared after successful foreground synchronization", async () => {
+  const h = setup(); h.render(); let p = await h.settle();
+  h.online(false); await p.choose(false);
+  h.online(true); h.foreground(); p = await h.settle();
+  assert.equal(p.accepted,false);
+  assert.equal(h.remote.get("a"),false);
+  assert.equal(h.storage.has("wegig.analytics.withdrawal.a"),false);
+});

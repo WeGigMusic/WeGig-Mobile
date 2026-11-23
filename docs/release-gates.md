@@ -79,3 +79,5 @@ Operator confirms sufficient testing and accepts profile name/photo persistence 
 ## Residual dependency risk acceptance — 23 November 2026
 
 Operator explicitly accepts the documented residual dependency risk for launch on Expo SDK 54, conditional on the reviewed exposure assumptions remaining valid and no new material vulnerability or exploit path being identified. This closes the launch risk-decision gate, not the underlying advisories. Reassess on the next controlled Expo SDK upgrade, or sooner if exposure changes. Avoid forced incompatible upgrades. No new dependency scan or tests performed for this acceptance.
+
+- 23 November: operator confirms submission of revised Google Play location sharing declaration for review. Declaration update action complete; approval and applicable Google Maps contractual coverage remain unverified.

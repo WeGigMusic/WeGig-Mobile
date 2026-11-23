@@ -15,3 +15,12 @@ if (config.android.publication) {
   delete config.android.publication;
   writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
 }
+
+// SDK 54 supports ordinary Expo records, but not the newer optimization annotation.
+const recordsPath = join(dirname(packagePath), "android/src/main/java/expo/modules/agerange/AgeRangeRecords.kt");
+const records = readFileSync(recordsPath, "utf8");
+const compatible = records.replace(/^import .*\.OptimizedRecord\s*$/gm, "").replace(/^\s*@OptimizedRecord\s*$/gm, "");
+if (compatible.includes("OptimizedRecord")) {
+  throw new Error("Unexpected expo-age-range record annotation; review compatibility patch.");
+}
+if (compatible !== records) writeFileSync(recordsPath, compatible);

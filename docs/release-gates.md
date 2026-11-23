@@ -67,3 +67,8 @@ Radiohead and Portishead returned matching results, and Blur returned HTTP 502. 
 - Age signals: isolated prototype branch, Android preview build 73215284-79ed-465b-9b03-322cc0e77aec queued; no native success or production integration verified. Determine jurisdictional applicability and required safeguards before release; do not merge unvalidated prototype.
 - Dependency findings: defer incompatible SDK upgrades only after explicit residual-risk decision. No new exposure established by this review.
 - No public rollout or production deployment authorised.
+
+
+### Operator acceptance — 23 November
+
+Operator confirms sufficient testing and accepts profile name/photo persistence across account switching, offline analytics withdrawal, and core discover/add/edit/rate gig flows as passed. Do not repeat these checks absent relevant changes or regressions. This supersedes outstanding repeat checks for those specific scenarios above; it does not independently establish analytics consent isolation across accounts. Contribution display remains USD; awaiting Apple support response (case 103020803539). Currency issue is not resolved. No new device tests performed by this reviewer.

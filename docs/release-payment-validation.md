@@ -18,3 +18,9 @@ No public release or live-payment validation is implied.
 ## Refund during recovery
 
 A server-confirmed `PURCHASE_REFUNDED` response ends that recovery attempt without granting supporter status or consuming the transaction. Other verification failures remain retryable. Validate with a store-distributed test build that a refunded item does not block another contribution after recovery, and that the supporter badge reflects the server ledger after refresh.
+
+## Consolidated device session — 23 November
+
+For each store, use a disposable account and the final matching store-distributed test build. Check all seven displayed prices, including Other amount, against the store checkout; cancel checkout first and confirm no badge or ledger credit. Then complete one sandbox contribution, interrupt or relaunch before confirmation where safely supported, and verify recovery produces exactly one ledger credit and the correct badge. Request a sandbox refund through the supported store mechanism and verify notification receipt, ledger revocation, badge removal after refresh (if no other qualifying purchase), and ability to contribute again. If interruption cannot be reproduced, record it as unverified rather than passing it. Existing successful sandbox purchases may be reused for refund testing if their build and account evidence are sufficient.
+
+Currency inspection: useSupportBilling.ts obtains prices from the native product displayPrice (or Android offer displayPrice); no USD literal or conversion in that path. Do not force GBP for global users. Compare the exact product, storefront and native checkout, and await Apple case 103020803539 before speculative changes. The cause remains unconfirmed.

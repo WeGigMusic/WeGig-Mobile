@@ -994,6 +994,15 @@ export function ProfileScreen({
           />
           <ActionRow
             title={
+              exportingGigs
+                ? "Exporting attended gigs…"
+                : "Export attended gigs"
+            }
+            subtitle="Download a CSV of your gig history"
+            onPress={() => void handleExportGigs()}
+          />
+          <ActionRow
+            title={
               startingDeletion
                 ? "Starting deletion…"
                 : "Delete account"
@@ -1049,15 +1058,6 @@ export function ProfileScreen({
             title="Send feedback"
             subtitle="Ideas, bugs and suggestions"
             onPress={handleFeedback}
-          />
-          <ActionRow
-            title={
-              exportingGigs
-                ? "Exporting attended gigs…"
-                : "Export attended gigs"
-            }
-            subtitle="Download a CSV of your gig history"
-            onPress={() => void handleExportGigs()}
           />
           <ActionRow
             title="Privacy policy"

@@ -72,3 +72,5 @@ Radiohead and Portishead returned matching results, and Blur returned HTTP 502. 
 ### Operator acceptance — 23 November
 
 Operator confirms sufficient testing and accepts profile name/photo persistence across account switching, offline analytics withdrawal, and core discover/add/edit/rate gig flows as passed. Do not repeat these checks absent relevant changes or regressions. This supersedes outstanding repeat checks for those specific scenarios above; it does not independently establish analytics consent isolation across accounts. Contribution display remains USD; awaiting Apple support response (case 103020803539). Currency issue is not resolved. No new device tests performed by this reviewer.
+
+- Ticket scanning configuration accepted 23 November: operator confirms TICKET_SCANNING_ENABLED is absent in Render; reviewed API defaults to HTTP 404. Close configuration check; live endpoint not independently probed.

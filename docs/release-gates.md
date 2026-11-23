@@ -81,3 +81,20 @@ Operator confirms sufficient testing and accepts profile name/photo persistence 
 Operator explicitly accepts the documented residual dependency risk for launch on Expo SDK 54, conditional on the reviewed exposure assumptions remaining valid and no new material vulnerability or exploit path being identified. This closes the launch risk-decision gate, not the underlying advisories. Reassess on the next controlled Expo SDK upgrade, or sooner if exposure changes. Avoid forced incompatible upgrades. No new dependency scan or tests performed for this acceptance.
 
 - 23 November: operator confirms submission of revised Google Play location sharing declaration for review. Declaration update action complete; approval and applicable Google Maps contractual coverage remain unverified.
+
+## Consolidated launch checklist — 23 November (supersedes earlier repeat-check instructions)
+
+### Remaining release gates
+- [ ] Determine applicable regional age obligations; validate prototype and required production safeguards, including optional analytics eligibility.
+- [ ] Validate store-distributed contribution cancellation, recovery and refund lifecycle; alternatively obtain explicit approval to disable contributions pending validation.
+- [ ] Resolve contribution currency display (Apple case 103020803539).
+- [ ] Resolve Google Places contractual coverage and reconcile final store privacy categories/linkage and analytics search disclosures with shipped implementation. Disclosure submission is not contractual clearance.
+- [ ] Update and approve existing DPIA; carry forward accepted test evidence and documented residual risks. Original DPIA not edited by this consolidation.
+- [ ] Validate final binary provenance and changed functionality; confirm Apple review acceptance and Google production changes before controlled publication.
+- [ ] Confirm public store URLs before publishing staged website.
+
+### Completed or accepted
+Core gig flows, disposable account deletion, offline withdrawal, profile persistence, ticket scanner disabled, compiled Android build 27 permissions and OkHttp, dependency residual-risk acceptance, staged website checks. Google Play location sharing amendment submitted; approval pending. Render Hobby retention configuration recorded in privacy review. Do not repeat accepted checks without relevant changes.
+
+### Deferred / external
+Operator deferred Places quota and quota-alert changes on 23 November. Existing WeGig monthly budget £100 with alerts at £25/50/75/100; no spending cap verified. Default high API quotas remain; financial exposure persists. API key restriction review deferred, not verified. Other follow-ups: HMRC VAT, historical PostHog deletion, upstream artist search reliability and controlled SDK upgrade. Escalate any material legal/security blocker rather than assuming acceptance. Both Android prototype and final iOS candidate builds reported in progress by operator.

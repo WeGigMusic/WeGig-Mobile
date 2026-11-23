@@ -34,3 +34,8 @@ The lockfile audit counts affected parent packages as well as root advisories. T
 | uuid 3.4.0 | Expo ngrok creates a development tunnel name using v4 without a supplied buffer. | The advisory concerns v3, v5 and v6 with a caller-supplied buffer. The fix crosses major versions and the audited call does not use the affected API. |
 
 No direct exposure to user input in the installed mobile app was identified for these paths. Keep the findings open for the controlled Expo SDK upgrade and use reviewed source and assets in the meantime. This review does not accept residual risk.
+
+
+## Residual dependency risk acceptance — 23 November 2026
+
+Operator explicitly accepts the documented residual dependency risk for launch on Expo SDK 54, conditional on the reviewed exposure assumptions remaining valid and no new material vulnerability or exploit path being identified. This closes the launch risk-decision gate, not the underlying advisories. Reassess on the next controlled Expo SDK upgrade, or sooner if exposure changes. Avoid forced incompatible upgrades. No new dependency scan or tests performed for this acceptance.

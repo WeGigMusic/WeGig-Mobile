@@ -74,3 +74,8 @@ Radiohead and Portishead returned matching results, and Blur returned HTTP 502. 
 Operator confirms sufficient testing and accepts profile name/photo persistence across account switching, offline analytics withdrawal, and core discover/add/edit/rate gig flows as passed. Do not repeat these checks absent relevant changes or regressions. This supersedes outstanding repeat checks for those specific scenarios above; it does not independently establish analytics consent isolation across accounts. Contribution display remains USD; awaiting Apple support response (case 103020803539). Currency issue is not resolved. No new device tests performed by this reviewer.
 
 - Ticket scanning configuration accepted 23 November: operator confirms TICKET_SCANNING_ENABLED is absent in Render; reviewed API defaults to HTTP 404. Close configuration check; live endpoint not independently probed.
+
+
+## Residual dependency risk acceptance — 23 November 2026
+
+Operator explicitly accepts the documented residual dependency risk for launch on Expo SDK 54, conditional on the reviewed exposure assumptions remaining valid and no new material vulnerability or exploit path being identified. This closes the launch risk-decision gate, not the underlying advisories. Reassess on the next controlled Expo SDK upgrade, or sooner if exposure changes. Avoid forced incompatible upgrades. No new dependency scan or tests performed for this acceptance.

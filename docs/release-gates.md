@@ -54,3 +54,16 @@ Privacy declarations remain provisional until provider retention and sharing, li
 ### Production artist search smoke check
 
 Radiohead and Portishead returned matching results, and Blur returned HTTP 502. Earlier production checks saw Radiohead return both 200 and 502. The live API already spaces requests and retries upstream 429 and 503 responses. These samples show intermittent availability across searches. The exact upstream cause is unconfirmed. Add Gig now tells users they can save the typed artist and offers a retry. A forced 502 check against the screen handlers verified that manual entry submits successfully without a MusicBrainz ID.
+
+
+## 23 November launch triage
+
+- Account deletion: previously passed on disposable account; no repeat requested. Apple acceptance remains pending.
+- iOS opt-in and withdrawal: user confirmed foreground consent on/off checks passed; observed PostHog positive control. Offline withdrawal and account switching on iOS remain separate device checks.
+- Apple privacy and Google Data Safety updated by operator; verify final declarations, historical analytics handling and review status before publication.
+- Profile menu changes committed through d0ab788; iOS TestFlight build queued by operator; visual smoke test pending.
+- Static review: analytics account-keyed component, session checks, generation invalidation and abortable transport present. Mobile billing recovery and API product/account verification, transactional purchase deduplication, authenticated refund notifications and revocation handling present. Sandbox lifecycle validation remains open; no fresh automated tests run in this review.
+- Ticket scanning: no active route in mobile App.tsx; API /ocr/ticket returns 404 unless TICKET_SCANNING_ENABLED is exactly true. Confirm deployed environment flag or live endpoint before closing.
+- Age signals: isolated prototype branch, Android preview build 73215284-79ed-465b-9b03-322cc0e77aec queued; no native success or production integration verified. Determine jurisdictional applicability and required safeguards before release; do not merge unvalidated prototype.
+- Dependency findings: defer incompatible SDK upgrades only after explicit residual-risk decision. No new exposure established by this review.
+- No public rollout or production deployment authorised.

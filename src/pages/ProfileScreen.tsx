@@ -1046,22 +1046,6 @@ export function ProfileScreen({
             onPress={handleOpenStory}
           />
           <ActionRow
-            title="Privacy policy"
-            subtitle="How your data is handled"
-            onPress={handleOpenPrivacy}
-          />
-          {analyticsEnabled && (
-            <View style={styles.toggleRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.toggleTitle}>Share usage analytics</Text>
-                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account identifier</Text>
-              </View>
-              <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
-                disabled={analytics.busy && !analytics.canWithdraw} onValueChange={(value) => void analytics.choose(value)}
-                trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
-            </View>
-          )}
-          <ActionRow
             title="Send feedback"
             subtitle="Ideas, bugs and suggestions"
             onPress={handleFeedback}
@@ -1074,8 +1058,24 @@ export function ProfileScreen({
             }
             subtitle="Download a CSV of your gig history"
             onPress={() => void handleExportGigs()}
-            isLast
           />
+          <ActionRow
+            title="Privacy policy"
+            subtitle="How your data is handled"
+            onPress={handleOpenPrivacy}
+            isLast={!analyticsEnabled}
+          />
+          {analyticsEnabled && (
+            <View style={styles.toggleRowNoBorder}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleTitle}>Share usage analytics</Text>
+                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account identifier</Text>
+              </View>
+              <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
+                disabled={analytics.busy && !analytics.canWithdraw} onValueChange={(value) => void analytics.choose(value)}
+                trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
+            </View>
+          )}
         </View>
 
         <View style={styles.socialLinksRow}>

@@ -71,3 +71,12 @@ Sources: https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/law
 Store listings, provider settings and the 21 November DPIA document were not changed by this review.
 
 References: https://developer.apple.com/help/app-store-connect/reference/app-information/app-privacy/, https://support.google.com/googleplay/android-developer/answer/10787469, and https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/accountability-and-governance/data-protection-impact-assessments-dpias/how-do-we-do-a-dpia/.
+
+
+## 23 November reconciliation
+
+Operator updated both store declarations and accepted offline withdrawal and core functional tests. Observed iOS build 26 analytics traffic confirmed foreground opt-in and withdrawal, SDK metadata and account identification; no explicit email in reviewed identify source. Historical person properties are not evidence of new email transmission. Ticket scanner flag absent in Render per operator. Do not repeat accepted device tests without relevant changes.
+
+Outstanding substantive privacy decisions: Google Places sharing and contractual coverage (current Play no-sharing answer conflicts with conservative working assessment unless an applicable exception is established); final Apple linkage and data categories; provider retention and DPIA approval. Resolve before publication. Do not infer contractual terms from a dashboard toggle.
+
+Prototype commits ce8cbd8 and 3ac2745 add an adult-only optional analytics eligibility helper and 12 unexecuted mocked test cases. No runtime wiring or native validation yet. Not-required is not proof of adult age. An adult-only rule may disable analytics for many adults in regions without signals; assess fallback or disable optional analytics for launch if age eligibility cannot be supported. Keep actual age signals out of analytics and do not treat them as parental consent. Regional purchase, access and consent-revocation requirements remain unresolved.

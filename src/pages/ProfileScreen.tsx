@@ -25,6 +25,7 @@ import { Ionicons } from "@expo/vector-icons";
 import ViewShot, { captureRef } from "react-native-view-shot";
 
 import { FoundingSupporterBadge } from "../components/FoundingSupporterBadge";
+import ProfileShareCard from "../components/ProfileShareCard";
 import { AvatarPickerModal } from "../components/AvatarPickerModal";
 import { Colours } from "../theme/colours";
 import { apiGet } from "../lib/api";
@@ -72,31 +73,26 @@ type ProfileScreenProps = {
 };
 
 function computeProfileStats(gigs: Gig[]) {
-  const total = gigs.length;
-
-  const byArtist = gigs.reduce<Record<string, number>>((acc, gig) => {
-    const key = (gig.artist ?? "").trim() || "Unknown";
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const byVenue = gigs.reduce<Record<string, number>>((acc, gig) => {
-    const key = (gig.venue ?? "").trim() || "Unknown";
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const topArtist =
-    Object.entries(byArtist).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
-
-  const topVenue =
-    Object.entries(byVenue).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
-
-  return {
-    total,
-    topArtist,
-    topVenue,
-  };
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  const attended = gigs.filter(gig => /^\d{4}-\d{2}-\d{2}$/.test(gig.date) && gig.date <= today);
+  const artists = new Map<string, {name: string; count: number}>();
+  const venues = new Set<string>();
+  const cities = new Set<string>();
+  const normalise = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
+  for (const gig of attended) {
+    const artist = normalise(gig.artist ?? "");
+    const venue = normalise(gig.venue ?? "");
+    const city = normalise(gig.city ?? "");
+    if (artist && artist !== "unknown") {
+      const previous = artists.get(artist);
+      artists.set(artist, {name: previous?.name ?? gig.artist.trim(), count: (previous?.count ?? 0)+1});
+    }
+    if (venue && venue !== "unknown") venues.add(venue + "|" + city);
+    if (city && city !== "unknown") cities.add(city);
+  }
+  const top = [...artists.values()].sort((a,b) => b.count-a.count || a.name.localeCompare(b.name))[0];
+  return {total: attended.length, artists: artists.size, venues: venues.size, cities: cities.size, topArtist: top?.name ?? "", topArtistCount: top?.count ?? 0};
 }
 
 function ActionRow(props: {
@@ -756,7 +752,7 @@ export function ProfileScreen({
   }, [openExternalLink]);
 
   const handleShareProfile = React.useCallback(async () => {
-    if (!shareCardRef.current || sharingProfile) return;
+    if (!shareCardRef.current || sharingProfile || !stats || loading) return;
 
     setSharingProfile(true);
 
@@ -792,23 +788,11 @@ export function ProfileScreen({
         to: targetUri,
       });
 
-      const shareMessage =
-        "Check out my WeGig profile 🎶\nDownload the app: https://wegig.live";
-
-      await Share.share(
-        {
-          title: `${rawName}'s gig stats`,
-          message:
-            Platform.OS === "android"
-              ? `${shareMessage}\n${targetUri}`
-              : shareMessage,
-          url: targetUri,
-        },
-        {
-          dialogTitle: `${rawName}'s gig stats`,
-          subject: `${rawName}'s gig stats`,
-        },
-      );
+      await Sharing.shareAsync(targetUri, {
+        mimeType: "image/png",
+        UTI: "public.png",
+        dialogTitle: `${rawName}'s gig stats`,
+      });
     } catch (e: any) {
       Alert.alert(
         "Share failed",
@@ -817,12 +801,9 @@ export function ProfileScreen({
     } finally {
       setSharingProfile(false);
     }
-  }, [displayName, sharingProfile]);
+  }, [displayName, sharingProfile, stats, loading]);
 
   const rawDisplayName = displayName.trim() || "Music Fan";
-  const totalGigs = stats?.total ?? 0;
-  const topArtist = stats?.topArtist ?? "—";
-  const topVenue = stats?.topVenue ?? "—";
   const selectedPreset = avatarPresets.find(
     (preset) => preset.id === avatarPreset,
   );
@@ -898,6 +879,7 @@ export function ProfileScreen({
               )}
 
               <Pressable
+                disabled={loading || !stats || sharingProfile}
                 onPress={() => void handleShareProfile()}
                 style={({ pressed }) => [
                   styles.shareButton,
@@ -1007,7 +989,7 @@ export function ProfileScreen({
                 ? "Starting deletion…"
                 : "Delete account"
             }
-            subtitle="Permanently remove your account and gig history"
+            subtitle="Permanently remove your account"
             onPress={
               startingDeletion
                 ? undefined
@@ -1069,7 +1051,7 @@ export function ProfileScreen({
             <View style={styles.toggleRowNoBorder}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.toggleTitle}>Share usage analytics</Text>
-                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account identifier</Text>
+                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account</Text>
               </View>
               <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
                 disabled={analytics.busy && !analytics.canWithdraw} onValueChange={(value) => void analytics.choose(value)}
@@ -1131,84 +1113,16 @@ export function ProfileScreen({
           ref={shareCardRef}
           options={{ format: "png", quality: 1 }}
         >
-          <View style={styles.shareCard}>
-            <View style={styles.shareCardHeader}>
-              <Image
-                source={require("../../assets/wegig-logo.png")}
-                style={styles.shareCardLogo}
-                resizeMode="contain"
-              />
-            </View>
-
-            <View style={styles.shareCardProfileRow}>
-              <View style={styles.shareCardAvatar}>
-                {avatarUri ? (
-                  <Image
-                    source={{ uri: avatarUri }}
-                    style={styles.shareCardAvatarImage}
-                  />
-                ) : selectedPreset ? (
-                  <Image
-                    source={selectedPreset.image}
-                    style={styles.shareCardAvatarImage}
-                  />
-                ) : (
-                  <Text style={styles.shareCardAvatarText}>
-                    {rawDisplayName.slice(0, 1).toUpperCase()}
-                  </Text>
-                )}
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.shareCardName}>
-                  {`${rawDisplayName}'s gig stats`}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.shareCardStatsRow}>
-              <View style={styles.shareCardStatSmall}>
-                <Text style={styles.shareCardStatValue}>
-                  {totalGigs}
-                </Text>
-                <Text style={styles.shareCardStatLabel}>
-                  Gigs logged
-                </Text>
-              </View>
-
-              <View style={styles.shareCardDivider} />
-
-              <View style={styles.shareCardStat}>
-                <Text
-                  style={styles.shareCardStatValue}
-                  numberOfLines={1}
-                >
-                  {topArtist}
-                </Text>
-                <Text style={styles.shareCardStatLabel}>
-                  Top artist
-                </Text>
-              </View>
-
-              <View style={styles.shareCardDivider} />
-
-              <View style={styles.shareCardStat}>
-                <Text
-                  style={styles.shareCardStatValue}
-                  numberOfLines={1}
-                >
-                  {topVenue}
-                </Text>
-                <Text style={styles.shareCardStatLabel}>
-                  Top venue
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.shareCardFooter}>
-              Tracked with WeGig
-            </Text>
-          </View>
+          <ProfileShareCard
+            name={rawDisplayName}
+            avatar={avatarUri ? { uri: avatarUri } : selectedPreset?.image}
+            total={stats?.total ?? 0}
+            artists={stats?.artists ?? 0}
+            venues={stats?.venues ?? 0}
+            cities={stats?.cities ?? 0}
+            topArtist={stats?.topArtist ?? ""}
+            topArtistCount={stats?.topArtistCount ?? 0}
+          />
         </ViewShot>
       </View>
 

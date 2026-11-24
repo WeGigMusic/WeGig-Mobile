@@ -49,7 +49,7 @@ export default function ProfileShareCard({name, avatar, total, artists, venues, 
 const cream = "#eee6d6";
 const styles = StyleSheet.create({
   card: {width: 400, height: 600, padding: 24, backgroundColor: "#161616", overflow:"hidden"},
-  logo: {width: 150, height: 42, marginLeft: -12, marginBottom: 8},
+  logo: {width: 150, height: 42, marginLeft: -12, marginBottom: 8, opacity: 0.84},
   hero: {flexDirection:"row", alignItems:"center", gap: 12},
   frame: {width: 130, height: 166, padding: 5, paddingBottom: 15, backgroundColor: cream, transform:[{rotate:"-5deg"}]},
   photo: {width:"100%",height:"100%",resizeMode:"cover"},

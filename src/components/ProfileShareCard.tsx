@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   heroRight: {flex:1,minWidth:0},
   name: {color:cream,fontSize:29,fontWeight:"900",marginBottom:-8,textAlign:"center"},
   paper: {height:110,justifyContent:"center",alignItems:"center",paddingHorizontal:24},
-  total: {color:"#141414",fontSize:60,fontWeight:"900",lineHeight:66,width:"100%",textAlign:"center",transform:[{translateY:13}]},
+  total: {color:"#141414",fontSize:46,fontWeight:"900",lineHeight:52,width:"100%",textAlign:"center",transform:[{translateY:6}]},
   label: {color:cream,fontSize:13,fontWeight:"900",textAlign:"center",marginTop:-12},
   stats: {flexDirection:"row",marginTop:16,paddingVertical:10,borderTopWidth:1,borderBottomWidth:1,borderColor:cream},
   stat: {flex:1,minWidth:0,alignItems:"center",paddingHorizontal:4},

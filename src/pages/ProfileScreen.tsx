@@ -768,7 +768,7 @@ export function ProfileScreen({
       }
 
       const rawName = displayName.trim() || "Music Fan";
-      const fileName = `${toSafeFileName(rawName)}.png`;
+      const fileName = `${toSafeFileName(rawName)}\'s WeGig.png`;
       const targetUri = `${FileSystem.cacheDirectory}${fileName}`;
 
       const tempUri = await captureRef(shareCardRef, {

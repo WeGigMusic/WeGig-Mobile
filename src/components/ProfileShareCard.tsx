@@ -1,4 +1,5 @@
 import React from "react";
+import { ColorMatrix, grayscale } from "react-native-color-matrix-image-filters";
 import { Image, ImageBackground, ImageSourcePropType, StyleSheet, Text, View } from "react-native";
 
 type Props = {
@@ -20,7 +21,7 @@ export default function ProfileShareCard({name, avatar, total, artists, venues, 
       <View style={styles.hero}>
         <View style={styles.frame}>
           <View style={styles.photoWindow}>
-            {avatar ? <Image source={avatar} style={styles.photo} /> : <View style={styles.fallback}><Text style={styles.initial}>{name.charAt(0).toUpperCase()}</Text></View>}
+            {avatar ? <ColorMatrix matrix={grayscale(1)} style={styles.photo}><Image source={avatar} style={styles.photo} /></ColorMatrix> : <View style={styles.fallback}><Text style={styles.initial}>{name.charAt(0).toUpperCase()}</Text></View>}
           </View>
           <Image source={require("../../assets/share/photo-frame.png")} style={styles.frameOverlay} resizeMode="stretch" />
         </View>

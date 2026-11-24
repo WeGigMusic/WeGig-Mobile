@@ -12,6 +12,9 @@
       },
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "image": "macos-tahoe-26.5-xcode-26.6"
       }
     },
     "preview": {
@@ -21,6 +24,9 @@
       },
       "env": {
         "EXPO_PUBLIC_ANALYTICS_ENABLED": "true"
+      },
+      "ios": {
+        "image": "macos-tahoe-26.5-xcode-26.6"
       }
     },
     "production": {
@@ -31,6 +37,9 @@
       "android": {
         "buildType": "app-bundle",
         "gradleCommand": ":app:dependencyInsight --dependency okhttp --configuration releaseRuntimeClasspath :app:bundleRelease"
+      },
+      "ios": {
+        "image": "macos-tahoe-26.5-xcode-26.6"
       }
     }
   },

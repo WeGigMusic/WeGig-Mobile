@@ -1051,10 +1051,14 @@ export function ProfileScreen({
             <View style={styles.toggleRowNoBorder}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.toggleTitle}>Share usage analytics</Text>
-                <Text style={styles.toggleSubtitle}>Optional usage data linked to your account</Text>
+                <Text style={styles.toggleSubtitle}>
+                  {analytics.busy || analytics.eligible
+                    ? "Optional usage data linked to your account"
+                    : "Analytics sharing is unavailable on this device right now"}
+                </Text>
               </View>
               <Switch accessibilityLabel="Share usage analytics" value={analytics.accepted === true}
-                disabled={analytics.busy && !analytics.canWithdraw} onValueChange={(value) => void analytics.choose(value)}
+                disabled={!analytics.canWithdraw && (analytics.busy || !analytics.eligible)} onValueChange={(value) => void analytics.choose(value)}
                 trackColor={SWITCH_TRACK_COLORS} ios_backgroundColor={SWITCH_TRACK_COLORS.false} />
             </View>
           )}

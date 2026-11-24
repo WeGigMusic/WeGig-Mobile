@@ -14,6 +14,7 @@ const source = ts.transpileModule(fs.readFileSync(path.join(__dirname, "../src/c
 function setup() {
   const storage = new Map(), remote = new Map([["a", true], ["b", true]]);
   let retry, consentRead;
+  let ageCheck = async () => true;
   let online = true, user = "a", starts = [], active = false, listener, cleanup, slots = [], cursor = 0, effect, component;
   const react = {
     createContext: () => ({ Provider: "provider" }),
@@ -53,7 +54,7 @@ function setup() {
   } });
   function render() {
     cursor = 0;
-    const outer = mod.exports.AnalyticsPreference({ userId: user });
+    const outer = mod.exports.AnalyticsPreference({ userId: user, ageAllowsAnalytics: () => ageCheck() });
     component = outer.type(outer.props);
     if (effect) { const fn = effect; effect = undefined; cleanup = fn(); }
     return component.props.value;
@@ -61,6 +62,7 @@ function setup() {
   const settle = async () => { await new Promise(resolve => setImmediate(resolve)); return render(); };
   function unmount() { cleanup?.(); cleanup = undefined; slots = []; }
   return { storage, remote, starts, render, settle, unmount,
+    ageCheck(fn) { ageCheck = fn; },
     online(v) { online = v; },
     mockConsentRead(read) { consentRead = read; },
     tick() { retry?.(); },
@@ -192,5 +194,40 @@ test("a stale consent read cannot start analytics after an account switch", asyn
   finishRead(true);
   assert.equal((await h.settle()).accepted, false);
   assert.equal(h.active(), false);
+  assert.deepEqual(h.starts, []);
+});
+
+test("age restrictions pause opted-in analytics and leave withdrawal available", async () => {
+  const h = setup();
+  h.render();
+  assert.equal((await h.settle()).eligible, true);
+  assert.equal(h.active(), true);
+
+  h.ageCheck(async () => false);
+  h.foreground();
+  const preference = await h.settle();
+  assert.equal(preference.eligible, false);
+  assert.equal(preference.canWithdraw, true);
+  assert.equal(h.active(), false);
+  await preference.choose(false);
+  assert.equal(h.remote.get("a"), false);
+});
+
+test("pending age checks cannot enable analytics and ineligible accounts cannot opt in", async () => {
+  const h = setup();
+  h.remote.delete("a");
+  let resolveAge;
+  h.ageCheck(() => new Promise(resolve => { resolveAge = resolve; }));
+  h.render();
+  let preference = await h.settle();
+  assert.equal(h.active(), false);
+  await preference.choose(true);
+  assert.equal(h.remote.has("a"), false);
+
+  resolveAge(false);
+  preference = await h.settle();
+  await preference.choose(true);
+  assert.equal(preference.eligible, false);
+  assert.equal(h.remote.has("a"), false);
   assert.deepEqual(h.starts, []);
 });

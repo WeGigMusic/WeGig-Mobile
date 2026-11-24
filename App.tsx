@@ -20,6 +20,7 @@ import {
 } from "expo-av";
 import type { Session } from "@supabase/supabase-js";
 import { posthog, stopAnalytics } from "./src/lib/analytics";
+import { StoreAgeGate } from "./src/components/StoreAgeGate";
 import { AnalyticsPreference } from "./src/components/AnalyticsPreference";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ToastProvider } from "./src/components/ToastProvider";
@@ -738,9 +739,13 @@ function WeGigApp() {
     <SafeAreaProvider>
       <>
         <ToastProvider>
-          <AnalyticsPreference key={session.user.id} userId={session.user.id} email={session.user.email}>
-            <AppShell key={session.user.id} userId={session.user.id} />
-          </AnalyticsPreference>
+          <StoreAgeGate key={session.user.id}>
+            {ageAllowsAnalytics => (
+              <AnalyticsPreference userId={session.user.id} email={session.user.email} ageAllowsAnalytics={ageAllowsAnalytics}>
+                <AppShell userId={session.user.id} />
+              </AnalyticsPreference>
+            )}
+          </StoreAgeGate>
         </ToastProvider>
       </>
     </SafeAreaProvider>

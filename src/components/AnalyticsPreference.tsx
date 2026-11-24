@@ -6,19 +6,20 @@ import { readAnalyticsConsent, saveAnalyticsConsent } from "../lib/analyticsCons
 import { analyticsEnabled, startAnalytics, stopAnalytics } from "../lib/analytics";
 import { supabase } from "../lib/supabase";
 
-type Preference = { accepted: boolean | null; busy: boolean; canWithdraw: boolean; choose: (value: boolean) => Promise<void> };
-const Context = React.createContext<Preference>({ accepted: null, busy: true, canWithdraw: false, choose: async () => {} });
+type Preference = { accepted: boolean | null; busy: boolean; eligible: boolean; canWithdraw: boolean; choose: (value: boolean) => Promise<void> };
+const Context = React.createContext<Preference>({ accepted: null, busy: true, eligible: false, canWithdraw: false, choose: async () => {} });
 export const useAnalyticsPreference = () => React.useContext(Context);
 
-type AnalyticsPreferenceProps = React.PropsWithChildren<{ userId: string; email?: string }>;
+type AnalyticsPreferenceProps = React.PropsWithChildren<{ userId: string; email?: string; ageAllowsAnalytics: () => Promise<boolean> }>;
 
 export function AnalyticsPreference(props: AnalyticsPreferenceProps) {
   return analyticsEnabled ? <EnabledAnalyticsPreference {...props} /> : <>{props.children}</>;
 }
 
-function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPreferenceProps) {
+function EnabledAnalyticsPreference({ userId, email, ageAllowsAnalytics, children }: AnalyticsPreferenceProps) {
   const [accepted, setAccepted] = React.useState<boolean | null>(null);
   const [busy, setBusy] = React.useState(true);
+  const [eligible, setEligible] = React.useState(false);
   const [prompt, setPrompt] = React.useState(false);
   const epoch = React.useRef(0);
   const alive = React.useRef(false);
@@ -37,6 +38,8 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       const n = ++epoch.current;
       stopAnalytics();
       setBusy(true);
+      setEligible(false);
+      setPrompt(false);
       refreshQueue.current = refreshQueue.current.then(async () => {
         try {
           if (!current(n) || !(await verify()) || !current(n)) return;
@@ -50,13 +53,18 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
             if (!current(n)) return;
             await AsyncStorage.removeItem(pendingKey);
             withdrawn.current = false;
+            const allowed = await ageAllowsAnalytics();
+            if (current(n) && AppState.currentState === "active") setEligible(allowed);
             return;
           }
           const value = await readAnalyticsConsent(userId);
           if (!current(n) || !(await verify()) || !current(n)) return;
           setAccepted(value);
-          setPrompt(value === null);
-          if (value === true && AppState.currentState === "active") await startAnalytics(userId, email);
+          const allowed = await ageAllowsAnalytics();
+          if (!current(n) || !(await verify()) || !current(n) || AppState.currentState !== "active") return;
+          setEligible(allowed);
+          setPrompt(allowed && value === null);
+          if (allowed && value === true) await startAnalytics(userId, email);
         } catch {
           if (current(n)) {
             setAccepted(false);
@@ -77,9 +85,9 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       if (!refreshing && withdrawn.current && AppState.currentState === "active") void refresh();
     }, 15000);
     return () => { clearInterval(retry); alive.current = false; ++epoch.current; stopAnalytics(); sub.remove(); };
-  }, [userId, email]);
+  }, [userId, email, ageAllowsAnalytics]);
   const choose = async (value: boolean) => {
-    if (saving.current || (busy && value)) return;
+    if (saving.current || (value && (busy || !eligible))) return;
     saving.current = true;
     const n = ++epoch.current;
     stopAnalytics();
@@ -93,12 +101,15 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       }
       await refreshQueue.current;
       if (!(await verify()) || !current(n)) return;
+      if (value && (!(await ageAllowsAnalytics()) || !current(n))) return;
       await saveAnalyticsConsent(userId, value);
       await AsyncStorage.removeItem(pendingKey);
       withdrawn.current = false;
       if (!current(n) || !(await verify()) || !current(n)) return;
       setAccepted(value); setPrompt(false);
-      if (value && AppState.currentState === "active") await startAnalytics(userId, email);
+      if (value && await ageAllowsAnalytics() && current(n) && AppState.currentState === "active") {
+        await startAnalytics(userId, email);
+      }
     } catch {
       if (current(n)) {
         setAccepted(false);
@@ -111,7 +122,7 @@ function EnabledAnalyticsPreference({ userId, email, children }: AnalyticsPrefer
       }
     } finally { saving.current = false; if (current(n)) setBusy(false); }
   };
-  return <Context.Provider value={{accepted, busy, canWithdraw: accepted === true && !saving.current, choose}}>
+  return <Context.Provider value={{accepted, busy, eligible, canWithdraw: accepted === true && !saving.current, choose}}>
     {children}
     <Modal visible={prompt} transparent animationType="fade" onRequestClose={() => void choose(false)}>
       <View style={{flex: 1, justifyContent: "center", padding: 24, backgroundColor: "rgba(0,0,0,0.55)"}}>

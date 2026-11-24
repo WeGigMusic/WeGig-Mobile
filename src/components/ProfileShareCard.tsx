@@ -24,8 +24,8 @@ export default function ProfileShareCard({name, avatar, total, artists, venues, 
           <Text style={styles.name} numberOfLines={2} adjustsFontSizeToFit>{name.toUpperCase()}</Text>
           <ImageBackground source={require("../../assets/share/blue-paper.png")} style={styles.paper} resizeMode="stretch">
             <Text style={styles.total} numberOfLines={1} adjustsFontSizeToFit>{total}</Text>
-            <Text style={styles.label}>GIGS ATTENDED</Text>
-          </ImageBackground>
+            </ImageBackground>
+          <Text style={styles.label}>GIGS ATTENDED</Text>
         </View>
       </View>
       <View style={styles.stats}>
@@ -39,6 +39,7 @@ export default function ProfileShareCard({name, avatar, total, artists, venues, 
       {topArtistCount > 0 && <View style={styles.highlight}>
         <Text style={styles.tag}>MOST-SEEN ARTIST</Text>
         <Text style={styles.artist} numberOfLines={2} adjustsFontSizeToFit>{topArtist.toUpperCase()}</Text>
+        <View style={styles.underline} />
         <Text style={styles.statLabel}>Seen {topArtistCount} {topArtistCount === 1 ? "time" : "times"}</Text>
       </View>}
     </ImageBackground>
@@ -55,15 +56,16 @@ const styles = StyleSheet.create({
   fallback: {flex:1,backgroundColor:"#292929",alignItems:"center",justifyContent:"center"},
   initial: {color:cream,fontSize:58,fontWeight:"900"},
   heroRight: {flex:1,minWidth:0},
-  name: {color:cream,fontSize:24,fontWeight:"900",marginBottom:4},
-  paper: {height:150,justifyContent:"center",alignItems:"center",padding:16},
-  total: {color:"#fff",fontSize:78,fontWeight:"900",lineHeight:82,width:"100%",textAlign:"center"},
-  label: {color:"#fff",fontSize:13,fontWeight:"900"},
-  stats: {flexDirection:"row",marginTop:22,paddingVertical:12,borderTopWidth:1,borderBottomWidth:1,borderColor:cream,backgroundColor:"#181818"},
+  name: {color:cream,fontSize:24,fontWeight:"900",marginBottom:4,textAlign:"center"},
+  paper: {height:110,justifyContent:"center",alignItems:"center",paddingHorizontal:24},
+  total: {color:"#141414",fontSize:60,fontWeight:"900",lineHeight:66,width:"100%",textAlign:"center"},
+  label: {color:cream,fontSize:13,fontWeight:"900",textAlign:"center",marginTop:0},
+  stats: {flexDirection:"row",marginTop:22,paddingVertical:12,borderTopWidth:1,borderBottomWidth:1,borderColor:cream},
   stat: {flex:1,minWidth:0,alignItems:"center",paddingHorizontal:4},
   value: {color:cream,fontSize:39,fontWeight:"900",width:"100%",textAlign:"center"},
   statLabel: {color:cream,fontSize:11,fontWeight:"800",textAlign:"center"},
-  highlight: {marginTop:18,alignItems:"flex-start",backgroundColor:"#181818",padding:10},
+  highlight: {marginTop:18,alignItems:"flex-start",padding:10},
   tag: {color:"#065fac",backgroundColor:cream,padding:5,fontSize:12,fontWeight:"900"},
+  underline: {height:4,width:"65%",backgroundColor:"#168bff",transform:[{rotate:"-2deg"}],marginBottom:8},
   artist: {color:cream,fontSize:34,fontWeight:"900",marginVertical:5,width:"100%"},
 });

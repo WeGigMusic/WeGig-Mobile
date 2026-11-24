@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, ImageBackground, ImageSourcePropType, StyleSheet, Text, View } from "react-native";
+import { Image, ImageBackground, ImageSourcePropType, Platform, StyleSheet, Text, View } from "react-native";
 
 type Props = {
   name: string;
@@ -24,7 +24,7 @@ export default function ProfileShareCard({name, avatar, total, artists, venues, 
           <Text style={styles.name} numberOfLines={2} adjustsFontSizeToFit>{name.toUpperCase()}</Text>
           <ImageBackground source={require("../../assets/share/blue-paper.png")} style={styles.paper} resizeMode="stretch">
             <Text style={styles.total} numberOfLines={1} adjustsFontSizeToFit>{total}</Text>
-            </ImageBackground>
+          </ImageBackground>
           <Text style={styles.label}>GIGS ATTENDED</Text>
         </View>
       </View>
@@ -47,25 +47,26 @@ export default function ProfileShareCard({name, avatar, total, artists, venues, 
 }
 
 const cream = "#eee6d6";
+const posterFont = Platform.OS === "ios" ? "AvenirNextCondensed-Heavy" : "sans-serif-condensed";
 const styles = StyleSheet.create({
   card: {width: 400, height: 600, padding: 24, backgroundColor: "#161616", overflow:"hidden"},
-  logo: {width: 116, height: 36, marginBottom: 14},
+  logo: {width: 150, height: 42, marginLeft: -12, marginBottom: 8},
   hero: {flexDirection:"row", alignItems:"center", gap: 12},
   frame: {width: 130, height: 166, padding: 5, paddingBottom: 15, backgroundColor: cream, transform:[{rotate:"-5deg"}]},
   photo: {width:"100%",height:"100%",resizeMode:"cover"},
   fallback: {flex:1,backgroundColor:"#292929",alignItems:"center",justifyContent:"center"},
   initial: {color:cream,fontSize:58,fontWeight:"900"},
   heroRight: {flex:1,minWidth:0},
-  name: {color:cream,fontSize:24,fontWeight:"900",marginBottom:4,textAlign:"center"},
+  name: {color:cream,fontFamily:posterFont,fontSize:29,fontWeight:"900",marginBottom:-8,textAlign:"center"},
   paper: {height:110,justifyContent:"center",alignItems:"center",paddingHorizontal:24},
-  total: {color:"#141414",fontSize:60,fontWeight:"900",lineHeight:66,width:"100%",textAlign:"center"},
-  label: {color:cream,fontSize:13,fontWeight:"900",textAlign:"center",marginTop:0},
-  stats: {flexDirection:"row",marginTop:22,paddingVertical:12,borderTopWidth:1,borderBottomWidth:1,borderColor:cream},
+  total: {color:"#141414",fontFamily:posterFont,fontSize:57,fontWeight:"900",lineHeight:64,width:"100%",textAlign:"center",transform:[{translateY:4}]},
+  label: {color:cream,fontSize:13,fontWeight:"900",textAlign:"center",marginTop:-12},
+  stats: {flexDirection:"row",marginTop:16,paddingVertical:10,borderTopWidth:1,borderBottomWidth:1,borderColor:cream},
   stat: {flex:1,minWidth:0,alignItems:"center",paddingHorizontal:4},
   value: {color:cream,fontSize:39,fontWeight:"900",width:"100%",textAlign:"center"},
   statLabel: {color:cream,fontSize:11,fontWeight:"800",textAlign:"center"},
-  highlight: {marginTop:18,alignItems:"flex-start",padding:10},
+  highlight: {marginTop:9,alignItems:"flex-start",paddingHorizontal:10,paddingVertical:4},
   tag: {color:"#065fac",backgroundColor:cream,padding:5,fontSize:12,fontWeight:"900"},
-  underline: {height:4,width:"65%",backgroundColor:"#168bff",transform:[{rotate:"-2deg"}],marginBottom:8},
-  artist: {color:cream,fontSize:34,fontWeight:"900",marginVertical:5,width:"100%"},
+  underline: {height:2,width:"65%",backgroundColor:"#168bff",transform:[{rotate:"-2deg"}],marginBottom:8},
+  artist: {color:cream,fontFamily:posterFont,fontSize:36,fontWeight:"900",marginVertical:3,width:"100%"},
 });
